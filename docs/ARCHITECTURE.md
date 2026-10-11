@@ -73,6 +73,17 @@ Raw data is copied on the thread that writes it, statistics are computed on a wo
 ### Job System
 `JobSystem` is a work-stealing pool with two cores left to the game threads. Jobs never touch Minecraft state; they get copies and hand results back through `MainThreadQueue`, which runs them within a time budget. Phase 1 adds job priorities and dependencies, Phase 2 moves chunk meshing onto it.
 
+### Shader and Pipeline Caches
+Vanilla compiles every GLSL shader to SPIR-V with shaderc at each start and resource reload, and creates its Vulkan pipelines without a `VkPipelineCache`.
+
+- `SpirvCache` keys each compilation by its full input (`ShaderCacheKey`) and keeps the SPIR-V in `<game>/aervium/cache/spirv/`. Hits skip shaderc; misses compile as vanilla and write the result on a worker.
+- `VulkanPipelineCache` hands one pipeline cache to every pipeline creation, loads it from `<game>/aervium/cache/vulkan-pipelines.bin` when its header matches the GPU and driver, and saves it on shutdown.
+- `PipelineWarmup` compiles the built-in pipelines vanilla would only compile on the render thread at first use and inserts them through the budgeted main-thread queue.
+- The startup report in the log (`Aervium startup: ...`) shows the time to the first screen, shader hits and misses and pipeline creation time; `PipelineCacheMixin` logs every pipeline compiled late on the render thread.
+
+### Modules
+Optimizations that change game classes are mixins grouped into modules (`OptimizationModule`). `MixinModules` reads `config/aervium-modules.properties` before any mixin applies and writes every switch back; renderer modules also stay off with Sodium or Iris. Features that run later (dynamic frame rate) use the normal client config.
+
 ## Benchmark
 
 `-Daervium.benchmark=true` (works with `launcher/launch.ps1 -Define`) starts the benchmark from the first screen; `-Daervium.benchmark.quit=true` closes the game afterwards.
@@ -98,21 +109,28 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 2. Nothing allocates per frame in recording or drawing code; copies and summaries happen at most every five ticks.
 3. Every job result reaches Minecraft state only through `MainThreadQueue` on the main thread.
 4. The benchmark restores every option it changes (pause on lost focus) and only deletes its own `aervium-benchmark` world.
-5. With Sodium or Iris installed no optimization runs.
+. Every optimization is a module: mixins of a switched-off module are never applied (`MixinModules`), and runtime features read their switch from the config.
+7. Caches are content addressed: anything that changes the result (game version, sources, includes, defines, GPU, driver) changes the key or invalidates the data, so a stale cache can never be used.
 
 ## Mixins
 
 | Mixin | Target | Why no API |
 |---|---|---|
 | `FrontendGpuDeviceAccessor` | `FrontendGpuDevice.backend` | The Vulkan memory allocator and its heap budgets are not exposed by renderpearl. |
+| `GlslCompilerMixin` | `GlslCompiler.compileToSpv` | No way to supply compiled shaders. |
+| `VulkanRenderPipelineMixin` | `vkCreateGraphicsPipelines` in `VulkanRenderPipeline.compile` | Vanilla passes no pipeline cache and offers no hook. |
+| `PipelineCacheMixin`, `PipelineCacheAccessor` | `PipelineCache.get`, its fields | Late compiles are invisible otherwise; the warm-up needs the device and shader source of the cache. |
+| `RenderSystemMixin` | `RenderSystem.setCurrentPipelineCache` | No event after the shader manager installs its pipelines. |
+| `FramerateLimitTrackerMixin` | `FramerateLimitTracker.getFramerateLimit` | The frame limit has no API. |
+| `PalettedContainerMixin` | `PalettedContainer` threading check | The check is a private field of every container. |
 
 ## Phases
 
 | Phase | Content | State |
 |---|---|---|
 | 0 Foundation and measurement | Project, adapter layer, telemetry (frame times, lows, MSPT, GC, RAM, VRAM, timing scopes), overlay, repeatable benchmark, unit tests | Done in 0.1 (unreleased) |
-| 1 Core and stutter killers | Precompiled SPIR-V and pipeline cache warm-up (no first-use shader stutter), zero-allocation frame arenas (FFM), job priorities and dependencies, budgeted deferred work, memory reductions (FerriteCore-like deduplication), faster startup and resource loading (ModernFix-like), Dynamic FPS (lower rate in background and menus) | Planned |
-| 2 Streaming and meshing | Predictive chunk streaming along the movement direction, parallel meshing on the job system, budgeted GPU uploads, compact vertex formats, faster light engine (ScalableLux-like) | Planned |
+| 1 Core and stutter killers | Done: SPIR-V disk cache, persistent Vulkan pipeline cache, warm-up of built-in pipelines vanilla compiles mid-game, dynamic frame rate (background and pause), lighter chunk section locks, switchable modules, startup report. Moved to Phase 2: zero-allocation frame arenas (FFM) and job priorities, because chunk meshing is their first real user. Still open: more memory reductions after heap analysis, faster resource loading | In progress |
+| 2 Streaming and meshing | Zero-allocation frame arenas (FFM) and job priorities and dependencies for the mesh jobs, Predictive chunk streaming along the movement direction, parallel meshing on the job system, budgeted GPU uploads, compact vertex formats, faster light engine (ScalableLux-like) | Planned |
 | 3 Culling and draw | Software occlusion culling (caves), entity and block entity culling, leaf and face culling, batched GUI and text drawing (ImmediatelyFast-like), multi-draw indirect | Planned |
 | 4 World and TPS | Server tick optimizations that keep vanilla behavior (Lithium-like, clean room), parallel chunk generation (C2ME-like), network compression and batching (Krypton-like) | Planned |
 | 5 Advanced Vulkan | GPU-driven culling, meshlets, async compute and transfer queues, two render paths: baseline for integrated GPUs and advanced for strong GPUs | Planned |

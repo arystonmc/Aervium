@@ -2,6 +2,8 @@ package com.aryston.aervium.client;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.client.benchmark.BenchmarkDriver;
+import com.aryston.aervium.client.pipeline.PipelineWarmup;
+import com.aryston.aervium.client.pipeline.ShaderCaches;
 import com.aryston.aervium.config.AerviumConfig;
 import com.aryston.aervium.core.budget.SystemTimings;
 import com.aryston.aervium.core.budget.TimedSystem;
@@ -13,6 +15,7 @@ import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
@@ -21,7 +24,9 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.GameShuttingDownEvent;
 
 final class ClientEvents {
+    private static final String CACHE_FOLDER = "aervium/cache";
     private static final Identifier OVERLAY_LAYER = Identifier.fromNamespaceAndPath(Aervium.MOD_ID, "telemetry");
+    private static final List<String> PASSIVE_RENDERER_MODS = CompatibilityGuard.loadedRendererMods();
     private static final ClientTelemetry TELEMETRY = new ClientTelemetry();
     private static final TelemetryOverlay OVERLAY = new TelemetryOverlay(TELEMETRY, false, AerviumConfig.defaultFrameBudget());
     private static final Optional<BenchmarkDriver> BENCHMARK = BenchmarkDriver.requested(
@@ -31,14 +36,18 @@ final class ClientEvents {
         VulkanMemoryProbe::sample
     );
 
-    private static List<String> passiveRendererMods = List.of();
     private static long frameStart;
     private static long clientTickStart;
+    private static boolean startupReported;
 
     private ClientEvents() {
     }
 
     static void register(IEventBus modBus) {
+        if (PASSIVE_RENDERER_MODS.isEmpty()) {
+            ShaderCaches.install(FMLPaths.GAMEDIR.get().resolve(CACHE_FOLDER), TELEMETRY.jobs());
+            PipelineWarmup.install(TELEMETRY.jobs(), TELEMETRY.mainThread());
+        }
         modBus.addListener(ClientEvents::onClientSetup);
         modBus.addListener(ClientEvents::onConfigLoading);
         modBus.addListener(ClientEvents::onConfigReloading);
@@ -53,9 +62,8 @@ final class ClientEvents {
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
-        passiveRendererMods = CompatibilityGuard.loadedRendererMods();
-        if (!passiveRendererMods.isEmpty()) {
-            Aervium.LOGGER.warn("Aervium keeps its optimizations off because these renderer mods are installed: {}", passiveRendererMods);
+        if (!PASSIVE_RENDERER_MODS.isEmpty()) {
+            Aervium.LOGGER.warn("Aervium keeps its optimizations off because these renderer mods are installed: {}", PASSIVE_RENDERER_MODS);
         }
         if (BENCHMARK.isPresent()) {
             Aervium.LOGGER.info("Aervium benchmark requested; it starts when the title screen is shown");
@@ -77,6 +85,9 @@ final class ClientEvents {
     private static void applyConfig() {
         OVERLAY.setVisible(AerviumConfig.OVERLAY_VISIBLE.getAsBoolean());
         OVERLAY.setBudget(AerviumConfig.frameBudget());
+        if (PASSIVE_RENDERER_MODS.isEmpty()) {
+            FrameRateGovernor.apply(AerviumConfig.frameRatePolicy());
+        }
     }
 
     private static void onFrameStart(RenderFrameEvent.Pre event) {
@@ -100,11 +111,15 @@ final class ClientEvents {
     private static void onClientTickEnd(ClientTickEvent.Post event) {
         SystemTimings.SHARED.end(TimedSystem.CLIENT_TICK, clientTickStart);
         Minecraft minecraft = Minecraft.getInstance();
+        if (!startupReported && minecraft.isGameLoadFinished()) {
+            startupReported = true;
+            ShaderCaches.reportStartup();
+        }
         while (AerviumKeys.TOGGLE_OVERLAY.consumeClick()) {
             toggleOverlay();
         }
         if (OVERLAY.isVisible()) {
-            TELEMETRY.clientTick(OVERLAY.budget(), snapshot -> OVERLAY.publish(snapshot, passiveRendererMods));
+            TELEMETRY.clientTick(OVERLAY.budget(), snapshot -> OVERLAY.publish(snapshot, PASSIVE_RENDERER_MODS));
         }
         BENCHMARK.ifPresent(benchmark -> benchmark.clientTick(minecraft));
     }
@@ -121,6 +136,7 @@ final class ClientEvents {
     }
 
     private static void onShutdown(GameShuttingDownEvent event) {
+        ShaderCaches.shutdown();
         TELEMETRY.close();
     }
 }

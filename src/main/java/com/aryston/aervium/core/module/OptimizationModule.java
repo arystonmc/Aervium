@@ -1,0 +1,24 @@
+package com.aryston.aervium.core.module;
+
+public enum OptimizationModule {
+    SHADER_CACHE("shaderCache", true),
+    PIPELINE_CACHE("pipelineCache", true),
+    PIPELINE_WARMUP("pipelineWarmup", true),
+    COMPACT_CHUNK_LOCKS("compactChunkLocks", false);
+
+    private final String key;
+    private final boolean renderer;
+
+    OptimizationModule(String key, boolean renderer) {
+        this.key = key;
+        this.renderer = renderer;
+    }
+
+    public String key() {
+        return key;
+    }
+
+    public boolean renderer() {
+        return renderer;
+    }
+}

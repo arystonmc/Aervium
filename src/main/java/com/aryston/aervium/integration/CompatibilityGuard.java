@@ -4,7 +4,7 @@ import java.util.List;
 import net.neoforged.fml.ModList;
 
 public final class CompatibilityGuard {
-    private static final List<String> REPLACED_RENDERERS = List.of("sodium", "iris");
+    static final List<String> REPLACED_RENDERERS = List.of("sodium", "iris");
 
     private CompatibilityGuard() {
     }

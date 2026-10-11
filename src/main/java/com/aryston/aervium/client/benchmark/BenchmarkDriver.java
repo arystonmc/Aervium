@@ -1,6 +1,7 @@
 package com.aryston.aervium.client.benchmark;
 
 import com.aryston.aervium.Aervium;
+import com.aryston.aervium.client.FrameRateGovernor;
 import com.aryston.aervium.core.job.JobSystem;
 import com.aryston.aervium.core.job.MainThreadQueue;
 import com.aryston.aervium.core.telemetry.FrameTimeRecorder;
@@ -117,6 +118,7 @@ public final class BenchmarkDriver {
         pauseOnLostFocus = minecraft.options.pauseOnLostFocus;
         minecraft.options.pauseOnLostFocus = false;
         focusOverridden = true;
+        FrameRateGovernor.suspend(true);
         startedAt = LocalDateTime.now().format(STARTED_AT);
         pendingAnchors = BenchmarkWorld.prepare(server);
         stage = Stage.LOCATE;
@@ -253,6 +255,7 @@ public final class BenchmarkDriver {
 
     private void end(Minecraft minecraft) {
         stage = Stage.FINISHED;
+        FrameRateGovernor.suspend(false);
         if (focusOverridden) {
             minecraft.options.pauseOnLostFocus = pauseOnLostFocus;
             focusOverridden = false;

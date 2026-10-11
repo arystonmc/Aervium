@@ -18,6 +18,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Benchmark route and scenes | `BenchmarkRoute`, `BenchmarkScene`, `LinePath`, `OrbitPath` |
 | Benchmark world, commands and camera | `BenchmarkWorld`, `BenchmarkCommands`, `BenchmarkCamera` |
 | Benchmark flow and report | `BenchmarkDriver`, `SceneMeasurement`, `BenchmarkReport`, `BenchmarkText`, `BenchmarkFiles`, `BenchmarkComparison` |
+| Shader and pipeline caches, startup report | `ShaderCaches`, `SpirvCache`, `VulkanPipelineCache`, `ShaderCacheKey`, `DiskCache` |
+| Pipelines compiled in the middle of a frame | `PipelineWarmup`, `PipelineCacheMixin` |
+| Dynamic frame rate | `FrameRatePolicy`, `FrameRateGovernor`, `FramerateLimitTrackerMixin` |
+| Chunk memory | `PalettedContainerMixin` |
+| Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
 | Key bindings | `AerviumKeys` |
@@ -144,6 +149,60 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Depends on: `TimedSystem`, `FrameBudget`, `TelemetrySnapshot.SystemTiming`.
 - Notes: Each system is written by one thread; readers accept slightly stale values.
 
+#### FrameRatePolicy
+- Path: `src/main/java/com/aryston/aervium/core/budget/FrameRatePolicy.java`
+- Role: Dynamic frame rate: keeps the vanilla limit while the game is active and caps it while the window is in the background (`UNFOCUSED`) or the single player game is paused (`PAUSED`); never raises a lower vanilla limit.
+- Depends on: nothing.
+
+### `com.aryston.aervium.core.cache`
+
+#### ContentKey
+- Path: `src/main/java/com/aryston/aervium/core/cache/ContentKey.java`
+- Role: SHA-256 key builder over separated text parts.
+- Depends on: nothing.
+
+#### DiskCache
+- Path: `src/main/java/com/aryston/aervium/core/cache/DiskCache.java`
+- Role: One file per key in a folder; writes go through a temporary file and an atomic move, so a crash never leaves half an entry.
+- Depends on: nothing.
+
+#### ShaderIncludes
+- Path: `src/main/java/com/aryston/aervium/core/cache/ShaderIncludes.java`
+- Role: Finds `#include` and `#moj_import` targets of a shader source, directly and transitively (cycles stop once every include is seen).
+- Depends on: nothing.
+
+#### ShaderCacheKey
+- Path: `src/main/java/com/aryston/aervium/core/cache/ShaderCacheKey.java`
+- Role: Cache key of one shader compilation: format version, game version, shader name and stage, source, every transitive include with its content, sorted defines and flags, and the device switches that change the compiled code.
+- Depends on: `ContentKey`, `ShaderIncludes`.
+
+#### SpirvBinary
+- Path: `src/main/java/com/aryston/aervium/core/cache/SpirvBinary.java`
+- Role: Rejects cache entries that are not whole SPIR-V words or lack the SPIR-V magic number.
+- Depends on: nothing.
+
+#### PipelineCacheHeader
+- Path: `src/main/java/com/aryston/aervium/core/cache/PipelineCacheHeader.java`
+- Role: Checks the Vulkan pipeline cache header (version one, vendor, device, pipeline cache UUID) before saved data is handed to the driver.
+- Depends on: nothing.
+
+#### CacheStatistics
+- Path: `src/main/java/com/aryston/aervium/core/cache/CacheStatistics.java`
+- Role: Thread-safe hit, miss and work time counters for the startup report.
+- Depends on: nothing.
+
+### `com.aryston.aervium.core.module`
+
+#### OptimizationModule
+- Path: `src/main/java/com/aryston/aervium/core/module/OptimizationModule.java`
+- Role: Optimizations that are switched on or off before the game starts, with their key in `config/aervium-modules.properties` and whether they touch the renderer (off when Sodium or Iris is installed).
+- Depends on: nothing.
+
+#### ModuleSettings
+- Path: `src/main/java/com/aryston/aervium/core/module/ModuleSettings.java`
+- Role: Reads `key=true|false` lines (unknown lines are ignored, every module defaults to on) and writes every module back so players see all switches.
+- Depends on: `OptimizationModule`.
+
 ### `com.aryston.aervium.core.job`
 
 #### JobSystem
@@ -261,15 +320,21 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### CompatibilityGuard
 - Path: `src/main/java/com/aryston/aervium/integration/CompatibilityGuard.java`
-- Role: Lists installed renderer mods (Sodium, Iris) that turn Aervium's optimizations off.
+- Role: Lists installed renderer mods (Sodium, Iris) that turn Aervium's optimizations off; `REPLACED_RENDERERS` is shared with `MixinModules`.
 - Depends on: nothing inside the mod.
+
+#### MixinModules
+- Path: `src/main/java/com/aryston/aervium/integration/MixinModules.java`
+- Role: Mixin config plugin: reads and rewrites `config/aervium-modules.properties` before any mixin applies, skips the mixins of switched-off modules and skips renderer modules when Sodium or Iris is in the mod list.
+- Depends on: `ModuleSettings`, `OptimizationModule`, `CompatibilityGuard`.
+- Notes: Runs before mods are constructed, so it reads the mod list through `FMLLoader.getCurrent().getLoadingModList()`.
 
 ### `com.aryston.aervium.config`
 
 #### AerviumConfig
 - Path: `src/main/java/com/aryston/aervium/config/AerviumConfig.java`
-- Role: Client config: overlay visibility (saved when F7 toggles it) and the target frame rate of the frame budget.
-- Depends on: `FrameBudget`.
+- Role: Client config: overlay visibility (saved when F7 toggles it), the target frame rate of the frame budget, and dynamic frame rate (on by default, 30 FPS in the background, 60 FPS while paused).
+- Depends on: `FrameBudget`, `FrameRatePolicy`.
 
 ### `com.aryston.aervium.client`
 
@@ -280,8 +345,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### ClientEvents
 - Path: `src/main/java/com/aryston/aervium/client/ClientEvents.java`
-- Role: Client adapter: frame start and end (`RenderFrameEvent`), client tick scopes, the F7 key, the overlay layer, config loading, Sodium and Iris check, world joins and shutdown.
-- Depends on: `ClientTelemetry`, `TelemetryOverlay`, `BenchmarkDriver`, `AerviumKeys`, `AerviumConfig`, `CompatibilityGuard`, `SystemTimings`.
+- Role: Client adapter: frame start and end (`RenderFrameEvent`), client tick scopes, the F7 key, the overlay layer, config loading (overlay, budget, dynamic frame rate), Sodium and Iris check, installing the shader caches and the pipeline warm-up (only without Sodium and Iris), the startup report, world joins and shutdown (saves the pipeline cache before the job system stops).
+- Depends on: `ClientTelemetry`, `TelemetryOverlay`, `BenchmarkDriver`, `AerviumKeys`, `AerviumConfig`, `CompatibilityGuard`, `SystemTimings`, `ShaderCaches`, `PipelineWarmup`, `FrameRateGovernor`.
+
+#### FrameRateGovernor
+- Path: `src/main/java/com/aryston/aervium/client/FrameRateGovernor.java`
+- Role: Applies the `FrameRatePolicy` to the vanilla frame limit from the window focus and pause state; suspended while the benchmark runs.
+- Depends on: `FrameRatePolicy`.
 
 #### ClientTelemetry
 - Path: `src/main/java/com/aryston/aervium/client/ClientTelemetry.java`
@@ -307,6 +377,29 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/client/VulkanMemoryProbe.java`
 - Role: Reads used and budgeted device-local memory from the game's Vulkan memory allocator (`vmaGetHeapBudgets`).
 - Depends on: `FrontendGpuDeviceAccessor`, `VramUsage`.
+
+### `com.aryston.aervium.client.pipeline`
+
+#### ShaderCaches
+- Path: `src/main/java/com/aryston/aervium/client/pipeline/ShaderCaches.java`
+- Role: Holds the SPIR-V cache (`<game>/aervium/cache/spirv/`) and the Vulkan pipeline cache (`<game>/aervium/cache/vulkan-pipelines.bin`) for the mixins, counts pipelines compiled late on the render thread (logs every one over 1 ms), writes the startup report (time to the first screen, shader hits and misses, pipeline creation time) and saves the pipeline cache on shutdown.
+- Depends on: `SpirvCache`, `VulkanPipelineCache`, `DiskCache`, `CacheStatistics`, `JobSystem`.
+
+#### SpirvCache
+- Path: `src/main/java/com/aryston/aervium/client/pipeline/SpirvCache.java`
+- Role: Returns cached SPIR-V for a GLSL compilation when the key matches, otherwise compiles with shaderc and writes the result on a worker. Cached binaries are copied into native memory the way vanilla allocates them, so vanilla frees them as usual.
+- Depends on: `ShaderCacheKey`, `SpirvBinary`, `DiskCache`, `CacheStatistics`, `JobSystem`.
+
+#### VulkanPipelineCache
+- Path: `src/main/java/com/aryston/aervium/client/pipeline/VulkanPipelineCache.java`
+- Role: One `VkPipelineCache` for every graphics pipeline vanilla creates, created on first use from the saved data when the header matches the GPU and driver, saved and destroyed on shutdown.
+- Depends on: `PipelineCacheHeader`, `CacheStatistics`.
+- Notes: Vulkan pipeline caches are internally synchronized, so pipelines compiled on several workers share it safely.
+
+#### PipelineWarmup
+- Path: `src/main/java/com/aryston/aervium/client/pipeline/PipelineWarmup.java`
+- Role: When vanilla installs a new pipeline cache after a resource reload, compiles on the job system every built-in pipeline of `RenderPipelines` that vanilla did not register (variants that share a location, such as the three `pipeline/item_cutout` pipelines) and inserts them on the main thread through the budgeted `MainThreadQueue`, so they are never compiled in the middle of a game frame.
+- Depends on: `PipelineCacheAccessor`, `JobSystem`, `MainThreadQueue`.
 
 ### `com.aryston.aervium.client.benchmark`
 
@@ -340,6 +433,40 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Accessor for the private `backend` of `FrontendGpuDevice`, to reach the Vulkan memory allocator.
 - Notes: Mixin target `com.mojang.renderpearl.frontend.FrontendGpuDevice`. No API exposes the allocator or video memory use.
 
+#### GlslCompilerMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/GlslCompilerMixin.java`
+- Role: Wraps `GlslCompiler.compileToSpv` with the `SpirvCache`.
+- Notes: Module `shaderCache`. No API lets a mod supply compiled shaders.
+
+#### VulkanRenderPipelineMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/VulkanRenderPipelineMixin.java`
+- Role: Passes the shared `VkPipelineCache` to every `vkCreateGraphicsPipelines` call in `VulkanRenderPipeline.compile` (vanilla passes none) and times the call.
+- Notes: Module `pipelineCache`. Renderpearl offers no hook for pipeline creation.
+
+#### PipelineCacheMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/PipelineCacheMixin.java`
+- Role: Times `PipelineCache.get` when the pipeline is not compiled yet, which compiles it on the calling (render) thread.
+- Notes: Measurement only, always on.
+
+#### PipelineCacheAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/PipelineCacheAccessor.java`
+- Role: Accessors for the device, the shader source and the compiled map of a `PipelineCache`, used by `PipelineWarmup`.
+
+#### RenderSystemMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/RenderSystemMixin.java`
+- Role: Starts the `PipelineWarmup` when `RenderSystem.setCurrentPipelineCache` installs a new cache.
+- Notes: Module `pipelineWarmup`. No event fires after the shader manager applies its pipelines.
+
+#### FramerateLimitTrackerMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/FramerateLimitTrackerMixin.java`
+- Role: Passes the vanilla frame limit through `FrameRateGovernor`.
+- Notes: Vanilla limits minimized, idle and menu frames but not a window in the background; there is no API for the limit.
+
+#### PalettedContainerMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/PalettedContainerMixin.java`
+- Role: Replaces the per-container `ThreadingDetector` (a semaphore, a lock and their syncs, about 128 bytes in every chunk section container) with one `AtomicBoolean`; a second thread entering a container in use still ends in the vanilla "Accessing PalettedContainer from multiple threads" crash report, now with the stack of the thread that entered second.
+- Notes: Module `compactChunkLocks`, both sides. Saves about 100 bytes per container: 48.3 MB of lock objects became 15.5 MB with 332000 containers (client and integrated server) in the benchmark village at render distance 16, and the compare-and-set is cheaper than a semaphore and a lock per access (average MSPT was 12 % lower with all modules on in the first comparison; to be confirmed with more runs). Game behavior is unchanged; only the diagnostic of a threading bug differs.
+
 ## Tests
 
 Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI. Each test class sits in the package of the class it checks.
@@ -358,6 +485,10 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/job/JobSystemTest.java` | Worker count rule, every job runs on named workers, no jobs after closing. |
 | `src/test/java/com/aryston/aervium/core/job/MainThreadQueueTest.java` | Order, time budget, at least one task per drain. |
 | `src/test/java/com/aryston/aervium/debug/route/CameraPathTest.java` | Lines move along their yaw; orbits keep their radius and height, look at the center and close after one turn. |
+| `src/test/java/com/aryston/aervium/core/cache/ShaderCacheKeyTest.java` | Direct and transitive includes (with a cycle), stable keys for reordered defines, a new key for every change that affects the binary (defines, flags, device switches, include content). |
+| `src/test/java/com/aryston/aervium/core/cache/CacheFilesTest.java` | Disk cache round trip without leftover temporary files, SPIR-V validation, pipeline cache header checks, cache counters. |
+| `src/test/java/com/aryston/aervium/core/budget/FrameRatePolicyTest.java` | Active, background and paused limits, never above a lower vanilla limit, disabled policy. |
+| `src/test/java/com/aryston/aervium/core/module/ModuleSettingsTest.java` | Modules default to on, switched-off and unknown lines, every module written back. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkCommandsTest.java` | Crowd size and distinct positions, build order of the redstone platform, every fill within the vanilla volume limit, frozen time and weather. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/SceneMeasurementTest.java` | Only frames after the scene start count, peaks of heap and VRAM, frames lost from a full ring. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkReportTest.java` | Comparison percentages, JSON round trip, newest report by start time, missing folder, text report content. |
@@ -367,7 +498,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | File | Purpose |
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration listing `FrontendGpuDeviceAccessor` (client). |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `PalettedContainerMixin` on both sides; `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

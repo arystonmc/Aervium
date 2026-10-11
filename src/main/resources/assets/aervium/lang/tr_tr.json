@@ -7,5 +7,11 @@
   "aervium.configuration.overlayVisible": "Performans Paneli",
   "aervium.configuration.overlayVisible.tooltip": "Sağ üst köşede kare hızını, %1 ve %0,1 en düşük değerleri, kare süresi grafiğini, sunucu tick süresini, çöp toplayıcı duraklamalarını ve bellek kullanımını gösterir. Oyunda F7 ile açılıp kapanır.",
   "aervium.configuration.targetFps": "Hedef Kare Hızı",
-  "aervium.configuration.targetFps.tooltip": "Hedeflediğin kare hızı. Panel bu hedeften yavaş kareleri sarı, iki kat yavaş kareleri kırmızı gösterir."
+  "aervium.configuration.targetFps.tooltip": "Hedeflediğin kare hızı. Panel bu hedeften yavaş kareleri sarı, iki kat yavaş kareleri kırmızı gösterir.",
+  "aervium.configuration.dynamicFps": "Dinamik Kare Hızı",
+  "aervium.configuration.dynamicFps.tooltip": "Oyun penceresi arka plandayken veya oyun duraklatılmışken kare hızını düşürür; enerji tasarrufu sağlar ve bilgisayarı serin tutar. Dünya tam hızda işlemeye devam eder.",
+  "aervium.configuration.unfocusedFps": "Arka Plan Kare Hızı",
+  "aervium.configuration.unfocusedFps.tooltip": "Başka bir pencere odaktayken kare hızı sınırı.",
+  "aervium.configuration.pausedFps": "Duraklatma Kare Hızı",
+  "aervium.configuration.pausedFps.tooltip": "Tek oyunculu oyun duraklatıldığında kare hızı sınırı."
 }

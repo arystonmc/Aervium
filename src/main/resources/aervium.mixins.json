@@ -2,8 +2,18 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.aryston.aervium.mixin",
+  "plugin": "com.aryston.aervium.integration.MixinModules",
+  "mixins": [
+    "PalettedContainerMixin"
+  ],
   "client": [
-    "FrontendGpuDeviceAccessor"
+    "FramerateLimitTrackerMixin",
+    "FrontendGpuDeviceAccessor",
+    "GlslCompilerMixin",
+    "PipelineCacheAccessor",
+    "PipelineCacheMixin",
+    "RenderSystemMixin",
+    "VulkanRenderPipelineMixin"
   ],
   "injectors": {
     "defaultRequire": 1

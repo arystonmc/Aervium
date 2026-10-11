@@ -41,3 +41,38 @@ Aervium never fights another renderer.
 
 - When Sodium or Iris is installed, Aervium keeps its optimizations off; the overlay and the benchmark still work, so you can compare
 - Since: 0.1
+
+### Faster Starts with Shader and Pipeline Caches
+The second start of the game skips most of the shader work.
+
+- Keeps the compiled form of every shader and every Vulkan pipeline on disk, so later starts and resource pack reloads reuse them instead of compiling them again
+- The caches check the game version, the shader sources, resource packs, the GPU and the driver, and are rebuilt by themselves when any of them changes
+- Stored in `aervium/cache/` in the game folder; delete the folder to start fresh
+- Since: 0.1
+
+### No Shader Hitches in the Middle of a Game
+Built-in pipelines are ready before they are needed.
+
+- Vanilla compiles a few item pipelines only when the first such item is drawn, which causes a short hitch in game; Aervium compiles them in the background while the game loads
+- Since: 0.1
+
+### Dynamic Frame Rate
+Saves power and keeps your PC cool when you are not looking at the game.
+
+- Lowers the frame rate to 30 FPS while the game window is in the background and to 60 FPS while a single player game is paused
+- The world keeps running at full speed; only drawing slows down
+- Turn it off or change both limits in the Aervium settings
+- Since: 0.1
+
+### Lighter Chunk Memory
+Uses less memory for loaded chunks.
+
+- Replaces a heavy safety lock inside every chunk section with a lighter one that catches the same errors, which saved about 33 MB of memory in the benchmark at render distance 16 and server ticks were faster in the same run
+- Since: 0.1
+
+### Switchable Modules
+Every optimization can be turned off.
+
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`) with `true` or `false`; changes apply at the next start
+- Render optimizations stay off by themselves when Sodium or Iris is installed
+- Since: 0.1

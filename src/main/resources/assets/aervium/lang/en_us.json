@@ -7,5 +7,11 @@
   "aervium.configuration.overlayVisible": "Performance Overlay",
   "aervium.configuration.overlayVisible.tooltip": "Shows frame rate, 1% and 0.1% lows, a frame time graph, server tick time, garbage collector pauses and memory use in the top right corner. F7 turns it on and off in game.",
   "aervium.configuration.targetFps": "Target Frame Rate",
-  "aervium.configuration.targetFps.tooltip": "The frame rate you aim for. The overlay marks frames slower than this target in yellow and frames twice as slow in red."
+  "aervium.configuration.targetFps.tooltip": "The frame rate you aim for. The overlay marks frames slower than this target in yellow and frames twice as slow in red.",
+  "aervium.configuration.dynamicFps": "Dynamic Frame Rate",
+  "aervium.configuration.dynamicFps.tooltip": "Lowers the frame rate while the game window is in the background or the game is paused, to save power and keep your PC cool. The world keeps ticking at full speed.",
+  "aervium.configuration.unfocusedFps": "Background Frame Rate",
+  "aervium.configuration.unfocusedFps.tooltip": "Frame rate limit while another window has the focus.",
+  "aervium.configuration.pausedFps": "Paused Frame Rate",
+  "aervium.configuration.pausedFps.tooltip": "Frame rate limit while the single player game is paused."
 }
