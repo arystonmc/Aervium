@@ -1,0 +1,11 @@
+{
+  "key.category.aervium.aervium": "Aervium",
+  "key.aervium.overlay": "Toggle Performance Overlay",
+  "aervium.configuration.title": "Aervium Settings",
+  "aervium.configuration.section.aervium.client.toml": "Client Settings",
+  "aervium.configuration.section.aervium.client.toml.title": "Aervium Client Settings",
+  "aervium.configuration.overlayVisible": "Performance Overlay",
+  "aervium.configuration.overlayVisible.tooltip": "Shows frame rate, 1% and 0.1% lows, a frame time graph, server tick time, garbage collector pauses and memory use in the top right corner. F7 turns it on and off in game.",
+  "aervium.configuration.targetFps": "Target Frame Rate",
+  "aervium.configuration.targetFps.tooltip": "The frame rate you aim for. The overlay marks frames slower than this target in yellow and frames twice as slow in red."
+}

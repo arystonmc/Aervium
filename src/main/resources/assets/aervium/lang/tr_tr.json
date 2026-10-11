@@ -1,0 +1,11 @@
+{
+  "key.category.aervium.aervium": "Aervium",
+  "key.aervium.overlay": "Performans Panelini Aç/Kapat",
+  "aervium.configuration.title": "Aervium Ayarları",
+  "aervium.configuration.section.aervium.client.toml": "İstemci Ayarları",
+  "aervium.configuration.section.aervium.client.toml.title": "Aervium İstemci Ayarları",
+  "aervium.configuration.overlayVisible": "Performans Paneli",
+  "aervium.configuration.overlayVisible.tooltip": "Sağ üst köşede kare hızını, %1 ve %0,1 en düşük değerleri, kare süresi grafiğini, sunucu tick süresini, çöp toplayıcı duraklamalarını ve bellek kullanımını gösterir. Oyunda F7 ile açılıp kapanır.",
+  "aervium.configuration.targetFps": "Hedef Kare Hızı",
+  "aervium.configuration.targetFps.tooltip": "Hedeflediğin kare hızı. Panel bu hedeften yavaş kareleri sarı, iki kat yavaş kareleri kırmızı gösterir."
+}
