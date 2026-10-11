@@ -163,7 +163,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### DiskCache
 - Path: `src/main/java/com/aryston/aervium/core/cache/DiskCache.java`
-- Role: One file per key in a folder; writes go through a temporary file and an atomic move, so a crash never leaves half an entry.
+- Role: One file per key in a folder; writes go through a uniquely named temporary file and an atomic move, so a crash never leaves half an entry. Keys address their content, so an existing entry is never rewritten, and a move blocked by another reader or writer (Windows reports it as access denied) is retried and treated as done once the entry exists.
 - Depends on: nothing.
 
 #### ShaderIncludes
@@ -486,7 +486,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/job/MainThreadQueueTest.java` | Order, time budget, at least one task per drain. |
 | `src/test/java/com/aryston/aervium/debug/route/CameraPathTest.java` | Lines move along their yaw; orbits keep their radius and height, look at the center and close after one turn. |
 | `src/test/java/com/aryston/aervium/core/cache/ShaderCacheKeyTest.java` | Direct and transitive includes (with a cycle), stable keys for reordered defines, a new key for every change that affects the binary (defines, flags, device switches, include content). |
-| `src/test/java/com/aryston/aervium/core/cache/CacheFilesTest.java` | Disk cache round trip without leftover temporary files, SPIR-V validation, pipeline cache header checks, cache counters. |
+| `src/test/java/com/aryston/aervium/core/cache/CacheFilesTest.java` | Disk cache round trip without leftover temporary files, existing entries kept, eight concurrent writers and readers of one key, SPIR-V validation, pipeline cache header checks, cache counters. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameRatePolicyTest.java` | Active, background and paused limits, never above a lower vanilla limit, disabled policy. |
 | `src/test/java/com/aryston/aervium/core/module/ModuleSettingsTest.java` | Modules default to on, switched-off and unknown lines, every module written back. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkCommandsTest.java` | Crowd size and distinct positions, build order of the redstone platform, every fill within the vanilla volume limit, frozen time and weather. |

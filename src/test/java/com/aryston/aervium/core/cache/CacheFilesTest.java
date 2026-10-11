@@ -9,6 +9,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,9 +32,47 @@ class CacheFilesTest {
         DiskCache cache = new DiskCache(folder.resolve("spirv"));
         assertTrue(cache.read("abc").isEmpty());
         cache.write("abc", new byte[] {1, 2, 3});
-        cache.write("abc", new byte[] {4, 5});
-        assertArrayEquals(new byte[] {4, 5}, cache.read("abc").orElseThrow());
+        cache.write("def", new byte[] {4, 5});
+        assertArrayEquals(new byte[] {1, 2, 3}, cache.read("abc").orElseThrow());
+        assertArrayEquals(new byte[] {4, 5}, cache.read("def").orElseThrow());
         try (Stream<Path> files = Files.list(folder.resolve("spirv"))) {
+            assertEquals(2, files.count());
+        }
+    }
+
+    @Test
+    void keepsAnExistingEntryBecauseKeysAddressTheirContent() {
+        DiskCache cache = new DiskCache(folder);
+        cache.write("key", new byte[] {1});
+        cache.write("key", new byte[] {2});
+        assertArrayEquals(new byte[] {1}, cache.read("key").orElseThrow());
+    }
+
+    @Test
+    void concurrentWritersOfOneKeyNeitherFailNorLeaveTemporaryFiles() throws Exception {
+        DiskCache cache = new DiskCache(folder);
+        byte[] content = new byte[64 * 1024];
+        int writers = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(writers);
+        CountDownLatch start = new CountDownLatch(1);
+        List<Future<?>> results = new ArrayList<>();
+        for (int i = 0; i < writers; i++) {
+            results.add(pool.submit(() -> {
+                start.await();
+                for (int round = 0; round < 20; round++) {
+                    cache.write("shared", content);
+                    cache.read("shared");
+                }
+                return null;
+            }));
+        }
+        start.countDown();
+        for (Future<?> result : results) {
+            result.get();
+        }
+        pool.shutdown();
+        assertArrayEquals(content, cache.read("shared").orElseThrow());
+        try (Stream<Path> files = Files.list(folder)) {
             assertEquals(1, files.count());
         }
     }
