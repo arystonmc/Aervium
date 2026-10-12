@@ -128,6 +128,7 @@ var setUpParityWorld = tasks.register('setUpParityWorld') {
         new File(config, 'aervium-modules.properties').text = [
                 'shaderCache', 'pipelineCache', 'pipelineWarmup', 'compactChunkLocks', 'sectionSliceCache',
                 'lightSnapshots', 'occlusionCulling', 'meshWorkers', 'poiSearch', 'entityCollisions',
+                'hopperSearch',
         ].collect { it + '=' + (modulesOff.contains(it) ? 'false' : value) }.join('\n') + '\n'
     }
 }

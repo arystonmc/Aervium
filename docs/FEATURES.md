@@ -109,6 +109,15 @@ Moving mobs stop searching for entities they could never bump into.
 - Module `entityCollisions`
 - Since: 0.1
 
+### Faster Idle Hoppers
+Hoppers waiting for items stop searching for entities that are not there.
+
+- Every hopper with open space above or in front searches, each tick it is not busy, for dropped items and for chest minecarts or chest boats; Aervium counts dropped items and item-holding entities per chunk section and skips the search where there are none
+- Same results as vanilla, including NeoForge item capabilities on entities from other mods; a built-in audit checks every skippable search and CI runs it
+- Cloud load with 300 mobs and 2000 idle hoppers: server tick CPU 14.5 ms to 12.9 ms (about 11 % faster, three runs each); no change where minecarts or items sit next to most hoppers
+- Module `hopperSearch`
+- Since: 0.1
+
 ### Occlusion Culling
 Skips terrain you cannot see because solid blocks are in the way.
 
@@ -151,6 +160,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `poiSearch`, `entityCollisions`) with `true` or `false`; changes apply at the next start
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `poiSearch`, `entityCollisions`, `hopperSearch`) with `true` or `false`; changes apply at the next start
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

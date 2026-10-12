@@ -26,6 +26,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | First launch hardware class (lower distances, leaf culling on weak machines) | `HardwareClassifier`, `HardwareTier`, `HardwareProfile`, `GpuKind`, `HardwareSetup`, `VulkanMemoryProbe` |
 | Faster point of interest searches (villager beds, job sites) | `ColumnIndexedLongMap`, `PoiColumns`, `PoiAudit`, `SectionStoragePoiIndexMixin`, `SectionStorageAccessor`, `PoiManagerColumnSearchMixin` |
 | Entity collision search skip (sections without boats, shulkers, happy ghasts) | `CollidableEntities`, `CollisionAudit`, `EntitySectionCollidableMixin`, `PersistentEntitySectionManagerAccessor`, `ServerLevelEntityCollisionsMixin` |
+| Idle hopper entity search skip (sections without items or item-holding entities) | `HopperEntities`, `HopperAudit`, `SectionCounts`, `EntitySectionHopperMixin`, `ServerLevelEntityManagerAccessor`, `EntityCapabilityAccessor`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin` |
 | Crash report entry (modules on, Aervium code in the crash) | `CrashSummary`, `CrashReportSection`, `CrashReportMixin`, `MixinModules` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
@@ -829,6 +830,26 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Overrides `getEntityCollisions` in `ServerLevel`: for a source with the default collision rule, when no section in the range vanilla would search counts a collidable entity and the level has no part entities, returns the empty list; otherwise runs the vanilla body. Uses `PersistentEntitySectionManagerAccessor` for the section storage.
 - Notes: Module `entityCollisions`.
 
+#### SectionCounts
+- Path: `src/main/java/com/aryston/aervium/world/entity/SectionCounts.java`
+- Role: Walks the entity sections an entity search in a box would visit (same range as `EntitySectionStorage.forEachAccessibleNonEmptySection`) and answers whether a per-section count is zero in all of them. Used by `entityCollisions` and `hopperSearch`.
+- Depends on: nothing.
+
+#### HopperEntities, HopperAudit
+- Path: `src/main/java/com/aryston/aervium/world/hopper/`
+- Role: `HopperEntities` tells which entities count as items and which may hold items for a hopper (`Container` entities and entity types with a NeoForge `Capabilities.Item.ENTITY_AUTOMATION` provider, read through `EntityCapabilityAccessor`), answers whether the sections around a search box hold none (server levels without part entities only), and defines the per-section counter interface. `HopperAudit` (`-Daervium.hopperAudit=true`) counts skippable searches, all searches, and skippable ones where vanilla found an entity.
+- Depends on: `SectionCounts`, `ServerLevelEntityManagerAccessor`, `PersistentEntitySectionManagerAccessor`.
+
+#### EntitySectionHopperMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/EntitySectionHopperMixin.java`
+- Role: Counts item entities and entities that may hold items in an entity section, on `add` and on successful `remove`.
+- Notes: Module `hopperSearch`.
+
+#### HopperBlockEntityItemSearchMixin, HopperEntityContainerSearchMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/`
+- Role: At the head of `HopperBlockEntity.getItemsAtAndAbove` and NeoForge `VanillaInventoryCodeHooks.getEntityContainerOrHandler`, return an empty result when the section counts show nothing to find; with the audit on they let vanilla run and check its result at return.
+- Notes: Module `hopperSearch`.
+
 #### PoiColumns, PoiAudit
 - Path: `src/main/java/com/aryston/aervium/world/poi/`
 - Role: `PoiColumns` builds the column index for a level height (section key to chunk column and section index) and streams the records of a column's occupied sections from the lowest up, or returns null when the column is not fully loaded. `PoiAudit` (`-Daervium.poiAudit=true`) counts searches, records and searches whose indexed and vanilla records differ.
@@ -893,7 +914,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `LevelRandomAccessor`, `EntitySectionCollidableMixin`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

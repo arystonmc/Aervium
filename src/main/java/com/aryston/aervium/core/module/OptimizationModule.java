@@ -10,7 +10,8 @@ public enum OptimizationModule {
     OCCLUSION_CULLING("occlusionCulling", true),
     MESH_WORKERS("meshWorkers", true),
     POI_SEARCH("poiSearch", false),
-    ENTITY_COLLISIONS("entityCollisions", false);
+    ENTITY_COLLISIONS("entityCollisions", false),
+    HOPPER_SEARCH("hopperSearch", false);
 
     private final String key;
     private final boolean renderer;

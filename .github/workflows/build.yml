@@ -43,10 +43,11 @@ jobs:
 
       - name: World logic audits
         run: |
-          JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Daervium.parity.forceRadius=8 -Daervium.parity.mobs=300 -Daervium.parity.ticks=600 -Daervium.poiAudit=true -Daervium.collisionAudit=true" ./gradlew runParity -PparityWorld=normal
+          JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Daervium.parity.forceRadius=8 -Daervium.parity.mobs=300 -Daervium.parity.hoppers=500 -Daervium.parity.ticks=600 -Daervium.poiAudit=true -Daervium.collisionAudit=true -Daervium.hopperAudit=true" ./gradlew runParity -PparityWorld=normal
           grep 'Aervium .* audit' runs/parity/logs/latest.log
           grep -q 'Aervium poi audit: [1-9][0-9]* column searches, [1-9][0-9]* records, 0 mismatches' runs/parity/logs/latest.log
           grep -q 'Aervium collision audit: [1-9][0-9]* entity collision searches skipped, 0 where vanilla found an entity' runs/parity/logs/latest.log
+          grep -q 'Aervium hopper audit: [1-9][0-9]* of [1-9][0-9]* item searches skippable, [1-9][0-9]* of [1-9][0-9]* container searches skippable, 0 where vanilla found an entity' runs/parity/logs/latest.log
 
       - name: Upload jar
         uses: actions/upload-artifact@v6

@@ -31,6 +31,7 @@ public final class ParityHarness {
     private static final String LIGHT_CHANGES_PROPERTY = "aervium.parity.lightChanges";
     private static final String FORCE_RADIUS_PROPERTY = "aervium.parity.forceRadius";
     private static final String MOBS_PROPERTY = "aervium.parity.mobs";
+    private static final String HOPPERS_PROPERTY = "aervium.parity.hoppers";
     private static final int DEFAULT_TICKS = 1200;
     private static final int DEFAULT_LIGHT_CHANGES = 4;
     private static final int SETTLE_TICKS = 40;
@@ -92,6 +93,7 @@ public final class ParityHarness {
                 String.format(Locale.ROOT, "%.1f", startLight.cpuMs()));
             ParityScenario.build(level);
             ParityLoad.spawnMobs(level, Integer.getInteger(MOBS_PROPERTY, 0), Integer.getInteger(FORCE_RADIUS_PROPERTY, 0));
+            ParityLoad.placeHoppers(level, Integer.getInteger(HOPPERS_PROPERTY, 0), Integer.getInteger(FORCE_RADIUS_PROPERTY, 0));
             Aervium.LOGGER.info("Aervium parity: scenario built, running {} ticks", ticks());
             return;
         }

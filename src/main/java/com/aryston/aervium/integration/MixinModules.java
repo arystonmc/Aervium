@@ -50,7 +50,10 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("SectionStoragePoiIndexMixin", OptimizationModule.POI_SEARCH),
         Map.entry("PoiManagerColumnSearchMixin", OptimizationModule.POI_SEARCH),
         Map.entry("EntitySectionCollidableMixin", OptimizationModule.ENTITY_COLLISIONS),
-        Map.entry("ServerLevelEntityCollisionsMixin", OptimizationModule.ENTITY_COLLISIONS)
+        Map.entry("ServerLevelEntityCollisionsMixin", OptimizationModule.ENTITY_COLLISIONS),
+        Map.entry("EntitySectionHopperMixin", OptimizationModule.HOPPER_SEARCH),
+        Map.entry("HopperBlockEntityItemSearchMixin", OptimizationModule.HOPPER_SEARCH),
+        Map.entry("HopperEntityContainerSearchMixin", OptimizationModule.HOPPER_SEARCH)
     );
 
     private static final String HELION_MOD_ID = "helion";

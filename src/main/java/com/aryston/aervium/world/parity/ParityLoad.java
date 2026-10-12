@@ -2,6 +2,7 @@ package com.aryston.aervium.world.parity;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.world.collision.CollisionAudit;
+import com.aryston.aervium.world.hopper.HopperAudit;
 import com.aryston.aervium.world.poi.PoiAudit;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
@@ -13,6 +14,12 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.vehicle.minecart.MinecartChest;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -37,6 +44,7 @@ final class ParityLoad {
     private static int measuredTicks;
     private static long maxTickNanos;
     private static int mobs;
+    private static int hoppers;
 
     private ParityLoad() {
     }
@@ -65,13 +73,49 @@ final class ParityLoad {
         Aervium.LOGGER.info("Aervium parity: spawned {} mobs on dry land for load", spawned);
     }
 
+    /**
+     * Idle hoppers on the surface, the shape of item sorters and farm collectors waiting for items. With the hopper audit on,
+     * one in 64 has a full chest minecart on top and one in 64 a dropped item stack, so the audit also sees searches
+     * that find something.
+     */
+    static void placeHoppers(ServerLevel level, int count, int forceRadius) {
+        if (count <= 0) {
+            return;
+        }
+        RandomSource random = RandomSource.create(SEED + 1);
+        int span = (forceRadius * 2 + 1) * 16;
+        int min = -forceRadius * 16;
+        int placed = 0;
+        for (int attempt = 0; placed < count && attempt < count * MAX_ATTEMPTS_PER_MOB; attempt++) {
+            BlockPos pos = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                new BlockPos(min + random.nextInt(span), 0, min + random.nextInt(span)));
+            if (!level.getFluidState(pos.below()).isEmpty() || !level.getBlockState(pos).isAir()) {
+                continue;
+            }
+            level.setBlock(pos, Blocks.HOPPER.defaultBlockState(), Block.UPDATE_ALL);
+            if (HopperAudit.ENABLED && placed % 64 == 0) {
+                MinecartChest cart = EntityTypes.CHEST_MINECART.spawn(level, pos.above(), EntitySpawnReason.COMMAND);
+                if (cart != null) {
+                    for (int slot = 0; slot < cart.getContainerSize(); slot++) {
+                        cart.setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+                    }
+                }
+            } else if (HopperAudit.ENABLED && placed % 64 == 32) {
+                level.addFreshEntity(new ItemEntity(level, pos.getX() + 0.5, pos.getY() + 1.2, pos.getZ() + 0.5, new ItemStack(Items.COBBLESTONE, 16)));
+            }
+            placed++;
+        }
+        hoppers = placed;
+        Aervium.LOGGER.info("Aervium parity: placed {} hoppers for load", placed);
+    }
+
     static void tickStarted(ServerTickEvent.Pre event) {
         tickStart = System.nanoTime();
         tickCpuStart = THREADS.getCurrentThreadCpuTime();
     }
 
     static void tickFinished(int scenarioTick) {
-        if (mobs <= 0 || scenarioTick < MEASURE_FROM_TICK) {
+        if (mobs + hoppers <= 0 || scenarioTick < MEASURE_FROM_TICK) {
             return;
         }
         long nanos = System.nanoTime() - tickStart;
@@ -85,13 +129,16 @@ final class ParityLoad {
         if (CollisionAudit.ENABLED) {
             Aervium.LOGGER.info("Aervium collision audit: {}", CollisionAudit.summary());
         }
+        if (HopperAudit.ENABLED) {
+            Aervium.LOGGER.info("Aervium hopper audit: {}", HopperAudit.summary());
+        }
         if (PoiAudit.ENABLED) {
             Aervium.LOGGER.info("Aervium poi audit: {}", PoiAudit.summary());
         }
-        if (mobs <= 0 || measuredTicks == 0) {
+        if (mobs + hoppers <= 0 || measuredTicks == 0) {
             return;
         }
-        Aervium.LOGGER.info("Aervium parity load: {} mobs, {} ticks, mean tick {} ms ({} ms CPU), longest {} ms", mobs, measuredTicks,
+        Aervium.LOGGER.info("Aervium parity load: {} mobs, {} hoppers, {} ticks, mean tick {} ms ({} ms CPU), longest {} ms", mobs, hoppers, measuredTicks,
             String.format(Locale.ROOT, "%.3f", tickNanos / 1e6 / measuredTicks),
             String.format(Locale.ROOT, "%.3f", tickCpuNanos / 1e6 / measuredTicks),
             String.format(Locale.ROOT, "%.2f", maxTickNanos / 1e6));
