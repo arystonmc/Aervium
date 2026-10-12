@@ -125,6 +125,8 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 
 Two runs with the same settings must print the same hashes, and a run with every module off must print the same hashes as a run with every module on. Any optimization that touches world logic has to keep this true; a different hash shows the first checkpoint where the world diverged.
 
+`-Daervium.parity.worldgen=true` with `-PparityWorld=normal` runs the worldgen check instead: ticks are frozen, 25 x 25 chunks (`aervium.parity.worldgenRadius`, 12) generate on the fixed seed, and `ChunkStatusTasksTerrainMixin` hashes every chunk right after its terrain step (noise, surface, carvers, biomes). The log prints one terrain hash and the generation time. Features are left out on purpose: vanilla places overlapping features of neighbouring chunks in thread order, so two plain vanilla runs already differ there. CI runs this check with modules on and off as well.
+
 The same run doubles as a light benchmark: the log prints the wall and CPU time the server light worker spent before the scenario and during it. `-Daervium.parity.lightChanges=400` makes block light heavy; `-PparityWorld=normal` with `-Daervium.parity.forceRadius=12` generates 625 chunks of normal terrain first (hashes are not comparable then, normal worlds have mobs). Cloud results on 4 cores: light was about 5 % of the chunk generation CPU (noise filling 57 %, surface 21 %, features 17 %), and 400 block changes per tick cost about 17 µs each. Bigger chunk and section caches inside the light engine changed neither number beyond noise, so they were not kept.
 
 ## Invariants
@@ -153,6 +155,7 @@ The same run doubles as a light benchmark: the log prints the wall and CPU time 
 | `LevelExtractorOcclusionMixin` | `LevelExtractor.extractVisibleEntities`, `isEntityVisible`, block entity extraction | Entity visibility is only the frustum check; no event can drop an entity or block entity from a frame. |
 | `QuadParticleGroupOcclusionMixin`, `ParticleAccessor` | `QuadParticleGroup.extractRenderState`, `Particle.xo/yo/zo` | Particle extraction only checks the frustum and has no hook. |
 | `LevelRendererMeshWorkersMixin` | `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` | The chunk build executor is hard-wired to the shared background pool. |
+| `ChunkStatusTasksTerrainMixin` | `ChunkStatusTasks.buildTerrain` | The worldgen check needs each chunk right after its terrain step, before features from its neighbours land in it. Does nothing outside the check. |
 | `ThreadedLevelLightEngineTimingMixin` | `ThreadedLevelLightEngine.runUpdate` | The server light worker has no timing of its own. |
 | `SectionRenderDispatcherTimingMixin` | `SectionRenderDispatcher.lock` and `uploadTerrainBuffersToGpu` | Upload and builder lock time are invisible otherwise. |
 | `ModelBlockRendererLeafCullingMixin` | `ModelBlockRenderer.shouldRenderFace` | Leaf face culling only depends on the block state, never on the leaves around it. |

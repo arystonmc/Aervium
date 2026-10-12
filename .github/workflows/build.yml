@@ -31,6 +31,16 @@ jobs:
           test -s parity-on.txt
           diff parity-on.txt parity-off.txt
 
+      - name: Worldgen parity check
+        run: |
+          for modules in on off; do
+            JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Daervium.parity.worldgen=true" ./gradlew runParity -PparityWorld=normal -PparityModules=$modules
+            grep 'Aervium worldgen check' runs/parity/logs/latest.log
+            grep 'Aervium worldgen check: terrain' runs/parity/logs/latest.log | sed 's/.*terrain/terrain/' > worldgen-$modules.txt
+          done
+          grep -q 'missing 0' worldgen-on.txt
+          diff worldgen-on.txt worldgen-off.txt
+
       - name: Upload jar
         uses: actions/upload-artifact@v6
         with:

@@ -47,6 +47,10 @@ public final class ParityHarness {
         if (!Boolean.getBoolean(PROPERTY)) {
             return;
         }
+        if (WorldgenCheck.enabled()) {
+            WorldgenCheck.register();
+            return;
+        }
         NeoForge.EVENT_BUS.addListener(ParityHarness::onServerStarted);
         NeoForge.EVENT_BUS.addListener(ParityHarness::onServerTickEnd);
     }
