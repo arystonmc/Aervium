@@ -78,12 +78,10 @@ public final class MixinModules implements IMixinConfigPlugin {
         activeModules = Collections.unmodifiableMap(active);
     }
 
-    /** Every module key with whether its mixins were applied in this game, in declaration order. */
     public static Map<String, Boolean> activeModules() {
         return activeModules;
     }
 
-    /** Module key of a mixin by simple name, or null when the mixin is not tied to a module. */
     public static String moduleOf(String mixinSimpleName) {
         OptimizationModule module = MIXIN_MODULES.get(mixinSimpleName);
         return module == null ? null : module.key();
@@ -138,10 +136,6 @@ public final class MixinModules implements IMixinConfigPlugin {
             .add(new AppliedMixin(mixinInfo.getName(), Set.copyOf(methods)));
     }
 
-    /**
-     * Aervium mixins applied to a class (dotted name) that declare the handler method; every Aervium mixin on that class
-     * when none declares it by that name.
-     */
     public static Set<String> mixinsDeclaring(String targetClassName, String handlerName) {
         List<AppliedMixin> applied = APPLIED.getOrDefault(targetClassName, List.of());
         Set<String> declaring = new LinkedHashSet<>();

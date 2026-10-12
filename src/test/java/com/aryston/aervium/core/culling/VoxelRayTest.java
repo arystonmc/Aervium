@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 
 class VoxelRayTest {
     @Test
-    void openAirIsReached() {
+    void emptyAirIsReached() {
         assertTrue(VoxelRay.reaches(0.5, 0.5, 0.5, 20.5, 3.5, -7.5, (x, y, z) -> false));
     }
 

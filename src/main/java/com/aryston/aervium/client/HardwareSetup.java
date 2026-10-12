@@ -21,10 +21,6 @@ import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.network.chat.Component;
 import net.neoforged.fml.loading.FMLPaths;
 
-/**
- * Sorts the machine into a hardware class once, on Aervium's first launch, and lowers the settings a weak machine cannot carry.
- * The record file keeps it from running again; deleting it makes the next launch detect again.
- */
 final class HardwareSetup {
     private static final String RECORD_FILE = "aervium-hardware.properties";
     private static final String TIER_KEY = "tier=";

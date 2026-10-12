@@ -329,7 +329,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Depends on: nothing.
 
 #### HardwareProfile, GpuKind
-- Path: `src/main/java/com/aryston/aervium/core/hardware/`
+- Path: `src/main/java/com/aryston/aervium/core/hardware/HardwareProfile.java`, `src/main/java/com/aryston/aervium/core/hardware/GpuKind.java`
 - Role: The measured machine (CPU threads, max heap, physical RAM, GPU name, kind and device-local memory) and its log text.
 - Depends on: nothing.
 
@@ -816,7 +816,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Notes: Module `meshWorkers`, renderer module.
 
 #### CollidableEntities, CollisionAudit
-- Path: `src/main/java/com/aryston/aervium/world/collision/`
+- Path: `src/main/java/com/aryston/aervium/world/collision/CollidableEntities.java`, `src/main/java/com/aryston/aervium/world/collision/CollisionAudit.java`
 - Role: `CollidableEntities` tells per class (cached in a `ClassValue`) whether an entity class overrides `canBeCollidedWith` below `Entity` (it may be bumped into) and whether a source overrides `canCollideWith` (it has its own rule); defines the per-section counter interface. `CollisionAudit` (`-Daervium.collisionAudit=true`) counts skipped searches and the ones where vanilla found an entity.
 - Depends on: nothing.
 
@@ -836,7 +836,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Depends on: nothing.
 
 #### HopperEntities, HopperAudit
-- Path: `src/main/java/com/aryston/aervium/world/hopper/`
+- Path: `src/main/java/com/aryston/aervium/world/hopper/HopperEntities.java`, `src/main/java/com/aryston/aervium/world/hopper/HopperAudit.java`
 - Role: `HopperEntities` tells which entities count as items and which may hold items for a hopper (`Container` entities and entity types with a NeoForge `Capabilities.Item.ENTITY_AUTOMATION` provider, read through `EntityCapabilityAccessor`), answers whether the sections around a search box hold none (server levels without part entities only), and defines the per-section counter interface. `HopperAudit` (`-Daervium.hopperAudit=true`) counts skippable searches, all searches, and skippable ones where vanilla found an entity.
 - Depends on: `SectionCounts`, `ServerLevelEntityManagerAccessor`, `PersistentEntitySectionManagerAccessor`.
 
@@ -846,12 +846,32 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Notes: Module `hopperSearch`.
 
 #### HopperBlockEntityItemSearchMixin, HopperEntityContainerSearchMixin
-- Path: `src/main/java/com/aryston/aervium/mixin/`
+- Path: `src/main/java/com/aryston/aervium/mixin/HopperBlockEntityItemSearchMixin.java`, `src/main/java/com/aryston/aervium/mixin/HopperEntityContainerSearchMixin.java`
 - Role: At the head of `HopperBlockEntity.getItemsAtAndAbove` and NeoForge `VanillaInventoryCodeHooks.getEntityContainerOrHandler`, return an empty result when the section counts show nothing to find; with the audit on they let vanilla run and check its result at return.
 - Notes: Module `hopperSearch`.
 
+#### EntityCapabilityAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/EntityCapabilityAccessor.java`
+- Role: Accessor for the NeoForge `providers` map of an `EntityCapability`, read by `HopperEntities`.
+- Notes: Module `hopperSearch`.
+
+#### ServerLevelEntityManagerAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/ServerLevelEntityManagerAccessor.java`
+- Role: Accessor for the private `entityManager` of `ServerLevel`, used by the entity section searches.
+- Notes: Modules `entityCollisions` and `hopperSearch`.
+
+#### PersistentEntitySectionManagerAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/PersistentEntitySectionManagerAccessor.java`
+- Role: Accessor for the private `sectionStorage` of `PersistentEntitySectionManager`.
+- Notes: Modules `entityCollisions` and `hopperSearch`.
+
+#### SectionStorageAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/SectionStorageAccessor.java`
+- Role: Accessors for the section map (`storage`) and the level height of a `SectionStorage`, used by `SectionStoragePoiIndexMixin`.
+- Notes: Module `poiSearch`.
+
 #### PoiColumns, PoiAudit
-- Path: `src/main/java/com/aryston/aervium/world/poi/`
+- Path: `src/main/java/com/aryston/aervium/world/poi/PoiColumns.java`, `src/main/java/com/aryston/aervium/world/poi/PoiAudit.java`
 - Role: `PoiColumns` builds the column index for a level height (section key to chunk column and section index) and streams the records of a column's occupied sections from the lowest up, or returns null when the column is not fully loaded. `PoiAudit` (`-Daervium.poiAudit=true`) counts searches, records and searches whose indexed and vanilla records differ.
 - Depends on: `ColumnIndexedLongMap`.
 

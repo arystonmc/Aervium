@@ -20,12 +20,6 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 
-/**
- * Every mob move asks for the entities it could bump into, and vanilla walks every entity in the nearby sections to
- * find that almost none can be bumped into (only boats, shulkers and happy ghasts). Sections count those entities, so
- * when none of the sections vanilla would visit holds one, the answer is the same empty list without the walk.
- * Anything else takes the vanilla path.
- */
 @Mixin(ServerLevel.class)
 abstract class ServerLevelEntityCollisionsMixin {
     @Shadow
@@ -54,7 +48,6 @@ abstract class ServerLevelEntityCollisionsMixin {
         return shapes.build();
     }
 
-    /** Same section range as EntitySectionStorage.forEachAccessibleNonEmptySection, plus the level's dragon parts. */
     @Unique
     private boolean aervium$noCollidableNear(AABB box) {
         if (!((ServerLevel) (Object) this).dragonParts().isEmpty()) {

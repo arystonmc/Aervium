@@ -15,10 +15,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/**
- * Every hopper with open space above searches for item entities every tick it is not cooling down. When no section
- * that search would visit holds an item entity, the answer is the same empty list without the walk.
- */
 @Mixin(HopperBlockEntity.class)
 abstract class HopperBlockEntityItemSearchMixin {
     @Inject(method = "getItemsAtAndAbove", at = @At("HEAD"), cancellable = true)
@@ -39,7 +35,6 @@ abstract class HopperBlockEntityItemSearchMixin {
         }
     }
 
-    /** The box vanilla searches. */
     @Unique
     private static AABB aervium$suckBox(Hopper hopper) {
         return hopper.getSuckAabb().move(hopper.getLevelX() - 0.5, hopper.getLevelY() - 0.5, hopper.getLevelZ() - 0.5);

@@ -1,5 +1,7 @@
 package com.aryston.aervium.core.hardware;
 
+import java.util.Locale;
+
 public record HardwareProfile(
     int cpuThreads,
     long maxHeapBytes,
@@ -12,7 +14,7 @@ public record HardwareProfile(
 
     public String describe() {
         return cpuThreads + " CPU threads, " + megabytes(maxHeapBytes) + " MB heap, "
-            + megabytes(physicalMemoryBytes) + " MB RAM, " + gpuName + " (" + gpuKind.name().toLowerCase()
+            + megabytes(physicalMemoryBytes) + " MB RAM, " + gpuName + " (" + gpuKind.name().toLowerCase(Locale.ROOT)
             + ", " + megabytes(gpuMemoryBytes) + " MB video memory)";
     }
 

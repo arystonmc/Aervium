@@ -2,10 +2,6 @@ package com.aryston.aervium.world.hopper;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Debug check, on with -Daervium.hopperAudit=true: hopper entity searches run as in vanilla, and every one the section
- * counts would have answered empty is counted, along with those where vanilla found an entity.
- */
 public final class HopperAudit {
     public static final boolean ENABLED = Boolean.getBoolean("aervium.hopperAudit");
 
@@ -33,12 +29,10 @@ public final class HopperAudit {
         }
     }
 
-    /** A search the section counts could not answer, so it ran in every mode. */
     public static void itemSearched() {
         ITEM_SEARCHED.incrementAndGet();
     }
 
-    /** A search the section counts could not answer, so it ran in every mode. */
     public static void containerSearched() {
         CONTAINER_SEARCHED.incrementAndGet();
     }

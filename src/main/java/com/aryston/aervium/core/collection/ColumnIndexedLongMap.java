@@ -5,11 +5,6 @@ import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import java.util.function.Predicate;
 
-/**
- * A section map that also knows, per column, how many of its sections are stored and which hold a value. A search
- * over a column can then skip straight to the occupied sections instead of looking up every section of the column.
- * Only {@code put(long, V)} and {@code remove(long)} keep the index; the map is meant for owners that use only those.
- */
 public final class ColumnIndexedLongMap<V> extends Long2ObjectOpenHashMap<V> {
     public static final int MAX_SECTIONS = Long.SIZE;
 
@@ -68,12 +63,10 @@ public final class ColumnIndexedLongMap<V> extends Long2ObjectOpenHashMap<V> {
         return previous;
     }
 
-    /** True when every section of the column is stored, so a missing occupied bit really means no value. */
     public boolean complete(long column) {
         return stored.get(column) == sectionCount;
     }
 
-    /** Bit i is set when the section at index i of the column holds a value. */
     public long occupiedMask(long column) {
         return occupiedMasks.get(column);
     }
@@ -81,7 +74,6 @@ public final class ColumnIndexedLongMap<V> extends Long2ObjectOpenHashMap<V> {
     public interface Layout {
         long column(long key);
 
-        /** Index of the section inside its column, from 0 to the section count. */
         int index(long key);
     }
 }

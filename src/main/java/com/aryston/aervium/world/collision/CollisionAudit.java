@@ -2,10 +2,6 @@ package com.aryston.aervium.world.collision;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Debug check, on with -Daervium.collisionAudit=true: every entity collision query the section counts answer as empty
- * also runs the vanilla entity search, and the queries where vanilla found an entity are counted.
- */
 public final class CollisionAudit {
     public static final boolean ENABLED = Boolean.getBoolean("aervium.collisionAudit");
 

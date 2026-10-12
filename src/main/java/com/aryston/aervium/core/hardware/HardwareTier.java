@@ -1,8 +1,7 @@
 package com.aryston.aervium.core.hardware;
 
-/**
- * What the first launch sets for each hardware class. Caps only ever lower a distance the player has; nothing is raised.
- */
+import java.util.Locale;
+
 public enum HardwareTier {
     LOW(8, 6, true),
     MEDIUM(12, 8, false),
@@ -31,6 +30,6 @@ public enum HardwareTier {
     }
 
     public String key() {
-        return name().toLowerCase();
+        return name().toLowerCase(Locale.ROOT);
     }
 }

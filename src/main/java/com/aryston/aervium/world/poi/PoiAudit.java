@@ -3,10 +3,6 @@ package com.aryston.aervium.world.poi;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Debug check, on with -Daervium.poiAudit=true: every indexed column search also runs the vanilla section by section
- * search and counts the searches whose records differ in content or order.
- */
 public final class PoiAudit {
     public static final boolean ENABLED = Boolean.getBoolean("aervium.poiAudit");
 

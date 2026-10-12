@@ -7,15 +7,10 @@ import net.minecraft.world.level.entity.EntitySection;
 import net.minecraft.world.level.entity.EntitySectionStorage;
 import net.minecraft.world.phys.AABB;
 
-/** Checks per-section entity counts over the sections an entity search in a box would visit. */
 public final class SectionCounts {
     private SectionCounts() {
     }
 
-    /**
-     * True when every section vanilla would visit for {@code box} (the same range as
-     * EntitySectionStorage.forEachAccessibleNonEmptySection) has a count of zero.
-     */
     public static boolean noneNear(EntitySectionStorage<Entity> storage, AABB box, ToIntFunction<EntitySection<Entity>> count) {
         int xMin = SectionPos.posToSectionCoord(box.minX - 2.0);
         int yMin = SectionPos.posToSectionCoord(box.minY - 4.0);

@@ -4,7 +4,6 @@ import com.aryston.aervium.core.budget.StallMeter;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 
-/** Time the server light worker spends per batch of light updates, for the parity and benchmark logs. */
 public final class ServerLightTimings {
     private static final ThreadMXBean THREADS = ManagementFactory.getThreadMXBean();
     private static final StallMeter BATCHES = new StallMeter();
@@ -13,7 +12,6 @@ public final class ServerLightTimings {
     private ServerLightTimings() {
     }
 
-    /** CPU time of the calling thread, or 0 when the JVM cannot measure it. */
     public static long threadCpuNanos() {
         return THREADS.isCurrentThreadCpuTimeSupported() ? THREADS.getCurrentThreadCpuTime() : 0L;
     }

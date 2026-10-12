@@ -140,10 +140,6 @@ final class ParityScenario {
         set(level, x + 2, GROUND_Y + 4, z, Blocks.STONE.defaultBlockState());
     }
 
-    /**
-     * Places light sources and blockers in the light lab with a fixed sequence per tick, so block and sky light
-     * keep changing for the whole run.
-     */
     static void changeLight(ServerLevel level, int scenarioTick, int changes) {
         long state = 0x9E3779B97F4A7C15L * (scenarioTick + 1);
         for (int i = 0; i < changes; i++) {

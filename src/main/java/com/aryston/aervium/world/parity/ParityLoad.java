@@ -23,11 +23,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
-/**
- * Optional server load for profiling: mobs spread over the dry land of the force-loaded square, and the mean server tick
- * time, wall and server thread CPU.
- * Off unless aervium.parity.mobs is set, so the parity hashes stay as they are.
- */
 final class ParityLoad {
     private static final List<EntityType<?>> MOB_TYPES = List.of(
         EntityTypes.COW, EntityTypes.SHEEP, EntityTypes.PIG, EntityTypes.CHICKEN, EntityTypes.VILLAGER);
@@ -73,11 +68,6 @@ final class ParityLoad {
         Aervium.LOGGER.info("Aervium parity: spawned {} mobs on dry land for load", spawned);
     }
 
-    /**
-     * Idle hoppers on the surface, the shape of item sorters and farm collectors waiting for items. With the hopper audit on,
-     * one in 64 has a full chest minecart on top and one in 64 a dropped item stack, so the audit also sees searches
-     * that find something.
-     */
     static void placeHoppers(ServerLevel level, int count, int forceRadius) {
         if (count <= 0) {
             return;

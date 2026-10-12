@@ -44,7 +44,6 @@ abstract class PoiManagerColumnSearchMixin {
         }
     }
 
-    /** The vanilla search over every section of a loaded column, for the audit. */
     @Unique
     private static List<PoiRecord> aervium$vanillaSearch(ColumnIndexedLongMap<Optional<PoiSection>> map, LevelHeightAccessor height,
                                                          Predicate<Holder<PoiType>> predicate, ChunkPos chunkPos, PoiManager.Occupancy occupancy) {

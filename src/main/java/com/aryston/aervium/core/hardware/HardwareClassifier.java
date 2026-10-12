@@ -1,8 +1,5 @@
 package com.aryston.aervium.core.hardware;
 
-/**
- * Sorts a machine into one of three classes. A machine is held back by its weakest part, so each rule can only lower the class.
- */
 public final class HardwareClassifier {
     private static final long GIGABYTE = 1L << 30;
 

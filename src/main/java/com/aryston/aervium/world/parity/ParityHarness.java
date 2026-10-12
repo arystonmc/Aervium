@@ -119,11 +119,6 @@ public final class ParityHarness {
         }
     }
 
-    /**
-     * The server lights the world on its own worker, so the next tick could see light half done: a hash would
-     * differ, and so would random ticks that read light, like grass dying under a new block. Waits after every tick
-     * until every light task queued for the scenario chunks has run, which makes light part of the tick.
-     */
     private static void finishLightUpdates(ServerLevel level) {
         ThreadedLevelLightEngine lightEngine = level.getChunkSource().getLightEngine();
         List<CompletableFuture<?>> pending = new ArrayList<>();

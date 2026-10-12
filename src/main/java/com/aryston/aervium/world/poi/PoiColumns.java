@@ -9,12 +9,6 @@ import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelHeightAccessor;
 
-/**
- * Point of interest sections per column. Villagers search 81 columns of 24 sections each for a bed or a job site
- * every second or so, and nearly all of those sections are empty; the index lets the search visit only the sections
- * that exist. Returns null where it cannot answer, so the caller falls back to the vanilla search, which also loads
- * columns that are not in memory yet.
- */
 public final class PoiColumns {
     private PoiColumns() {
     }
@@ -38,7 +32,6 @@ public final class PoiColumns {
         return ColumnIndexedLongMap.supports(height.getSectionsCount());
     }
 
-    /** The records of the column's occupied sections from the lowest section up, or null when the column is not fully loaded. */
     public static <R, T> Stream<T> records(ColumnIndexedLongMap<Optional<R>> map, LevelHeightAccessor height, ChunkPos chunk,
                                            Function<R, Stream<T>> records) {
         long column = chunk.pack();

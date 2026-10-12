@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Set;
 import net.neoforged.fml.ModList;
 
-/** The "Aervium" entry in the System Details of every crash report. */
 public final class CrashReportSection {
     private static final String LINE_BREAK = "\n\t\t";
     private static final String UNKNOWN_VERSION = "unknown";

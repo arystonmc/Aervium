@@ -26,12 +26,6 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
-/**
- * Generates a square of chunks on a fixed seed and logs one hash of the terrain (noise, surface and carvers) and
- * biomes of every chunk, plus how long the generation took. The same seed must give the same hash with modules on
- * and off. Features are left out on purpose: vanilla places overlapping features of neighbouring chunks in thread
- * order, so two vanilla runs already differ there (an andesite blob over a diorite blob, for example).
- */
 public final class WorldgenCheck {
     private static final String PROPERTY = "aervium.parity.worldgen";
     private static final String RADIUS_PROPERTY = "aervium.parity.worldgenRadius";
@@ -63,7 +57,6 @@ public final class WorldgenCheck {
         NeoForge.EVENT_BUS.addListener(WorldgenCheck::onServerTickEnd);
     }
 
-    /** Called on a worldgen worker when a chunk has its terrain; hashes its blocks and biomes. */
     public static ChunkAccess terrainBuilt(ChunkAccess chunk) {
         StateHash hash = new StateHash();
         for (LevelChunkSection section : chunk.getSections()) {
@@ -87,10 +80,6 @@ public final class WorldgenCheck {
         return chunk;
     }
 
-    /**
-     * Saves the blocks and biomes of every section with the real chunk codecs and loads them back; returns the number
-     * of sections, how many hold a single block and biome value, and how many came back different.
-     */
     private static int[] checkSaves(ServerLevel level, int radius) {
         PalettedContainerFactory factory = level.palettedContainerFactory();
         int sections = 0;
@@ -138,7 +127,6 @@ public final class WorldgenCheck {
         return true;
     }
 
-    /** CPU time of the whole server process, so a result does not depend on idle waits or short-lived threads. */
     private static long processCpuNanos() {
         return ManagementFactory.getOperatingSystemMXBean() instanceof OperatingSystemMXBean os ? os.getProcessCpuTime() : 0L;
     }
@@ -149,7 +137,6 @@ public final class WorldgenCheck {
 
     private static void onServerStarted(ServerStartedEvent event) {
         ServerLevel level = event.getServer().overworld();
-        // Frozen ticks keep chunks loading and generating but stop water flow, falling sand, random ticks and mobs.
         event.getServer().tickRateManager().setFrozen(true);
         ServerLightTimings.take();
         startNanos = System.nanoTime();

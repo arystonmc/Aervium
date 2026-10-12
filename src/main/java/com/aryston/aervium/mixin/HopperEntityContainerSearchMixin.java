@@ -14,12 +14,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/**
- * A hopper with no block container above or in front searches for an entity it can take from or put into, every tick
- * it is not cooling down. When no section that search would visit holds a container entity, or an entity type with an
- * item automation capability, the answer is the same empty result without the walk (and, as in vanilla, without a
- * random draw).
- */
 @Mixin(value = VanillaInventoryCodeHooks.class, remap = false)
 abstract class HopperEntityContainerSearchMixin {
     @Inject(method = "getEntityContainerOrHandler", at = @At("HEAD"), cancellable = true)
@@ -43,7 +37,6 @@ abstract class HopperEntityContainerSearchMixin {
         }
     }
 
-    /** The box vanilla searches. */
     @Unique
     private static AABB aervium$box(double x, double y, double z) {
         return new AABB(x - 0.5, y - 0.5, z - 0.5, x + 0.5, y + 0.5, z + 0.5);
