@@ -1,5 +1,6 @@
 package com.aryston.aervium.mixin;
 
+import com.aryston.aervium.client.chunk.SectionDrawRecord;
 import com.aryston.aervium.client.chunk.SectionLayers;
 import com.aryston.aervium.client.chunk.SectionSliceHolder;
 import net.minecraft.client.renderer.chunk.CompiledSectionMesh;
@@ -23,6 +24,9 @@ abstract class CompiledSectionMeshMixin implements SectionSliceHolder {
 
     @Unique
     private Object @Nullable [] aervium$moreSlices;
+
+    @Unique
+    private @Nullable SectionDrawRecord aervium$record;
 
     @Override
     public @Nullable Object aervium$slice(int layer) {
@@ -55,5 +59,15 @@ abstract class CompiledSectionMeshMixin implements SectionSliceHolder {
         aervium$slice1 = null;
         aervium$slice2 = null;
         aervium$moreSlices = null;
+        SectionDrawRecord record = aervium$record;
+        if (record != null) {
+            record.invalidate();
+            aervium$record = null;
+        }
+    }
+
+    @Override
+    public void aervium$trackRecord(SectionDrawRecord record) {
+        aervium$record = record;
     }
 }

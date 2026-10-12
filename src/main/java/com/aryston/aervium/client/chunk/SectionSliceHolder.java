@@ -10,4 +10,6 @@ public interface SectionSliceHolder {
     void aervium$setSlice(int layer, Object slice);
 
     void aervium$clearSlices();
+
+    void aervium$trackRecord(SectionDrawRecord record);
 }

@@ -24,7 +24,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Dynamic frame rate | `FrameRatePolicy`, `FrameRateGovernor`, `FramerateLimitTrackerMixin` |
 | Chunk memory | `PalettedContainerMixin` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
-| Chunk draw list (terrain buffer lookups per frame) | `LevelRendererSectionSliceMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
+| Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -418,6 +418,22 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Interface `CompiledSectionMeshMixin` adds to every compiled chunk section mesh: one cached terrain buffer slice per layer, or `ABSENT` when the mesh has no buffer for that layer.
 - Depends on: nothing.
 
+#### SectionDrawRecord, LayerDraw
+- Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawRecord.java`, `src/main/java/com/aryston/aervium/client/chunk/LayerDraw.java`
+- Role: Everything `extractSectionDrawGroups` computes for one section mesh, prepared once: per drawable layer the buffers, index type, group hash, index count, first index and base vertex, in layer order (up to three slots).
+- Notes: Valid while its mesh is the section's mesh and no allocation of that mesh was freed; `CompiledSectionMeshMixin` invalidates it together with the cached slices. A mesh's draws never change while it is shown (they are filled in its constructor and cleared only when it is released).
+
+#### SectionDrawRecordHolder
+- Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawRecordHolder.java`
+- Role: Interface `RenderSectionMixin` adds to `SectionRenderDispatcher.RenderSection` to keep its last `SectionDrawRecord`.
+- Depends on: `SectionDrawRecord`.
+
+#### SectionDrawLists
+- Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawLists.java`
+- Role: Same result as vanilla `LevelRenderer.extractSectionDrawGroups` (section infos, draw groups by buffer hash, translucent order, largest index count) built from the section records.
+- Depends on: `SectionDrawRecord`, `SectionDrawRecordHolder`, `SectionSliceHolder`; the access transformer for `LevelRenderer$ChunkDrawGroup`.
+- Notes: In the cave scene it cut the share of the render thread spent building draw lists from about 42 % to 28 %; the frame rate did not change because that scene waits on the GPU (`VulkanCommandEncoder.awaitSubmitCompletion`), so the gain shows on CPU-bound PCs.
+
 #### SectionLayers
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionLayers.java`
 - Role: One shared `ChunkSectionLayer.values()` array.
@@ -514,8 +530,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### LevelRendererSectionSliceMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererSectionSliceMixin.java`
-- Role: In `LevelRenderer.extractSectionDrawGroups`, answers `getRenderSectionSlice` from the slice cached in the mesh and asks vanilla only on a miss, and replaces the `ChunkSectionLayer.values()` copy for every section with `SectionLayers.ALL`.
+- Role: Replaces `LevelRenderer.extractSectionDrawGroups` with `SectionDrawLists` (under the dispatcher lock, as vanilla) when the game has at most three section layers; the redirects below remain for the vanilla path. In that path it answers `getRenderSectionSlice` from the slice cached in the mesh and asks vanilla only on a miss, and replaces the `ChunkSectionLayer.values()` copy for every section with `SectionLayers.ALL`.
 - Notes: Module `sectionSliceCache`, renderer module. Vanilla looks up two `HashMap` entries per section and layer in every pass (the camera and each of Helion's shadow cascades) and allocates a new slice record each time; with Helion at render distance 32 that lookup was about 27 % of the render thread. Turning the module on raised the benchmark 1% low from 36.1 to 50.9 FPS and the cave scene from 58 to 78 FPS average (ZGC, Helion and Arkea, 2026-10-12).
+
+#### RenderSectionMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/RenderSectionMixin.java`
+- Role: Implements `SectionDrawRecordHolder` on `SectionRenderDispatcher.RenderSection`.
+- Notes: Module `sectionSliceCache`.
 
 #### CompiledSectionMeshMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/CompiledSectionMeshMixin.java`
@@ -570,7 +591,8 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | File | Purpose |
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `LevelRendererSectionSliceMixin`, `UberGpuBufferMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `UberGpuBufferMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

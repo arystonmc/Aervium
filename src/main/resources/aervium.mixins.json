@@ -18,6 +18,7 @@
     "GlslCompilerMixin",
     "PipelineCacheAccessor",
     "PipelineCacheMixin",
+    "RenderSectionMixin",
     "RenderSystemMixin",
     "VulkanRenderPipelineMixin"
   ],

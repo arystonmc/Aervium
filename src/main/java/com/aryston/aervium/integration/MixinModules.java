@@ -19,17 +19,18 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 public final class MixinModules implements IMixinConfigPlugin {
     private static final String SETTINGS_FILE = "aervium-modules.properties";
     private static final char PACKAGE_SEPARATOR = '.';
-    private static final Map<String, OptimizationModule> MIXIN_MODULES = Map.of(
-        "GlslCompilerMixin", OptimizationModule.SHADER_CACHE,
-        "VulkanRenderPipelineMixin", OptimizationModule.PIPELINE_CACHE,
-        "RenderSystemMixin", OptimizationModule.PIPELINE_WARMUP,
-        "PalettedContainerMixin", OptimizationModule.COMPACT_CHUNK_LOCKS,
-        "CompiledSectionMeshMixin", OptimizationModule.SECTION_SLICE_CACHE,
-        "UberGpuBufferMixin", OptimizationModule.SECTION_SLICE_CACHE,
-        "LevelRendererSectionSliceMixin", OptimizationModule.SECTION_SLICE_CACHE,
-        "DataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS,
-        "BlockDataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS,
-        "SkyDataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS
+    private static final Map<String, OptimizationModule> MIXIN_MODULES = Map.ofEntries(
+        Map.entry("GlslCompilerMixin", OptimizationModule.SHADER_CACHE),
+        Map.entry("VulkanRenderPipelineMixin", OptimizationModule.PIPELINE_CACHE),
+        Map.entry("RenderSystemMixin", OptimizationModule.PIPELINE_WARMUP),
+        Map.entry("PalettedContainerMixin", OptimizationModule.COMPACT_CHUNK_LOCKS),
+        Map.entry("CompiledSectionMeshMixin", OptimizationModule.SECTION_SLICE_CACHE),
+        Map.entry("UberGpuBufferMixin", OptimizationModule.SECTION_SLICE_CACHE),
+        Map.entry("LevelRendererSectionSliceMixin", OptimizationModule.SECTION_SLICE_CACHE),
+        Map.entry("DataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS),
+        Map.entry("BlockDataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS),
+        Map.entry("SkyDataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS),
+        Map.entry("RenderSectionMixin", OptimizationModule.SECTION_SLICE_CACHE)
     );
 
     private ModuleSettings settings;
