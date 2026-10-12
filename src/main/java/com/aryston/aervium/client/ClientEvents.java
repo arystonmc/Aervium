@@ -101,7 +101,6 @@ final class ClientEvents {
         long now = System.nanoTime();
         frameStart = now;
         TELEMETRY.frameStarted(now);
-        TerrainOcclusion.frameStarted();
         if (BENCHMARK.isPresent()) {
             BENCHMARK.get().frameStarted(now);
         }
@@ -110,6 +109,7 @@ final class ClientEvents {
     private static void onFrameEnd(RenderFrameEvent.Post event) {
         SystemTimings.SHARED.end(TimedSystem.FRAME, frameStart);
         TELEMETRY.frameFinished();
+        TerrainOcclusion.frameFinished();
     }
 
     private static void onClientTickStart(ClientTickEvent.Pre event) {

@@ -76,7 +76,7 @@ public final class TerrainOcclusion {
         }
     }
 
-    public static void frameStarted() {
+    public static void frameFinished() {
         frame++;
     }
 

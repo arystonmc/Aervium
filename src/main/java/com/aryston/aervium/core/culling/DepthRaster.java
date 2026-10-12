@@ -39,7 +39,10 @@ public final class DepthRaster {
     private final float[] polygonY = new float[MAX_POLYGON];
     private final float[] polygonZ = new float[MAX_POLYGON];
     private final ClipMatrix clip = new ClipMatrix();
-    private boolean tilesCurrent;
+    private int dirtyTileX0;
+    private int dirtyTileY0;
+    private int dirtyTileX1;
+    private int dirtyTileY1;
     private boolean screenBounded;
     private int occluders;
 
@@ -76,7 +79,7 @@ public final class DepthRaster {
         this.screenBounded = screenBounded;
         Arrays.fill(depth, EMPTY);
         Arrays.fill(tileFarthest, EMPTY);
-        tilesCurrent = true;
+        clearDirtyTiles();
         occluders = 0;
     }
 
@@ -99,7 +102,6 @@ public final class DepthRaster {
         }
         if (drawn) {
             occluders++;
-            tilesCurrent = false;
         }
         return drawn;
     }
@@ -293,6 +295,9 @@ public final class DepthRaster {
                 }
             }
         }
+        if (wrote) {
+            markDirtyTiles(x0 / TILE, y0 / TILE, x1 / TILE, y1 / TILE);
+        }
         return wrote;
     }
 
@@ -314,12 +319,26 @@ public final class DepthRaster {
         return true;
     }
 
+    private void markDirtyTiles(int tileX0, int tileY0, int tileX1, int tileY1) {
+        dirtyTileX0 = Math.min(dirtyTileX0, tileX0);
+        dirtyTileY0 = Math.min(dirtyTileY0, tileY0);
+        dirtyTileX1 = Math.max(dirtyTileX1, tileX1);
+        dirtyTileY1 = Math.max(dirtyTileY1, tileY1);
+    }
+
+    private void clearDirtyTiles() {
+        dirtyTileX0 = tilesX;
+        dirtyTileY0 = tilesY;
+        dirtyTileX1 = -1;
+        dirtyTileY1 = -1;
+    }
+
     private void updateTiles() {
-        if (tilesCurrent) {
+        if (dirtyTileX0 > dirtyTileX1) {
             return;
         }
-        for (int tileY = 0; tileY < tilesY; tileY++) {
-            for (int tileX = 0; tileX < tilesX; tileX++) {
+        for (int tileY = dirtyTileY0; tileY <= dirtyTileY1; tileY++) {
+            for (int tileX = dirtyTileX0; tileX <= dirtyTileX1; tileX++) {
                 float farthest = 0.0F;
                 for (int y = tileY * TILE; y < tileY * TILE + TILE; y++) {
                     int row = y * width;
@@ -330,6 +349,6 @@ public final class DepthRaster {
                 tileFarthest[tileY * tilesX + tileX] = farthest;
             }
         }
-        tilesCurrent = true;
+        clearDirtyTiles();
     }
 }
