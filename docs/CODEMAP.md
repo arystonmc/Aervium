@@ -500,7 +500,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### CompiledSectionMeshMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/CompiledSectionMeshMixin.java`
-- Role: Implements `SectionSliceHolder` on `CompiledSectionMesh` with a per-layer array created at the first draw.
+- Role: Implements `SectionSliceHolder` on `CompiledSectionMesh` with one field per vanilla layer (an array only for layers beyond three), so a lookup reads the mesh object the draw loop has just touched.
 - Notes: Module `sectionSliceCache`.
 
 #### UberGpuBufferMixin
