@@ -23,6 +23,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Pipelines compiled in the middle of a frame | `PipelineWarmup`, `PipelineCacheMixin` |
 | Dynamic frame rate | `FrameRatePolicy`, `FrameRateGovernor`, `FramerateLimitTrackerMixin` |
 | Chunk memory | `PalettedContainerMixin` |
+| Chunk draw list (terrain buffer lookups per frame) | `LevelRendererSectionSliceMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -391,6 +392,18 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Reads used and budgeted device-local memory from the game's Vulkan memory allocator (`vmaGetHeapBudgets`).
 - Depends on: `FrontendGpuDeviceAccessor`, `VramUsage`.
 
+### `com.aryston.aervium.client.chunk`
+
+#### SectionSliceHolder
+- Path: `src/main/java/com/aryston/aervium/client/chunk/SectionSliceHolder.java`
+- Role: Interface `CompiledSectionMeshMixin` adds to every compiled chunk section mesh: one cached terrain buffer slice per layer, or `ABSENT` when the mesh has no buffer for that layer.
+- Depends on: nothing.
+
+#### SectionLayers
+- Path: `src/main/java/com/aryston/aervium/client/chunk/SectionLayers.java`
+- Role: One shared `ChunkSectionLayer.values()` array.
+- Notes: Lives in its own class so the enum is first loaded at the first frame; a static field in a mixin would load it inside the static setup of `LevelRenderer`, before `RenderPipelines` exists, and every layer would get a null pipeline.
+
 ### `com.aryston.aervium.client.pipeline`
 
 #### ShaderCaches
@@ -480,6 +493,21 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Replaces the per-container `ThreadingDetector` (a semaphore, a lock and their syncs, about 128 bytes in every chunk section container) with one `AtomicBoolean`; a second thread entering a container in use still ends in the vanilla "Accessing PalettedContainer from multiple threads" crash report, now with the stack of the thread that entered second.
 - Notes: Module `compactChunkLocks`, both sides. Saves about 100 bytes per container: 48.3 MB of lock objects became 15.5 MB with 332000 containers (client and integrated server) in the benchmark village at render distance 16, and the compare-and-set is cheaper than a semaphore and a lock per access (average MSPT was 12 % lower with all modules on in the first comparison; to be confirmed with more runs). Game behavior is unchanged; only the diagnostic of a threading bug differs.
 
+#### LevelRendererSectionSliceMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererSectionSliceMixin.java`
+- Role: In `LevelRenderer.extractSectionDrawGroups`, answers `getRenderSectionSlice` from the slice cached in the mesh and asks vanilla only on a miss, and replaces the `ChunkSectionLayer.values()` copy for every section with `SectionLayers.ALL`.
+- Notes: Module `sectionSliceCache`, renderer module. Vanilla looks up two `HashMap` entries per section and layer in every pass (the camera and each of Helion's shadow cascades) and allocates a new slice record each time; with Helion at render distance 32 that lookup was about 27 % of the render thread. Turning the module on raised the benchmark 1% low from 36.1 to 50.9 FPS and the cave scene from 58 to 78 FPS average (ZGC, Helion and Arkea, 2026-10-12).
+
+#### CompiledSectionMeshMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/CompiledSectionMeshMixin.java`
+- Role: Implements `SectionSliceHolder` on `CompiledSectionMesh` with a per-layer array created at the first draw.
+- Notes: Module `sectionSliceCache`.
+
+#### UberGpuBufferMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/UberGpuBufferMixin.java`
+- Role: Clears a mesh's cached slices whenever `UberGpuBuffer` frees its allocation and clears every cached slice when the buffer closes.
+- Notes: Module `sectionSliceCache`. Every new allocation of a mesh is preceded by `freeAllocation` of that mesh in `uploadStagedAllocations`, and allocations never move inside a heap, so a cached slice (or `ABSENT`) is always what vanilla would return.
+
 ## Tests
 
 Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI. Each test class sits in the package of the class it checks.
@@ -512,7 +540,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | File | Purpose |
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `PalettedContainerMixin` on both sides; `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `PalettedContainerMixin` on both sides; `CompiledSectionMeshMixin`, `LevelRendererSectionSliceMixin`, `UberGpuBufferMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

@@ -7,6 +7,9 @@
     "PalettedContainerMixin"
   ],
   "client": [
+    "CompiledSectionMeshMixin",
+    "LevelRendererSectionSliceMixin",
+    "UberGpuBufferMixin",
     "FramerateLimitTrackerMixin",
     "FrontendGpuDeviceAccessor",
     "GlslCompilerMixin",

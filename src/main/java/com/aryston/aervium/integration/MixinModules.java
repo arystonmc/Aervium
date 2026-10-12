@@ -23,7 +23,10 @@ public final class MixinModules implements IMixinConfigPlugin {
         "GlslCompilerMixin", OptimizationModule.SHADER_CACHE,
         "VulkanRenderPipelineMixin", OptimizationModule.PIPELINE_CACHE,
         "RenderSystemMixin", OptimizationModule.PIPELINE_WARMUP,
-        "PalettedContainerMixin", OptimizationModule.COMPACT_CHUNK_LOCKS
+        "PalettedContainerMixin", OptimizationModule.COMPACT_CHUNK_LOCKS,
+        "CompiledSectionMeshMixin", OptimizationModule.SECTION_SLICE_CACHE,
+        "UberGpuBufferMixin", OptimizationModule.SECTION_SLICE_CACHE,
+        "LevelRendererSectionSliceMixin", OptimizationModule.SECTION_SLICE_CACHE
     );
 
     private ModuleSettings settings;

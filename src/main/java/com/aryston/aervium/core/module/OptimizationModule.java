@@ -4,7 +4,8 @@ public enum OptimizationModule {
     SHADER_CACHE("shaderCache", true),
     PIPELINE_CACHE("pipelineCache", true),
     PIPELINE_WARMUP("pipelineWarmup", true),
-    COMPACT_CHUNK_LOCKS("compactChunkLocks", false);
+    COMPACT_CHUNK_LOCKS("compactChunkLocks", false),
+    SECTION_SLICE_CACHE("sectionSliceCache", true);
 
     private final String key;
     private final boolean renderer;

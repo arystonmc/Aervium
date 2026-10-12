@@ -70,9 +70,22 @@ Uses less memory for loaded chunks.
 - Replaces a heavy safety lock inside every chunk section with a lighter one that catches the same errors, which saved about 33 MB of memory in the benchmark at render distance 16 and server ticks were faster in the same run
 - Since: 0.1
 
+### Faster Chunk Drawing
+Prepares the list of chunks to draw with much less work every frame.
+
+- Remembers where each chunk's geometry sits on the GPU instead of searching for it again in every pass, which matters most with Helion's shadows; in the benchmark with Helion at render distance 32 the 1% low rose from 36 to 51 FPS and caves from 58 to 78 FPS
+- Since: 0.1
+
+### Garbage Collector Advice
+Tells you which Java settings give the smoothest frames.
+
+- The log names the garbage collector and the memory limit at start and suggests `-XX:+UseZGC` when the game runs with a collector that pauses the game; a mod cannot change this itself, it goes into the launcher's JVM arguments
+- Benchmark reports record the collector, because it changes the lows: in the benchmark ZGC raised the 1% low from 34 to 47 FPS and the 0.1% low from 12 to 32 FPS against the default G1
+- Since: 0.1
+
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`) with `true` or `false`; changes apply at the next start
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`) with `true` or `false`; changes apply at the next start
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1
