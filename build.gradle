@@ -104,7 +104,7 @@ var setUpParityWorld = tasks.register('setUpParityWorld') {
     var parityDir = project.file('runs/parity')
     var modulesOn = !project.hasProperty('parityModules') || project.property('parityModules') != 'off'
     doLast {
-        project.delete(new File(parityDir, 'parity-world'))
+        new File(parityDir, 'parity-world').deleteDir()
         parityDir.mkdirs()
         new File(parityDir, 'eula.txt').text = 'eula=true\n'
         new File(parityDir, 'server.properties').text = [
