@@ -316,12 +316,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### ParityHarness
 - Path: `src/main/java/com/aryston/aervium/world/parity/ParityHarness.java`
-- Role: Active only with `-Daervium.parity=true` (the `parity` run). On server start freezes time, weather and mob spawning and force-loads the scenario chunks; after 40 ticks seeds the level random and the random tick position generator, builds `ParityScenario`, logs block, light and entity hashes of the area every 200 ticks and stops the server after `aervium.parity.ticks` (1200).
+- Role: Active only with `-Daervium.parity=true` (the `parity` run). On server start freezes time, weather and mob spawning and force-loads the scenario chunks; after 40 ticks seeds the level random and the random tick position generator, builds `ParityScenario`, runs its light changes every tick, waits for the light worker before each checkpoint, logs block, light and entity hashes of the area every 200 ticks and stops the server after `aervium.parity.ticks` (1200).
 - Depends on: `ParityScenario`, `StateHash`, `LevelRandomAccessor`.
 
 #### ParityScenario
 - Path: `src/main/java/com/aryston/aervium/world/parity/ParityScenario.java`
-- Role: Builds the fixed parity scenario on the flat ground: observer clock with redstone, lamps and a sticky piston, hopper chain between chests with cobblestone, furnace with raw iron and coal, 9 x 9 wheat farm around water, water and lava in a stone basin, saplings, sugar cane and torches. Also defines the hashed area.
+- Role: Builds the fixed parity scenario on the flat ground: observer clock with redstone, lamps and a sticky piston, hopper chain between chests with cobblestone, furnace with raw iron and coal, 9 x 9 wheat farm around water, water and lava in a stone basin, saplings, sugar cane and torches. `changeLight` places light sources and blockers in the light lab with a fixed sequence per tick. Also defines the hashed area.
 - Depends on: nothing.
 
 ### `com.aryston.aervium.debug.route`

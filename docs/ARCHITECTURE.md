@@ -119,7 +119,8 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 
 1. Seed 1095062134, flat grass world, no structures, time, weather and mob spawning frozen, the server never pauses when empty.
 2. After 40 ticks the level random and the random tick position generator get fixed seeds and `ParityScenario` builds an observer clock with a sticky piston, a hopper chain between chests, a burning furnace, a wheat farm, water and lava, saplings, sugar cane and torches in 16 force-loaded chunks.
-3. Every 200 ticks for 1200 ticks the log prints three hashes of the 48 x 48 x 21 area: blocks (state, block entity data, scheduled ticks), light (block and sky light) and entities.
+3. Every tick a fixed sequence places light sources and blockers (glowstone, sea lanterns, stone, glass, slabs, stairs, leaves, tinted glass, air) in a 40 x 8 x 8 light lab, 4 per tick or `aervium.parity.lightChanges`, so block and sky light keep changing.
+4. Every 200 ticks for 1200 ticks the harness waits until the light worker has finished every queued task for the scenario chunks, then the log prints three hashes of the 48 x 48 x 21 area: blocks (state, block entity data, scheduled ticks), light (block and sky light) and entities.
 
 Two runs with the same settings must print the same hashes, and a run with every module off must print the same hashes as a run with every module on. Any optimization that touches world logic has to keep this true; a different hash shows the first checkpoint where the world diverged.
 

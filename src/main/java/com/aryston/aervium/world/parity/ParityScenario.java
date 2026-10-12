@@ -27,6 +27,23 @@ final class ParityScenario {
     private static final int CHEST_SLOTS = 27;
     private static final int FUEL_COUNT = 16;
     private static final int ORE_COUNT = 32;
+    private static final int LAB_MIN_X = -20;
+    private static final int LAB_WIDTH = 40;
+    private static final int LAB_MIN_Z = 14;
+    private static final int LAB_DEPTH = 8;
+    private static final int LAB_HEIGHT = 8;
+    private static final BlockState[] LAB_STATES = {
+        Blocks.AIR.defaultBlockState(),
+        Blocks.AIR.defaultBlockState(),
+        Blocks.GLOWSTONE.defaultBlockState(),
+        Blocks.SEA_LANTERN.defaultBlockState(),
+        Blocks.STONE.defaultBlockState(),
+        Blocks.GLASS.defaultBlockState(),
+        Blocks.STONE_SLAB.defaultBlockState(),
+        Blocks.COBBLESTONE_STAIRS.defaultBlockState(),
+        Blocks.OAK_LEAVES.defaultBlockState().setValue(BlockStateProperties.PERSISTENT, true),
+        Blocks.TINTED_GLASS.defaultBlockState(),
+    };
 
     private ParityScenario() {
     }
@@ -121,6 +138,22 @@ final class ParityScenario {
             set(level, x + i * 2, GROUND_Y + 1, z + i, Blocks.TORCH.defaultBlockState());
         }
         set(level, x + 2, GROUND_Y + 4, z, Blocks.STONE.defaultBlockState());
+    }
+
+    /**
+     * Places light sources and blockers in the light lab with a fixed sequence per tick, so block and sky light
+     * keep changing for the whole run.
+     */
+    static void changeLight(ServerLevel level, int scenarioTick, int changes) {
+        long state = 0x9E3779B97F4A7C15L * (scenarioTick + 1);
+        for (int i = 0; i < changes; i++) {
+            state = state * 6364136223846793005L + 1442695040888963407L;
+            int bits = (int) (state >>> 33);
+            int x = LAB_MIN_X + Math.floorMod(bits, LAB_WIDTH);
+            int z = LAB_MIN_Z + Math.floorMod(bits >>> 6, LAB_DEPTH);
+            int y = GROUND_Y + 1 + Math.floorMod(bits >>> 9, LAB_HEIGHT);
+            set(level, x, y, z, LAB_STATES[Math.floorMod(bits >>> 12, LAB_STATES.length)]);
+        }
     }
 
     private static BlockState facing(Block block, Direction direction) {
