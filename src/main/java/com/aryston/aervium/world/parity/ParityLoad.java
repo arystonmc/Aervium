@@ -2,12 +2,13 @@ package com.aryston.aervium.world.parity;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.world.poi.PoiAudit;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.List;
 import java.util.Locale;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
@@ -15,7 +16,8 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
- * Optional server load for profiling: mobs spread over the force-loaded square, and the mean server tick time.
+ * Optional server load for profiling: mobs spread over the dry land of the force-loaded square, and the mean server tick
+ * time, wall and server thread CPU.
  * Off unless aervium.parity.mobs is set, so the parity hashes stay as they are.
  */
 final class ParityLoad {
@@ -23,8 +25,13 @@ final class ParityLoad {
         EntityTypes.COW, EntityTypes.SHEEP, EntityTypes.PIG, EntityTypes.CHICKEN, EntityTypes.VILLAGER);
     private static final long SEED = 0x4C6F6164L;
     private static final int MEASURE_FROM_TICK = 100;
+    private static final int MAX_ATTEMPTS_PER_MOB = 20;
+
+    private static final ThreadMXBean THREADS = ManagementFactory.getThreadMXBean();
 
     private static long tickStart;
+    private static long tickCpuStart;
+    private static long tickCpuNanos;
     private static long tickNanos;
     private static int measuredTicks;
     private static long maxTickNanos;
@@ -41,20 +48,25 @@ final class ParityLoad {
         RandomSource random = RandomSource.create(SEED);
         int span = (forceRadius * 2 + 1) * 16;
         int min = -forceRadius * 16;
-        for (int i = 0; i < count; i++) {
+        int spawned = 0;
+        for (int attempt = 0; spawned < count && attempt < count * MAX_ATTEMPTS_PER_MOB; attempt++) {
             int x = min + random.nextInt(span);
             int z = min + random.nextInt(span);
             BlockPos pos = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z));
-            Entity mob = MOB_TYPES.get(i % MOB_TYPES.size()).spawn(level, pos, EntitySpawnReason.COMMAND);
-            if (mob == null) {
-                Aervium.LOGGER.warn("Aervium parity: could not spawn a mob at {}", pos);
+            if (!level.getFluidState(pos.below()).isEmpty() || !level.getFluidState(pos).isEmpty()) {
+                continue;
+            }
+            if (MOB_TYPES.get(spawned % MOB_TYPES.size()).spawn(level, pos, EntitySpawnReason.COMMAND) != null) {
+                spawned++;
             }
         }
-        Aervium.LOGGER.info("Aervium parity: spawned {} mobs for load", count);
+        mobs = spawned;
+        Aervium.LOGGER.info("Aervium parity: spawned {} mobs on dry land for load", spawned);
     }
 
     static void tickStarted(ServerTickEvent.Pre event) {
         tickStart = System.nanoTime();
+        tickCpuStart = THREADS.getCurrentThreadCpuTime();
     }
 
     static void tickFinished(int scenarioTick) {
@@ -62,6 +74,7 @@ final class ParityLoad {
             return;
         }
         long nanos = System.nanoTime() - tickStart;
+        tickCpuNanos += THREADS.getCurrentThreadCpuTime() - tickCpuStart;
         tickNanos += nanos;
         maxTickNanos = Math.max(maxTickNanos, nanos);
         measuredTicks++;
@@ -74,8 +87,9 @@ final class ParityLoad {
         if (mobs <= 0 || measuredTicks == 0) {
             return;
         }
-        Aervium.LOGGER.info("Aervium parity load: {} mobs, {} ticks, mean tick {} ms, longest {} ms", mobs, measuredTicks,
+        Aervium.LOGGER.info("Aervium parity load: {} mobs, {} ticks, mean tick {} ms ({} ms CPU), longest {} ms", mobs, measuredTicks,
             String.format(Locale.ROOT, "%.3f", tickNanos / 1e6 / measuredTicks),
+            String.format(Locale.ROOT, "%.3f", tickCpuNanos / 1e6 / measuredTicks),
             String.format(Locale.ROOT, "%.2f", maxTickNanos / 1e6));
     }
 }
