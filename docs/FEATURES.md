@@ -88,6 +88,7 @@ Chunks are prepared for drawing on Aervium's own worker threads.
 
 - In single player, vanilla prepares chunks on the same threads that generate and save the world, so new chunks wait behind world generation when you fly or run into new land; Aervium gives chunk building its own threads (all cores but two, up to eight)
 - The overlay (F7) shows chunk builds per second, how busy the workers are and how many builds are waiting; the benchmark log prints the same per scene
+- The overlay and the benchmark log also show how long uploading new chunks to the graphics card takes and how long the game waits for the chunk builders
 - Since: 0.1
 
 ### Occlusion Culling

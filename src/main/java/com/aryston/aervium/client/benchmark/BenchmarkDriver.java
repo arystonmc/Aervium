@@ -2,7 +2,9 @@ package com.aryston.aervium.client.benchmark;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.client.FrameRateGovernor;
+import com.aryston.aervium.client.chunk.ChunkUploadTimings;
 import com.aryston.aervium.client.chunk.MeshWorkers;
+import com.aryston.aervium.core.budget.StallMeter;
 import com.aryston.aervium.core.culling.CullingStatistics;
 import com.aryston.aervium.core.job.JobLoadMeter;
 import com.aryston.aervium.core.job.JobSystem;
@@ -30,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
@@ -185,6 +188,8 @@ public final class BenchmarkDriver {
             meshMeter = MeshWorkers.meter(System.nanoTime());
             queuedSum = 0;
             queuedSamples = 0;
+            ChunkUploadTimings.UPLOADS.take();
+            ChunkUploadTimings.LOCK_WAITS.take();
         }
         if (measurement != null) {
             sampleMemory();
@@ -211,6 +216,11 @@ public final class BenchmarkDriver {
     }
 
     private void logChunkBuilds(String scene) {
+        StallMeter.Totals uploads = ChunkUploadTimings.UPLOADS.take();
+        StallMeter.Totals waits = ChunkUploadTimings.LOCK_WAITS.take();
+        Aervium.LOGGER.info(String.format(Locale.ROOT,
+            "Aervium benchmark: %s chunk uploads %.2f ms average, %.1f ms longest; render thread waited for chunk builders %.0f ms in total, %.1f ms longest",
+            scene, uploads.averageMs(), uploads.maxMs(), waits.totalMs(), waits.maxMs()));
         long averageQueued = queuedSamples == 0 ? 0 : Math.round((double) queuedSum / queuedSamples);
         if (!MeshWorkers.active()) {
             Aervium.LOGGER.info("Aervium benchmark: {} chunk build queue {} on average (vanilla workers)", scene, averageQueued);

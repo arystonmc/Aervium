@@ -27,6 +27,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
 | Occlusion culling (caves, Helion shadow casters, entities, particles) | `TerrainOcclusion`, `EntityOcclusion`, `ParticleOcclusion`, `HelionShadowCasters`, `OcclusionPass`, `DepthRaster`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `QuadParticleGroupOcclusionMixin`, `ParticleAccessor`, `HelionShadowCastersMixin` |
 | Chunk mesh workers (own thread pool for chunk builds) | `MeshWorkers`, `LevelRendererMeshWorkersMixin`, `JobSystem`, `JobLoadMeter` |
+| Chunk upload and builder lock timings | `ChunkUploadTimings`, `StallMeter`, `SectionRenderDispatcherTimingMixin` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -157,6 +158,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/core/budget/FrameBudget.java`
 - Role: Record of the target frame rate; gives the frame time and the budget of each `TimedSystem` (tick systems always get 50 ms).
 - Depends on: `TimedSystem`, `Durations`.
+
+#### StallMeter
+- Path: `src/main/java/com/aryston/aervium/core/budget/StallMeter.java`
+- Role: Count, total and longest of a repeated render thread stall since the last `take`, for the benchmark log. Render thread only, no locking.
+- Depends on: nothing.
 
 #### SystemTimings
 - Path: `src/main/java/com/aryston/aervium/core/budget/SystemTimings.java`
@@ -479,6 +485,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Depends on: `SectionDrawRecord`, `SectionDrawRecordHolder`, `SectionSliceHolder`, `TerrainOcclusion` (skips sections the camera pass found hidden); the access transformer for `LevelRenderer$ChunkDrawGroup`.
 - Notes: In the cave scene it cut the share of the render thread spent building draw lists from about 42 % to 28 %; the frame rate did not change because that scene waits on the GPU (`VulkanCommandEncoder.awaitSubmitCompletion`), so the gain shows on CPU-bound PCs.
 
+#### ChunkUploadTimings
+- Path: `src/main/java/com/aryston/aervium/client/chunk/ChunkUploadTimings.java`
+- Role: Times vanilla's terrain buffer upload and how long the render thread waits for the chunk builder lock (workers hold it while they copy a finished mesh into the staging buffer); feeds `SystemTimings` for the overlay and two `StallMeter`s for the benchmark log.
+- Notes: Measurement only. It decides whether uploads or the lock need their own work: vanilla only resets its linear staging buffer once every staged mesh is uploaded, so a plain per-frame upload budget would starve it.
+- Depends on: `StallMeter`, `SystemTimings`.
+
 #### MeshWorkers
 - Path: `src/main/java/com/aryston/aervium/client/chunk/MeshWorkers.java`
 - Role: Owns the `Aervium Mesh` job system (two cores left to the game threads, at most eight workers, normal priority) and the `TracingExecutor` vanilla's chunk build dispatcher runs on instead of the shared background pool; gives meters for the overlay and the benchmark.
@@ -669,6 +681,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Accessor for the protected last-tick position (`xo`, `yo`, `zo`) of `Particle`.
 - Notes: Module `occlusionCulling`.
 
+#### SectionRenderDispatcherTimingMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/SectionRenderDispatcherTimingMixin.java`
+- Role: Times the lock call in `SectionRenderDispatcher.lock` and the whole of `uploadTerrainBuffersToGpu` for `ChunkUploadTimings`.
+- Notes: Not tied to a module, so the numbers exist with every module on or off.
+
 #### LevelRendererMeshWorkersMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererMeshWorkersMixin.java`
 - Role: Replaces the executor argument of `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` with `MeshWorkers.executor()`.
@@ -709,6 +726,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/telemetry/GcAdviceTest.java` | Collector recognition from bean names, advice for G1 and for a small heap. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcPauseRecorderTest.java` | Pauses versus concurrent cycles, totals, pauses after a mark. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameBudgetTest.java` | Frame and system budgets, fixed 50 ms tick budget, budget edge, invalid target. |
+| `src/test/java/com/aryston/aervium/core/budget/StallMeterTest.java` | Sum, average and longest stall, reset on take. |
 | `src/test/java/com/aryston/aervium/core/budget/SystemTimingsTest.java` | Smoothing, peaks reset on sampling, over budget flags. |
 | `src/test/java/com/aryston/aervium/core/job/JobSystemTest.java` | Worker count rule, every job runs on named workers, no jobs after closing. |
 | `src/test/java/com/aryston/aervium/core/job/JobLoadMeterTest.java` | Timed service counts jobs and busy time, jobs per second and busy share, empty interval, no jobs after closing. |
@@ -728,7 +746,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

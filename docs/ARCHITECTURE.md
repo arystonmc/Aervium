@@ -139,6 +139,7 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 | `LevelExtractorOcclusionMixin` | `LevelExtractor.extractVisibleEntities`, `isEntityVisible`, block entity extraction | Entity visibility is only the frustum check; no event can drop an entity or block entity from a frame. |
 | `QuadParticleGroupOcclusionMixin`, `ParticleAccessor` | `QuadParticleGroup.extractRenderState`, `Particle.xo/yo/zo` | Particle extraction only checks the frustum and has no hook. |
 | `LevelRendererMeshWorkersMixin` | `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` | The chunk build executor is hard-wired to the shared background pool. |
+| `SectionRenderDispatcherTimingMixin` | `SectionRenderDispatcher.lock` and `uploadTerrainBuffersToGpu` | Upload and builder lock time are invisible otherwise. |
 | `HelionShadowCastersMixin` (pseudo, optional) | Helion `VanillaShadowCasterSource.collectSections` | Helion exposes no hook for its caster lists yet. |
 | `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin` | `LevelRenderer.extractSectionDrawGroups`, `CompiledSectionMesh`, `UberGpuBuffer.freeAllocation` and `close` | The terrain buffer slices of a mesh are only reachable through a map lookup and the draw list loop has no hook. |
 
