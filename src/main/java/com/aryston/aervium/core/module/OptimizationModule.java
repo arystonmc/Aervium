@@ -8,7 +8,8 @@ public enum OptimizationModule {
     SECTION_SLICE_CACHE("sectionSliceCache", true),
     LIGHT_SNAPSHOTS("lightSnapshots", false),
     OCCLUSION_CULLING("occlusionCulling", true),
-    MESH_WORKERS("meshWorkers", true);
+    MESH_WORKERS("meshWorkers", true),
+    POI_SEARCH("poiSearch", false);
 
     private final String key;
     private final boolean renderer;

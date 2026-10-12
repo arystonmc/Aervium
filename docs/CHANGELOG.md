@@ -7,6 +7,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
+- Villagers find beds and job sites with far less server work (same results as vanilla)
 - On first launch Aervium sorts the PC into low, medium or high and lightens settings on weak machines
 - Crash reports name the Aervium module whose code was in the crash and how to test without it
 - Initial mod setup for Minecraft 26.3 on NeoForge

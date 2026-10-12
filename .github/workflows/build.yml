@@ -41,6 +41,12 @@ jobs:
           grep -q 'missing 0' worldgen-on.txt
           diff worldgen-on.txt worldgen-off.txt
 
+      - name: POI search audit
+        run: |
+          JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Daervium.parity.forceRadius=6 -Daervium.parity.mobs=300 -Daervium.parity.ticks=600 -Daervium.poiAudit=true" ./gradlew runParity -PparityWorld=normal
+          grep 'Aervium poi audit' runs/parity/logs/latest.log
+          grep -q 'Aervium poi audit: [1-9][0-9]* column searches, [1-9][0-9]* records, 0 mismatches' runs/parity/logs/latest.log
+
       - name: Upload jar
         uses: actions/upload-artifact@v6
         with:

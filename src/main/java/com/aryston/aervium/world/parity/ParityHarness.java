@@ -30,6 +30,7 @@ public final class ParityHarness {
     private static final String TICKS_PROPERTY = "aervium.parity.ticks";
     private static final String LIGHT_CHANGES_PROPERTY = "aervium.parity.lightChanges";
     private static final String FORCE_RADIUS_PROPERTY = "aervium.parity.forceRadius";
+    private static final String MOBS_PROPERTY = "aervium.parity.mobs";
     private static final int DEFAULT_TICKS = 1200;
     private static final int DEFAULT_LIGHT_CHANGES = 4;
     private static final int SETTLE_TICKS = 40;
@@ -52,6 +53,7 @@ public final class ParityHarness {
             return;
         }
         NeoForge.EVENT_BUS.addListener(ParityHarness::onServerStarted);
+        NeoForge.EVENT_BUS.addListener(ParityLoad::tickStarted);
         NeoForge.EVENT_BUS.addListener(ParityHarness::onServerTickEnd);
     }
 
@@ -89,10 +91,12 @@ public final class ParityHarness {
                 level.getChunkSource().getLoadedChunksCount(), String.format(Locale.ROOT, "%.1f", startLight.wall().totalMs()),
                 String.format(Locale.ROOT, "%.1f", startLight.cpuMs()));
             ParityScenario.build(level);
+            ParityLoad.spawnMobs(level, Integer.getInteger(MOBS_PROPERTY, 0), Integer.getInteger(FORCE_RADIUS_PROPERTY, 0));
             Aervium.LOGGER.info("Aervium parity: scenario built, running {} ticks", ticks());
             return;
         }
         int scenarioTick = tick - SETTLE_TICKS;
+        ParityLoad.tickFinished(scenarioTick);
         if (scenarioTick > 0 && scenarioTick < ticks()) {
             ParityScenario.changeLight(level, scenarioTick, Integer.getInteger(LIGHT_CHANGES_PROPERTY, DEFAULT_LIGHT_CHANGES));
         }
@@ -104,6 +108,7 @@ public final class ParityHarness {
             scenarioTick, blockHash(level), lightHash(level), entityHash(level));
         if (scenarioTick >= ticks()) {
             running = false;
+            ParityLoad.report();
             ServerLightTimings.Totals light = ServerLightTimings.take();
             Aervium.LOGGER.info("Aervium parity: finished with {} chunks loaded, light worker ran {} batches in {} ms ({} ms CPU), longest {} ms",
                 level.getChunkSource().getLoadedChunksCount(), light.wall().count(), String.format(Locale.ROOT, "%.1f", light.wall().totalMs()),

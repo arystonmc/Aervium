@@ -24,6 +24,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Dynamic frame rate | `FrameRatePolicy`, `FrameRateGovernor`, `FramerateLimitTrackerMixin` |
 | Chunk memory | `PalettedContainerMixin` |
 | First launch hardware class (lower distances, leaf culling on weak machines) | `HardwareClassifier`, `HardwareTier`, `HardwareProfile`, `GpuKind`, `HardwareSetup`, `VulkanMemoryProbe` |
+| Faster point of interest searches (villager beds, job sites) | `ColumnIndexedLongMap`, `PoiColumns`, `PoiAudit`, `SectionStoragePoiIndexMixin`, `SectionStorageAccessor`, `PoiManagerColumnSearchMixin` |
 | Crash report entry (modules on, Aervium code in the crash) | `CrashSummary`, `CrashReportSection`, `CrashReportMixin`, `MixinModules` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
@@ -299,6 +300,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Results of jobs that must be applied on the main thread; `drain(budget)` runs them in order until the time budget is spent (at least one per call).
 - Depends on: nothing.
 
+### `com.aryston.aervium.core.collection` (column index)
+
+#### ColumnIndexedLongMap
+- Path: `src/main/java/com/aryston/aervium/core/collection/ColumnIndexedLongMap.java`
+- Role: A `Long2ObjectOpenHashMap` of sections that also counts, per column, how many sections are stored and keeps a 64-bit mask of the sections whose value is occupied; kept by `put(long, V)` and `remove(long)`. `complete(column)` says every section is stored, `occupiedMask(column)` which ones hold a value.
+- Depends on: nothing; the key layout and the occupied test come in as functions.
+
 ### `com.aryston.aervium.core.crash`
 
 #### CrashSummary
@@ -350,6 +358,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/world/parity/WorldgenCheck.java`
 - Role: Active with `-Daervium.parity.worldgen=true` instead of the scenario. Freezes ticks, force-loads `aervium.parity.worldgenRadius` (12) chunks around 0, 0, hashes every chunk's blocks and biomes when its terrain step finishes, and once all are full logs the combined terrain hash, missing chunks, a save and load round trip of every section through the real chunk codecs, generation time, process CPU and light worker CPU, then stops the server.
 - Depends on: `StateHash`, `ServerLightTimings`, `ChunkStatusTasksTerrainMixin`.
+
+#### ParityLoad
+- Path: `src/main/java/com/aryston/aervium/world/parity/ParityLoad.java`
+- Role: Optional server load for profiling (`aervium.parity.mobs`): spawns cows, sheep, pigs, chickens and villagers at fixed random spots over the force-loaded square, measures each server tick from `ServerTickEvent.Pre` to `Post` after 100 ticks and logs the mean and longest; also logs the `PoiAudit` summary.
+- Depends on: `PoiAudit`.
 
 #### ParityScenario
 - Path: `src/main/java/com/aryston/aervium/world/parity/ParityScenario.java`
@@ -785,10 +798,25 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Times the lock call in `SectionRenderDispatcher.lock` and the whole of `uploadTerrainBuffersToGpu` for `ChunkUploadTimings`.
 - Notes: Not tied to a module, so the numbers exist with every module on or off.
 
+#### SectionStoragePoiIndexMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/SectionStoragePoiIndexMixin.java`
+- Role: When a `PoiManager` is constructed, swaps its empty section map for a `ColumnIndexedLongMap` from `PoiColumns` (levels taller than 64 sections keep the vanilla map).
+- Notes: Module `poiSearch`.
+
+#### PoiManagerColumnSearchMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/PoiManagerColumnSearchMixin.java`
+- Role: At the head of `PoiManager.getInChunk`, answers from the occupied sections of a fully loaded column; columns not fully in memory fall through to vanilla, which loads them. With `PoiAudit.ENABLED` also runs the vanilla search and compares.
+- Notes: Module `poiSearch`. Uses `SectionStorageAccessor` for the map and the level height.
+
 #### LevelRendererMeshWorkersMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererMeshWorkersMixin.java`
 - Role: Replaces the executor argument of `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` with `MeshWorkers.executor()`.
 - Notes: Module `meshWorkers`, renderer module.
+
+#### PoiColumns, PoiAudit
+- Path: `src/main/java/com/aryston/aervium/world/poi/`
+- Role: `PoiColumns` builds the column index for a level height (section key to chunk column and section index) and streams the records of a column's occupied sections from the lowest up, or returns null when the column is not fully loaded. `PoiAudit` (`-Daervium.poiAudit=true`) counts searches, records and searches whose indexed and vanilla records differ.
+- Depends on: `ColumnIndexedLongMap`.
 
 #### HelionShadowCastersMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/HelionShadowCastersMixin.java`
@@ -825,6 +853,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/telemetry/GcAdviceTest.java` | Collector recognition from bean names, advice for G1 and for a small heap. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcPauseRecorderTest.java` | Pauses versus concurrent cycles, totals, pauses after a mark. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameBudgetTest.java` | Frame and system budgets, fixed 50 ms tick budget, budget edge, invalid target. |
+| `src/test/java/com/aryston/aervium/core/collection/ColumnIndexedLongMapTest.java` | A column is complete only with every section stored; replacing and removing keep counts and masks exact, double removes are harmless; columns over 64 sections are rejected. |
 | `src/test/java/com/aryston/aervium/core/hardware/HardwareClassifierTest.java` | A gaming desktop is high, an integrated laptop medium; the weakest part (4 threads, small heap, software renderer, little video memory or RAM) decides; unknown values do not lower; tiers only lower distances. |
 | `src/test/java/com/aryston/aervium/core/crash/CrashSummaryTest.java` | No Aervium code gives the "none" line; a mixin handler in the stack names its module with the fixed marker and the switch-off hint; own frames and always-on mixins are listed without a hint. |
 | `src/test/java/com/aryston/aervium/core/parity/StateHashTest.java` | Same input same hash, order and every value matter, FNV offset basis for an empty hash. |
@@ -848,7 +877,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PoiManagerColumnSearchMixin`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

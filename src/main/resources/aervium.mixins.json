@@ -10,6 +10,9 @@
     "DataLayerStorageMapMixin",
     "LevelRandomAccessor",
     "PalettedContainerMixin",
+    "PoiManagerColumnSearchMixin",
+    "SectionStorageAccessor",
+    "SectionStoragePoiIndexMixin",
     "SkyDataLayerStorageMapMixin",
     "ThreadedLevelLightEngineTimingMixin"
   ],

@@ -46,7 +46,9 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("ParticleAccessor", OptimizationModule.OCCLUSION_CULLING),
         Map.entry("QuadParticleGroupOcclusionMixin", OptimizationModule.OCCLUSION_CULLING),
         Map.entry("HelionShadowCastersMixin", OptimizationModule.OCCLUSION_CULLING),
-        Map.entry("LevelRendererMeshWorkersMixin", OptimizationModule.MESH_WORKERS)
+        Map.entry("LevelRendererMeshWorkersMixin", OptimizationModule.MESH_WORKERS),
+        Map.entry("SectionStoragePoiIndexMixin", OptimizationModule.POI_SEARCH),
+        Map.entry("PoiManagerColumnSearchMixin", OptimizationModule.POI_SEARCH)
     );
 
     private static final String HELION_MOD_ID = "helion";

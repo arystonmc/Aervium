@@ -1,0 +1,81 @@
+package com.aryston.aervium.world.parity;
+
+import com.aryston.aervium.Aervium;
+import com.aryston.aervium.world.poi.PoiAudit;
+import java.util.List;
+import java.util.Locale;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+
+/**
+ * Optional server load for profiling: mobs spread over the force-loaded square, and the mean server tick time.
+ * Off unless aervium.parity.mobs is set, so the parity hashes stay as they are.
+ */
+final class ParityLoad {
+    private static final List<EntityType<?>> MOB_TYPES = List.of(
+        EntityTypes.COW, EntityTypes.SHEEP, EntityTypes.PIG, EntityTypes.CHICKEN, EntityTypes.VILLAGER);
+    private static final long SEED = 0x4C6F6164L;
+    private static final int MEASURE_FROM_TICK = 100;
+
+    private static long tickStart;
+    private static long tickNanos;
+    private static int measuredTicks;
+    private static long maxTickNanos;
+    private static int mobs;
+
+    private ParityLoad() {
+    }
+
+    static void spawnMobs(ServerLevel level, int count, int forceRadius) {
+        mobs = count;
+        if (count <= 0) {
+            return;
+        }
+        RandomSource random = RandomSource.create(SEED);
+        int span = (forceRadius * 2 + 1) * 16;
+        int min = -forceRadius * 16;
+        for (int i = 0; i < count; i++) {
+            int x = min + random.nextInt(span);
+            int z = min + random.nextInt(span);
+            BlockPos pos = level.getHeightmapPos(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, 0, z));
+            Entity mob = MOB_TYPES.get(i % MOB_TYPES.size()).spawn(level, pos, EntitySpawnReason.COMMAND);
+            if (mob == null) {
+                Aervium.LOGGER.warn("Aervium parity: could not spawn a mob at {}", pos);
+            }
+        }
+        Aervium.LOGGER.info("Aervium parity: spawned {} mobs for load", count);
+    }
+
+    static void tickStarted(ServerTickEvent.Pre event) {
+        tickStart = System.nanoTime();
+    }
+
+    static void tickFinished(int scenarioTick) {
+        if (mobs <= 0 || scenarioTick < MEASURE_FROM_TICK) {
+            return;
+        }
+        long nanos = System.nanoTime() - tickStart;
+        tickNanos += nanos;
+        maxTickNanos = Math.max(maxTickNanos, nanos);
+        measuredTicks++;
+    }
+
+    static void report() {
+        if (PoiAudit.ENABLED) {
+            Aervium.LOGGER.info("Aervium poi audit: {}", PoiAudit.summary());
+        }
+        if (mobs <= 0 || measuredTicks == 0) {
+            return;
+        }
+        Aervium.LOGGER.info("Aervium parity load: {} mobs, {} ticks, mean tick {} ms, longest {} ms", mobs, measuredTicks,
+            String.format(Locale.ROOT, "%.3f", tickNanos / 1e6 / measuredTicks),
+            String.format(Locale.ROOT, "%.2f", maxTickNanos / 1e6));
+    }
+}
