@@ -115,14 +115,17 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 
 ## Vanilla Parity Check
 
-`./gradlew runParity` starts a dedicated server in `runs/parity` with a fresh flat world, runs a fixed scenario and stops; `-PparityModules=off` writes every module as off before the run.
+`./gradlew runParity` starts a dedicated server in `runs/parity` with a fresh flat world, runs a fixed scenario and stops; `-PparityModules=off` writes every module as off before the run and `-PparityOff=a,b` turns off only the named modules.
 
 1. Seed 1095062134, flat grass world, no structures, time, weather and mob spawning frozen, the server never pauses when empty.
 2. After 40 ticks the level random and the random tick position generator get fixed seeds and `ParityScenario` builds an observer clock with a sticky piston, a hopper chain between chests, a burning furnace, a wheat farm, water and lava, saplings, sugar cane and torches in 16 force-loaded chunks.
 3. Every tick a fixed sequence places light sources and blockers (glowstone, sea lanterns, stone, glass, slabs, stairs, leaves, tinted glass, air) in a 40 x 8 x 8 light lab, 4 per tick or `aervium.parity.lightChanges`, so block and sky light keep changing.
-4. Every 200 ticks for 1200 ticks the harness waits until the light worker has finished every queued task for the scenario chunks, then the log prints three hashes of the 48 x 48 x 21 area: blocks (state, block entity data, scheduled ticks), light (block and sky light) and entities.
+4. After every tick the harness waits until the light worker has finished every queued task for the scenario chunks. Vanilla lights on a worker thread, so without this a random tick that reads light (grass dying under a new block) would depend on thread timing.
+5. Every 200 ticks for 1200 ticks the log prints three hashes of the 48 x 48 x 21 area: blocks (state, block entity data, scheduled ticks), light (block and sky light) and entities.
 
 Two runs with the same settings must print the same hashes, and a run with every module off must print the same hashes as a run with every module on. Any optimization that touches world logic has to keep this true; a different hash shows the first checkpoint where the world diverged.
+
+The same run doubles as a light benchmark: the log prints the wall and CPU time the server light worker spent before the scenario and during it. `-Daervium.parity.lightChanges=400` makes block light heavy; `-PparityWorld=normal` with `-Daervium.parity.forceRadius=12` generates 625 chunks of normal terrain first (hashes are not comparable then, normal worlds have mobs). Cloud results on 4 cores: light was about 5 % of the chunk generation CPU (noise filling 57 %, surface 21 %, features 17 %), and 400 block changes per tick cost about 17 µs each. Bigger chunk and section caches inside the light engine changed neither number beyond noise, so they were not kept.
 
 ## Invariants
 
@@ -150,6 +153,7 @@ Two runs with the same settings must print the same hashes, and a run with every
 | `LevelExtractorOcclusionMixin` | `LevelExtractor.extractVisibleEntities`, `isEntityVisible`, block entity extraction | Entity visibility is only the frustum check; no event can drop an entity or block entity from a frame. |
 | `QuadParticleGroupOcclusionMixin`, `ParticleAccessor` | `QuadParticleGroup.extractRenderState`, `Particle.xo/yo/zo` | Particle extraction only checks the frustum and has no hook. |
 | `LevelRendererMeshWorkersMixin` | `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` | The chunk build executor is hard-wired to the shared background pool. |
+| `ThreadedLevelLightEngineTimingMixin` | `ThreadedLevelLightEngine.runUpdate` | The server light worker has no timing of its own. |
 | `SectionRenderDispatcherTimingMixin` | `SectionRenderDispatcher.lock` and `uploadTerrainBuffersToGpu` | Upload and builder lock time are invisible otherwise. |
 | `ModelBlockRendererLeafCullingMixin` | `ModelBlockRenderer.shouldRenderFace` | Leaf face culling only depends on the block state, never on the leaves around it. |
 | `HelionShadowCastersMixin` (pseudo, optional) | Helion `VanillaShadowCasterSource.collectSections` | Helion exposes no hook for its caster lists yet. |

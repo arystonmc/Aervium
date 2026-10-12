@@ -8,7 +8,8 @@
     "DataLayerStorageMapMixin",
     "LevelRandomAccessor",
     "PalettedContainerMixin",
-    "SkyDataLayerStorageMapMixin"
+    "SkyDataLayerStorageMapMixin",
+    "ThreadedLevelLightEngineTimingMixin"
   ],
   "client": [
     "CompiledSectionMeshMixin",

@@ -103,6 +103,8 @@ tasks.named('processResources', ProcessResources) {
 var setUpParityWorld = tasks.register('setUpParityWorld') {
     var parityDir = project.file('runs/parity')
     var modulesOn = !project.hasProperty('parityModules') || project.property('parityModules') != 'off'
+    var normalWorld = project.hasProperty('parityWorld') && project.property('parityWorld') == 'normal'
+    var modulesOff = project.hasProperty('parityOff') ? project.property('parityOff').toString().split(',').collect { it.trim() } : []
     doLast {
         new File(parityDir, 'parity-world').deleteDir()
         parityDir.mkdirs()
@@ -110,9 +112,9 @@ var setUpParityWorld = tasks.register('setUpParityWorld') {
         new File(parityDir, 'server.properties').text = [
                 'level-name=parity-world',
                 'level-seed=1095062134',
-                'level-type=minecraft\\:flat',
-                'generator-settings={"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}',
-                'generate-structures=false',
+                normalWorld ? 'level-type=minecraft\\:normal' : 'level-type=minecraft\\:flat',
+                normalWorld ? '' : 'generator-settings={"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}',
+                'generate-structures=' + normalWorld,
                 'pause-when-empty-seconds=0',
                 'spawn-protection=0',
                 'online-mode=false',
@@ -126,7 +128,7 @@ var setUpParityWorld = tasks.register('setUpParityWorld') {
         new File(config, 'aervium-modules.properties').text = [
                 'shaderCache', 'pipelineCache', 'pipelineWarmup', 'compactChunkLocks', 'sectionSliceCache',
                 'lightSnapshots', 'occlusionCulling', 'meshWorkers',
-        ].collect { it + '=' + value }.join('\n') + '\n'
+        ].collect { it + '=' + (modulesOff.contains(it) ? 'false' : value) }.join('\n') + '\n'
     }
 }
 

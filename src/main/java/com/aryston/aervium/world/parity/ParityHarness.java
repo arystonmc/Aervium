@@ -3,8 +3,10 @@ package com.aryston.aervium.world.parity;
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.core.parity.StateHash;
 import com.aryston.aervium.mixin.LevelRandomAccessor;
+import com.aryston.aervium.world.light.ServerLightTimings;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.locks.LockSupport;
 import net.minecraft.core.BlockPos;
@@ -27,6 +29,7 @@ public final class ParityHarness {
     private static final String PROPERTY = "aervium.parity";
     private static final String TICKS_PROPERTY = "aervium.parity.ticks";
     private static final String LIGHT_CHANGES_PROPERTY = "aervium.parity.lightChanges";
+    private static final String FORCE_RADIUS_PROPERTY = "aervium.parity.forceRadius";
     private static final int DEFAULT_TICKS = 1200;
     private static final int DEFAULT_LIGHT_CHANGES = 4;
     private static final int SETTLE_TICKS = 40;
@@ -56,6 +59,12 @@ public final class ParityHarness {
         rules.set(GameRules.ADVANCE_WEATHER, false, server);
         rules.set(GameRules.SPAWN_MOBS, false, server);
         forEachChunk((chunkX, chunkZ) -> level.setChunkForced(chunkX, chunkZ, true));
+        int forceRadius = Integer.getInteger(FORCE_RADIUS_PROPERTY, 0);
+        for (int chunkX = -forceRadius; chunkX <= forceRadius; chunkX++) {
+            for (int chunkZ = -forceRadius; chunkZ <= forceRadius; chunkZ++) {
+                level.setChunkForced(chunkX, chunkZ, true);
+            }
+        }
         tick = 0;
         running = true;
         Aervium.LOGGER.info("Aervium parity: world ready, settling for {} ticks", SETTLE_TICKS);
@@ -71,6 +80,10 @@ public final class ParityHarness {
         if (tick == SETTLE_TICKS) {
             level.getRandom().setSeed(SEED);
             ((LevelRandomAccessor) level).aervium$setRandValue(RAND_VALUE_SEED);
+            ServerLightTimings.Totals startLight = ServerLightTimings.take();
+            Aervium.LOGGER.info("Aervium parity: {} chunks loaded, light worker spent {} ms ({} ms CPU) before the scenario",
+                level.getChunkSource().getLoadedChunksCount(), String.format(Locale.ROOT, "%.1f", startLight.wall().totalMs()),
+                String.format(Locale.ROOT, "%.1f", startLight.cpuMs()));
             ParityScenario.build(level);
             Aervium.LOGGER.info("Aervium parity: scenario built, running {} ticks", ticks());
             return;
@@ -79,22 +92,26 @@ public final class ParityHarness {
         if (scenarioTick > 0 && scenarioTick < ticks()) {
             ParityScenario.changeLight(level, scenarioTick, Integer.getInteger(LIGHT_CHANGES_PROPERTY, DEFAULT_LIGHT_CHANGES));
         }
+        finishLightUpdates(level);
         if (scenarioTick <= 0 || scenarioTick % CHECKPOINT_TICKS != 0 && scenarioTick != ticks()) {
             return;
         }
-        finishLightUpdates(level);
         Aervium.LOGGER.info("Aervium parity: tick {} blocks {} light {} entities {}",
             scenarioTick, blockHash(level), lightHash(level), entityHash(level));
         if (scenarioTick >= ticks()) {
             running = false;
-            Aervium.LOGGER.info("Aervium parity: finished");
+            ServerLightTimings.Totals light = ServerLightTimings.take();
+            Aervium.LOGGER.info("Aervium parity: finished with {} chunks loaded, light worker ran {} batches in {} ms ({} ms CPU), longest {} ms",
+                level.getChunkSource().getLoadedChunksCount(), light.wall().count(), String.format(Locale.ROOT, "%.1f", light.wall().totalMs()),
+                String.format(Locale.ROOT, "%.1f", light.cpuMs()), String.format(Locale.ROOT, "%.2f", light.wall().maxMs()));
             server.halt(false);
         }
     }
 
     /**
-     * The server lights the world on its own worker, so a hash taken right after a block change could see the
-     * light half done. Waits until every light task queued for the scenario chunks has run.
+     * The server lights the world on its own worker, so the next tick could see light half done: a hash would
+     * differ, and so would random ticks that read light, like grass dying under a new block. Waits after every tick
+     * until every light task queued for the scenario chunks has run, which makes light part of the tick.
      */
     private static void finishLightUpdates(ServerLevel level) {
         ThreadedLevelLightEngine lightEngine = level.getChunkSource().getLightEngine();

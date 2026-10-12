@@ -29,6 +29,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Chunk mesh workers (own thread pool for chunk builds) | `MeshWorkers`, `LevelRendererMeshWorkersMixin`, `JobSystem`, `JobLoadMeter` |
 | Leaf culling (optional, off by default) | `LeafCulling`, `ModelBlockRendererLeafCullingMixin`, `AerviumConfig` |
 | Chunk upload and builder lock timings | `ChunkUploadTimings`, `StallMeter`, `SectionRenderDispatcherTimingMixin` |
+| Server light worker timings | `ServerLightTimings`, `ThreadedLevelLightEngineTimingMixin` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -316,13 +317,20 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### ParityHarness
 - Path: `src/main/java/com/aryston/aervium/world/parity/ParityHarness.java`
-- Role: Active only with `-Daervium.parity=true` (the `parity` run). On server start freezes time, weather and mob spawning and force-loads the scenario chunks; after 40 ticks seeds the level random and the random tick position generator, builds `ParityScenario`, runs its light changes every tick, waits for the light worker before each checkpoint, logs block, light and entity hashes of the area every 200 ticks and stops the server after `aervium.parity.ticks` (1200).
+- Role: Active only with `-Daervium.parity=true` (the `parity` run). On server start freezes time, weather and mob spawning and force-loads the scenario chunks; after 40 ticks seeds the level random and the random tick position generator, builds `ParityScenario`, runs its light changes every tick, waits for the light worker after every tick, force-loads `aervium.parity.forceRadius` chunks around 0, 0 (0), logs the light worker time before and during the scenario, logs block, light and entity hashes of the area every 200 ticks and stops the server after `aervium.parity.ticks` (1200).
 - Depends on: `ParityScenario`, `StateHash`, `LevelRandomAccessor`.
 
 #### ParityScenario
 - Path: `src/main/java/com/aryston/aervium/world/parity/ParityScenario.java`
 - Role: Builds the fixed parity scenario on the flat ground: observer clock with redstone, lamps and a sticky piston, hopper chain between chests with cobblestone, furnace with raw iron and coal, 9 x 9 wheat farm around water, water and lava in a stone basin, saplings, sugar cane and torches. `changeLight` places light sources and blockers in the light lab with a fixed sequence per tick. Also defines the hashed area.
 - Depends on: nothing.
+
+### `com.aryston.aervium.world.light`
+
+#### ServerLightTimings
+- Path: `src/main/java/com/aryston/aervium/world/light/ServerLightTimings.java`
+- Role: Thread-safe totals of the server light worker batches: count, wall time, longest batch and CPU time; `take()` returns and resets them.
+- Depends on: `StallMeter`.
 
 ### `com.aryston.aervium.debug.route`
 
@@ -716,6 +724,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Setter for the protected random tick position generator (`randValue`) of `Level`, used by `ParityHarness` to make random ticks repeatable.
 - Notes: Not tied to a module; it only adds an accessor.
 
+#### ThreadedLevelLightEngineTimingMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ThreadedLevelLightEngineTimingMixin.java`
+- Role: Times every `ThreadedLevelLightEngine.runUpdate` batch, wall and CPU, for `ServerLightTimings`.
+- Notes: Not tied to a module; two clock reads per batch.
+
 #### SectionRenderDispatcherTimingMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/SectionRenderDispatcherTimingMixin.java`
 - Role: Times the lock call in `SectionRenderDispatcher.lock` and the whole of `uploadTerrainBuffersToGpu` for `ChunkUploadTimings`.
@@ -782,7 +795,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `LevelRandomAccessor`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 
@@ -794,7 +807,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 
 | File | Purpose |
 |---|---|
-| `build.gradle` | ModDevGradle setup, JUnit 5 for `src/test/java` with the Minecraft classpath of `main`, `client` run forced to Vulkan, `server` run without GUI, `parity` dedicated server run in `runs/parity` (`setUpParityWorld` writes the flat world settings, EULA and module switches from `-PparityModules` and deletes the old world first), metadata expansion, packs `branding/logo.png` into the jar as `aervium.png`, jar name `aervium-neoforge-<minecraft_version>-<version>.jar`. |
+| `build.gradle` | ModDevGradle setup, JUnit 5 for `src/test/java` with the Minecraft classpath of `main`, `client` run forced to Vulkan, `server` run without GUI, `parity` dedicated server run in `runs/parity` (`setUpParityWorld` writes the flat world settings, or normal terrain with `-PparityWorld=normal`, EULA and module switches from `-PparityModules` and `-PparityOff` and deletes the old world first), metadata expansion, packs `branding/logo.png` into the jar as `aervium.png`, jar name `aervium-neoforge-<minecraft_version>-<version>.jar`. |
 | `gradle.properties` | Single place for versions and mod metadata. |
 | `settings.gradle` | Plugin repositories, Java toolchain resolver, project name. |
 | `.github/workflows/build.yml` | CI on every push and pull request: JDK 25, `./gradlew build`, the vanilla parity check with every module on and off (the hash lines must match), uploads the jar. |
