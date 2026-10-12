@@ -72,7 +72,7 @@ Raw data is copied on the thread that writes it, statistics are computed on a wo
 `FrameBudget` turns the target frame rate into a frame time and gives every `TimedSystem` its share. Server systems always get 50 ms. Today the budget colors the overlay; from Phase 1 every system that does deferrable work (chunk uploads, mesh builds, light updates) spends only its share per frame and carries the rest over.
 
 ### Job System
-`JobSystem` is a work-stealing pool with two cores left to the game threads. Jobs never touch Minecraft state; they get copies and hand results back through `MainThreadQueue`, which runs them within a time budget. Phase 1 adds job priorities and dependencies, Phase 2 moves chunk meshing onto it.
+`JobSystem` is a work-stealing pool with two cores left to the game threads. Jobs never touch Minecraft state; they get copies and hand results back through `MainThreadQueue`, which runs them within a time budget. Chunk builds run on their own `JobSystem` (`MeshWorkers`) instead of vanilla's shared background pool, where they queued behind the integrated server's chunk generation and saving; vanilla's own queue still picks the nearest section first. Job priorities and dependencies come with Phase 2's own mesher.
 
 ### Shader and Pipeline Caches
 Vanilla compiles every GLSL shader to SPIR-V with shaderc at each start and resource reload, and creates its Vulkan pipelines without a `VkPipelineCache`.
@@ -138,6 +138,7 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 | `LevelRendererOcclusionMixin` | `LevelRenderer.prepareChunkRenders` and `prepareChunkRendersIndirect` | No event tells which view a terrain pass is for. |
 | `LevelExtractorOcclusionMixin` | `LevelExtractor.extractVisibleEntities`, `isEntityVisible`, block entity extraction | Entity visibility is only the frustum check; no event can drop an entity or block entity from a frame. |
 | `QuadParticleGroupOcclusionMixin`, `ParticleAccessor` | `QuadParticleGroup.extractRenderState`, `Particle.xo/yo/zo` | Particle extraction only checks the frustum and has no hook. |
+| `LevelRendererMeshWorkersMixin` | `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` | The chunk build executor is hard-wired to the shared background pool. |
 | `HelionShadowCastersMixin` (pseudo, optional) | Helion `VanillaShadowCasterSource.collectSections` | Helion exposes no hook for its caster lists yet. |
 | `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin` | `LevelRenderer.extractSectionDrawGroups`, `CompiledSectionMesh`, `UberGpuBuffer.freeAllocation` and `close` | The terrain buffer slices of a mesh are only reachable through a map lookup and the draw list loop has no hook. |
 
@@ -147,8 +148,8 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 |---|---|---|
 | 0 Foundation and measurement | Project, adapter layer, telemetry (frame times, lows, MSPT, GC, RAM, VRAM, timing scopes), overlay, repeatable benchmark, unit tests | Done in 0.1 (unreleased) |
 | 1 Core and stutter killers | Done: SPIR-V disk cache, persistent Vulkan pipeline cache, warm-up of built-in pipelines vanilla compiles mid-game, dynamic frame rate (background and pause), lighter chunk section locks, switchable modules, startup report. Moved to Phase 2: zero-allocation frame arenas (FFM) and job priorities, because chunk meshing is their first real user. Still open: more memory reductions after heap analysis, faster resource loading | In progress |
-| 2 Streaming and meshing | Zero-allocation frame arenas (FFM) and job priorities and dependencies for the mesh jobs, Predictive chunk streaming along the movement direction, parallel meshing on the job system, budgeted GPU uploads, compact vertex formats, faster light engine (ScalableLux-like) | Planned |
-| 3 Culling and draw | Started: software occlusion culling for the camera and Helion's shadow cascades. Next: entity and block entity culling with the same raster, leaf and face culling, batched GUI and text drawing (ImmediatelyFast-like), multi-draw indirect | In progress |
+| 2 Streaming and meshing | Started: chunk builds on their own worker pool. Next: zero-allocation frame arenas (FFM) and job priorities and dependencies for the mesh jobs, predictive chunk streaming along the movement direction, parallel meshing on the job system, budgeted GPU uploads, compact vertex formats, faster light engine (ScalableLux-like) | Planned |
+| 3 Culling and draw | Done: software occlusion culling for the camera, Helion's shadow cascades, entities, block entities and particles. Next: leaf and face culling, batched GUI and text drawing (ImmediatelyFast-like), multi-draw indirect | In progress |
 | 4 World and TPS | Server tick optimizations that keep vanilla behavior (Lithium-like, clean room), parallel chunk generation (C2ME-like), network compression and batching (Krypton-like) | Planned |
 | 5 Advanced Vulkan | GPU-driven culling, meshlets, async compute and transfer queues, two render paths: baseline for integrated GPUs and advanced for strong GPUs | Planned |
 | 6 Frame lock and LOD | Dynamic resolution to hold a target frame time, distant terrain LOD (Distant Horizons-like), extended settings (Sodium Extra-like) | Planned |

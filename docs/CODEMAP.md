@@ -26,6 +26,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
 | Occlusion culling (caves, Helion shadow casters, entities, particles) | `TerrainOcclusion`, `EntityOcclusion`, `ParticleOcclusion`, `HelionShadowCasters`, `OcclusionPass`, `DepthRaster`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `QuadParticleGroupOcclusionMixin`, `ParticleAccessor`, `HelionShadowCastersMixin` |
+| Chunk mesh workers (own thread pool for chunk builds) | `MeshWorkers`, `LevelRendererMeshWorkersMixin`, `JobSystem`, `JobLoadMeter` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -274,8 +275,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### JobSystem
 - Path: `src/main/java/com/aryston/aervium/core/job/JobSystem.java`
-- Role: Work-stealing worker pool (`ForkJoinPool` in async mode) with named daemon threads below normal priority; `defaultWorkers` leaves two cores to the game threads and caps at eight.
+- Role: Work-stealing worker pool (`ForkJoinPool` in async mode) with named daemon threads, below normal priority unless a priority is given; `defaultWorkers` leaves two cores to the game threads and caps at eight. `service()` is an `ExecutorService` view whose jobs are counted and timed (`timedJobs`, `busyNanos`).
 - Depends on: nothing.
+
+#### JobLoadMeter
+- Path: `src/main/java/com/aryston/aervium/core/job/JobLoadMeter.java`
+- Role: Jobs per second and the busy share of all workers of a `JobSystem` since the last `take`; each reader (overlay, benchmark) keeps its own meter.
+- Depends on: `JobSystem`.
 
 #### MainThreadQueue
 - Path: `src/main/java/com/aryston/aervium/core/job/MainThreadQueue.java`
@@ -437,8 +443,8 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### OverlayLines
 - Path: `src/main/java/com/aryston/aervium/client/OverlayLines.java`
-- Role: Turns a `TelemetrySnapshot` into colored text lines; rebuilt only when a snapshot arrives.
-- Depends on: `TelemetrySnapshot`, `ByteSizes`.
+- Role: Turns a `TelemetrySnapshot` into colored text lines; rebuilt only when a snapshot arrives. Shows culling counts and, with module `meshWorkers`, chunk builds per second, busy workers and queued builds.
+- Depends on: `TelemetrySnapshot`, `ByteSizes`, `CullingStatistics`, `MeshWorkers`.
 
 #### AerviumKeys
 - Path: `src/main/java/com/aryston/aervium/client/AerviumKeys.java`
@@ -472,6 +478,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Same result as vanilla `LevelRenderer.extractSectionDrawGroups` (section infos, draw groups by buffer hash, translucent order, largest index count) built from the section records.
 - Depends on: `SectionDrawRecord`, `SectionDrawRecordHolder`, `SectionSliceHolder`, `TerrainOcclusion` (skips sections the camera pass found hidden); the access transformer for `LevelRenderer$ChunkDrawGroup`.
 - Notes: In the cave scene it cut the share of the render thread spent building draw lists from about 42 % to 28 %; the frame rate did not change because that scene waits on the GPU (`VulkanCommandEncoder.awaitSubmitCompletion`), so the gain shows on CPU-bound PCs.
+
+#### MeshWorkers
+- Path: `src/main/java/com/aryston/aervium/client/chunk/MeshWorkers.java`
+- Role: Owns the `Aervium Mesh` job system (two cores left to the game threads, at most eight workers, normal priority) and the `TracingExecutor` vanilla's chunk build dispatcher runs on instead of the shared background pool; gives meters for the overlay and the benchmark.
+- Notes: In single player the shared background pool also generates, loads and saves chunks for the integrated server, so chunk builds waited behind world generation while flying; vanilla still picks the nearest section first.
+- Depends on: `JobSystem`, `JobLoadMeter`.
 
 #### SectionLayers
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionLayers.java`
@@ -657,6 +669,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Accessor for the protected last-tick position (`xo`, `yo`, `zo`) of `Particle`.
 - Notes: Module `occlusionCulling`.
 
+#### LevelRendererMeshWorkersMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererMeshWorkersMixin.java`
+- Role: Replaces the executor argument of `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` with `MeshWorkers.executor()`.
+- Notes: Module `meshWorkers`, renderer module.
+
 #### HelionShadowCastersMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/HelionShadowCastersMixin.java`
 - Role: Pseudo mixin on Helion's `VanillaShadowCasterSource.collectSections`; filters the returned per-cascade caster lists with `HelionShadowCasters`.
@@ -694,6 +711,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/budget/FrameBudgetTest.java` | Frame and system budgets, fixed 50 ms tick budget, budget edge, invalid target. |
 | `src/test/java/com/aryston/aervium/core/budget/SystemTimingsTest.java` | Smoothing, peaks reset on sampling, over budget flags. |
 | `src/test/java/com/aryston/aervium/core/job/JobSystemTest.java` | Worker count rule, every job runs on named workers, no jobs after closing. |
+| `src/test/java/com/aryston/aervium/core/job/JobLoadMeterTest.java` | Timed service counts jobs and busy time, jobs per second and busy share, empty interval, no jobs after closing. |
 | `src/test/java/com/aryston/aervium/core/job/MainThreadQueueTest.java` | Order, time budget, at least one task per drain. |
 | `src/test/java/com/aryston/aervium/debug/route/CameraPathTest.java` | Lines move along their yaw; orbits keep their radius and height, look at the center and close after one turn. |
 | `src/test/java/com/aryston/aervium/core/cache/ShaderCacheKeyTest.java` | Direct and transitive includes (with a cycle), stable keys for reordered defines, a new key for every change that affects the binary (defines, flags, device switches, include content). |
@@ -710,7 +728,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

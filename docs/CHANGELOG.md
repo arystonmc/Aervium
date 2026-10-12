@@ -23,3 +23,4 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - With Helion, chunks the sun cannot see are left out of the shadow maps; shadows look the same
 - Mobs, items, chests, signs and other entities hidden behind solid blocks are no longer drawn
 - Particles hidden behind solid blocks are no longer drawn
+- Chunks are prepared on Aervium's own threads, no longer waiting behind world generation in single player

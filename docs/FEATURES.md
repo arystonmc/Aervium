@@ -83,6 +83,13 @@ Prepares the list of chunks to draw with much less work every frame.
 - Remembers where each chunk's geometry sits on the GPU instead of searching for it again in every pass, which matters most with Helion's shadows; in the benchmark with Helion at render distance 32 the 1% low rose from 36 to 51 FPS and caves from 58 to 78 FPS
 - Since: 0.1
 
+### Dedicated Chunk Builders
+Chunks are prepared for drawing on Aervium's own worker threads.
+
+- In single player, vanilla prepares chunks on the same threads that generate and save the world, so new chunks wait behind world generation when you fly or run into new land; Aervium gives chunk building its own threads (all cores but two, up to eight)
+- The overlay (F7) shows chunk builds per second, how busy the workers are and how many builds are waiting; the benchmark log prints the same per scene
+- Since: 0.1
+
 ### Occlusion Culling
 Skips terrain you cannot see because solid blocks are in the way.
 
@@ -102,6 +109,6 @@ Tells you which Java settings give the smoothest frames.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`) with `true` or `false`; changes apply at the next start
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`) with `true` or `false`; changes apply at the next start
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

@@ -7,7 +7,8 @@ public enum OptimizationModule {
     COMPACT_CHUNK_LOCKS("compactChunkLocks", false),
     SECTION_SLICE_CACHE("sectionSliceCache", true),
     LIGHT_SNAPSHOTS("lightSnapshots", false),
-    OCCLUSION_CULLING("occlusionCulling", true);
+    OCCLUSION_CULLING("occlusionCulling", true),
+    MESH_WORKERS("meshWorkers", true);
 
     private final String key;
     private final boolean renderer;

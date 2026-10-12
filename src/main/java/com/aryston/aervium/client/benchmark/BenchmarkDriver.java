@@ -2,7 +2,9 @@ package com.aryston.aervium.client.benchmark;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.client.FrameRateGovernor;
+import com.aryston.aervium.client.chunk.MeshWorkers;
 import com.aryston.aervium.core.culling.CullingStatistics;
+import com.aryston.aervium.core.job.JobLoadMeter;
 import com.aryston.aervium.core.job.JobSystem;
 import com.aryston.aervium.core.job.MainThreadQueue;
 import com.aryston.aervium.core.telemetry.FrameTimeRecorder;
@@ -34,6 +36,7 @@ import java.util.function.Supplier;
 import java.util.stream.LongStream;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.client.server.IntegratedServer;
 
 public final class BenchmarkDriver {
@@ -65,6 +68,9 @@ public final class BenchmarkDriver {
     private CameraPath path;
     private SceneMeasurement measurement;
     private long lastVramBytes;
+    private JobLoadMeter meshMeter;
+    private long queuedSum;
+    private int queuedSamples;
 
     private BenchmarkDriver(GcPauseRecorder gcPauses, JobSystem jobs, MainThreadQueue mainThread, Supplier<VramUsage> vramProbe) {
         this.gcPauses = gcPauses;
@@ -176,9 +182,13 @@ public final class BenchmarkDriver {
             CullingStatistics.SHARED.takeCameraHiddenPercent();
             measurement = new SceneMeasurement(BenchmarkScene.values()[sceneIndex], frames.frameTimes(), TickTimeRecorder.SERVER.mark(), gcPauses.mark(), System.nanoTime());
             lastVramBytes = vramProbe.get().usedBytes();
+            meshMeter = MeshWorkers.meter(System.nanoTime());
+            queuedSum = 0;
+            queuedSamples = 0;
         }
         if (measurement != null) {
             sampleMemory();
+            sampleBuildQueue(minecraft);
         }
         if (tick == BenchmarkRoute.SETTLE_TICKS + BenchmarkRoute.MEASURE_TICKS) {
             finishScene(minecraft);
@@ -190,6 +200,25 @@ public final class BenchmarkDriver {
             lastVramBytes = vramProbe.get().usedBytes();
         }
         measurement.sampleMemory(HeapUsage.current().usedBytes(), lastVramBytes);
+    }
+
+    private void sampleBuildQueue(Minecraft minecraft) {
+        SectionRenderDispatcher dispatcher = minecraft.levelRenderer.sectionRenderDispatcher();
+        if (dispatcher != null) {
+            queuedSum += dispatcher.getCompileQueueSize();
+            queuedSamples++;
+        }
+    }
+
+    private void logChunkBuilds(String scene) {
+        long averageQueued = queuedSamples == 0 ? 0 : Math.round((double) queuedSum / queuedSamples);
+        if (!MeshWorkers.active()) {
+            Aervium.LOGGER.info("Aervium benchmark: {} chunk build queue {} on average (vanilla workers)", scene, averageQueued);
+            return;
+        }
+        JobLoadMeter.JobLoad load = meshMeter.take(System.nanoTime());
+        Aervium.LOGGER.info("Aervium benchmark: {} chunk build queue {} on average, {} build jobs/s, {} mesh workers {}% busy",
+            scene, averageQueued, Math.round(load.jobsPerSecond()), MeshWorkers.workers(), Math.round(load.busyShare() * 100.0));
     }
 
     private void finishScene(Minecraft minecraft) {
@@ -204,6 +233,7 @@ public final class BenchmarkDriver {
         Aervium.LOGGER.info("Aervium benchmark: {} average {} FPS, 1% low {} FPS, MSPT {} ms, occlusion culling hid {}% of sections",
             result.scene(), Math.round(result.frames().averageFps()), Math.round(result.frames().onePercentLowFps()), Math.round(result.ticks().averageMs()),
             CullingStatistics.SHARED.takeCameraHiddenPercent());
+        logChunkBuilds(result.scene());
         if (sceneIndex + 1 < BenchmarkScene.values().length) {
             startScene(minecraft, sceneIndex + 1);
             return;
