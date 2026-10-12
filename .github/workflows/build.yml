@@ -21,6 +21,16 @@ jobs:
       - name: Build
         run: ./gradlew build
 
+      - name: Vanilla parity check
+        run: |
+          for modules in on off; do
+            ./gradlew runParity -PparityModules=$modules
+            grep 'Aervium parity: tick' runs/parity/logs/latest.log | sed 's/.*Aervium parity: //' > parity-$modules.txt
+            cat parity-$modules.txt
+          done
+          test -s parity-on.txt
+          diff parity-on.txt parity-off.txt
+
       - name: Upload jar
         uses: actions/upload-artifact@v6
         with:

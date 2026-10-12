@@ -38,6 +38,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Mod list metadata and dependencies | `neoforge.mods.toml` |
 | Mod logo | `branding/logo.png` (temporary placeholder) |
 | Build setup, run configurations | `build.gradle` |
+| Vanilla parity check (same world after N ticks with modules on and off) | `ParityHarness`, `ParityScenario`, `StateHash`, `LevelRandomAccessor`, `runParity` in `build.gradle` |
 | Unit tests | `src/test/java/`, see Tests below |
 
 ## Overview
@@ -295,6 +296,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Results of jobs that must be applied on the main thread; `drain(budget)` runs them in order until the time budget is spent (at least one per call).
 - Depends on: nothing.
 
+### `com.aryston.aervium.core.parity`
+
+#### StateHash
+- Path: `src/main/java/com/aryston/aervium/core/parity/StateHash.java`
+- Role: 64-bit FNV-1a hash over ints, longs and strings (length-prefixed) for the parity check; `hex()` prints it with 16 digits.
+- Depends on: nothing.
+
 ### `com.aryston.aervium.world`
 
 #### TickTimeRecorder
@@ -305,6 +313,16 @@ Every class and source file of Aervium with its purpose. Find the right file her
   - `mark()`, `since(long)`, `latest(int)`: copies for the overlay and the benchmark.
 - Depends on: `SampleRing`, `SystemTimings`.
 - Notes: Written on the server thread and read on the client thread, so the ring is accessed under a lock.
+
+#### ParityHarness
+- Path: `src/main/java/com/aryston/aervium/world/parity/ParityHarness.java`
+- Role: Active only with `-Daervium.parity=true` (the `parity` run). On server start freezes time, weather and mob spawning and force-loads the scenario chunks; after 40 ticks seeds the level random and the random tick position generator, builds `ParityScenario`, logs block, light and entity hashes of the area every 200 ticks and stops the server after `aervium.parity.ticks` (1200).
+- Depends on: `ParityScenario`, `StateHash`, `LevelRandomAccessor`.
+
+#### ParityScenario
+- Path: `src/main/java/com/aryston/aervium/world/parity/ParityScenario.java`
+- Role: Builds the fixed parity scenario on the flat ground: observer clock with redstone, lamps and a sticky piston, hopper chain between chests with cobblestone, furnace with raw iron and coal, 9 x 9 wheat farm around water, water and lava in a stone basin, saplings, sugar cane and torches. Also defines the hashed area.
+- Depends on: nothing.
 
 ### `com.aryston.aervium.debug.route`
 
@@ -693,6 +711,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: At the start of `ModelBlockRenderer.shouldRenderFace` (the overload with the level and both positions) returns false for faces `LeafCulling` hides, only while face culling is on.
 - Notes: Not tied to a module; the `leafCulling` client setting switches it.
 
+#### LevelRandomAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/LevelRandomAccessor.java`
+- Role: Setter for the protected random tick position generator (`randValue`) of `Level`, used by `ParityHarness` to make random ticks repeatable.
+- Notes: Not tied to a module; it only adds an accessor.
+
 #### SectionRenderDispatcherTimingMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/SectionRenderDispatcherTimingMixin.java`
 - Role: Times the lock call in `SectionRenderDispatcher.lock` and the whole of `uploadTerrainBuffersToGpu` for `ChunkUploadTimings`.
@@ -738,6 +761,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/telemetry/GcAdviceTest.java` | Collector recognition from bean names, advice for G1 and for a small heap. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcPauseRecorderTest.java` | Pauses versus concurrent cycles, totals, pauses after a mark. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameBudgetTest.java` | Frame and system budgets, fixed 50 ms tick budget, budget edge, invalid target. |
+| `src/test/java/com/aryston/aervium/core/parity/StateHashTest.java` | Same input same hash, order and every value matter, FNV offset basis for an empty hash. |
 | `src/test/java/com/aryston/aervium/core/budget/StallMeterTest.java` | Sum, average and longest stall, reset on take. |
 | `src/test/java/com/aryston/aervium/core/budget/SystemTimingsTest.java` | Smoothing, peaks reset on sampling, over budget flags. |
 | `src/test/java/com/aryston/aervium/core/job/JobSystemTest.java` | Worker count rule, every job runs on named workers, no jobs after closing. |
@@ -758,7 +782,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `LevelRandomAccessor`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 
@@ -770,9 +794,9 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 
 | File | Purpose |
 |---|---|
-| `build.gradle` | ModDevGradle setup, JUnit 5 for `src/test/java` with the Minecraft classpath of `main`, `client` run forced to Vulkan, `server` run without GUI, metadata expansion, packs `branding/logo.png` into the jar as `aervium.png`, jar name `aervium-neoforge-<minecraft_version>-<version>.jar`. |
+| `build.gradle` | ModDevGradle setup, JUnit 5 for `src/test/java` with the Minecraft classpath of `main`, `client` run forced to Vulkan, `server` run without GUI, `parity` dedicated server run in `runs/parity` (`setUpParityWorld` writes the flat world settings, EULA and module switches from `-PparityModules` and deletes the old world first), metadata expansion, packs `branding/logo.png` into the jar as `aervium.png`, jar name `aervium-neoforge-<minecraft_version>-<version>.jar`. |
 | `gradle.properties` | Single place for versions and mod metadata. |
 | `settings.gradle` | Plugin repositories, Java toolchain resolver, project name. |
-| `.github/workflows/build.yml` | CI on every push and pull request: JDK 25, `./gradlew build`, uploads the jar. |
+| `.github/workflows/build.yml` | CI on every push and pull request: JDK 25, `./gradlew build`, the vanilla parity check with every module on and off (the hash lines must match), uploads the jar. |
 | `.github/workflows/release.yml` | On a `v*` tag: checks the tag against `mod_version`, builds, creates the GitHub release with the changelog section, and uploads to Modrinth and CurseForge when their secrets exist. |
 | `.github/workflows/listing.yml` | Syncs the Modrinth project page (README, links, license, optional on both sides, category optimization) on pushes to `main`. |

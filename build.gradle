@@ -51,6 +51,13 @@ neoForge {
             programArgument '--nogui'
         }
 
+        parity {
+            server()
+            gameDirectory = project.file('runs/parity')
+            programArgument '--nogui'
+            systemProperty 'aervium.parity', 'true'
+        }
+
         configureEach {
             logLevel = org.slf4j.event.Level.INFO
         }
@@ -91,6 +98,40 @@ tasks.named('processResources', ProcessResources) {
     from('.') {
         include 'LICENSE.md'
     }
+}
+
+var setUpParityWorld = tasks.register('setUpParityWorld') {
+    var parityDir = project.file('runs/parity')
+    var modulesOn = !project.hasProperty('parityModules') || project.property('parityModules') != 'off'
+    doLast {
+        project.delete(new File(parityDir, 'parity-world'))
+        parityDir.mkdirs()
+        new File(parityDir, 'eula.txt').text = 'eula=true\n'
+        new File(parityDir, 'server.properties').text = [
+                'level-name=parity-world',
+                'level-seed=1095062134',
+                'level-type=minecraft\\:flat',
+                'generator-settings={"layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"biome":"minecraft:plains"}',
+                'generate-structures=false',
+                'pause-when-empty-seconds=0',
+                'spawn-protection=0',
+                'online-mode=false',
+                'server-port=25599',
+                'view-distance=4',
+                'simulation-distance=4',
+        ].join('\n') + '\n'
+        var config = new File(parityDir, 'config')
+        config.mkdirs()
+        var value = modulesOn ? 'true' : 'false'
+        new File(config, 'aervium-modules.properties').text = [
+                'shaderCache', 'pipelineCache', 'pipelineWarmup', 'compactChunkLocks', 'sectionSliceCache',
+                'lightSnapshots', 'occlusionCulling', 'meshWorkers',
+        ].collect { it + '=' + value }.join('\n') + '\n'
+    }
+}
+
+tasks.matching { it.name == 'runParity' }.configureEach {
+    dependsOn setUpParityWorld
 }
 
 tasks.withType(JavaCompile).configureEach {

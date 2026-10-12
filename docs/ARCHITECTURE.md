@@ -113,6 +113,16 @@ Optimizations that change game classes are mixins grouped into modules (`Optimiz
 
 The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>.json` and `.txt` and is also printed to the log. It compares itself with the newest earlier report. Repeatability target: average FPS of every scene within ±2 % between two runs on the same settings; the frame limit, vsync, window size, render distance and installed mods are written into the report because they change the result.
 
+## Vanilla Parity Check
+
+`./gradlew runParity` starts a dedicated server in `runs/parity` with a fresh flat world, runs a fixed scenario and stops; `-PparityModules=off` writes every module as off before the run.
+
+1. Seed 1095062134, flat grass world, no structures, time, weather and mob spawning frozen, the server never pauses when empty.
+2. After 40 ticks the level random and the random tick position generator get fixed seeds and `ParityScenario` builds an observer clock with a sticky piston, a hopper chain between chests, a burning furnace, a wheat farm, water and lava, saplings, sugar cane and torches in 16 force-loaded chunks.
+3. Every 200 ticks for 1200 ticks the log prints three hashes of the 48 x 48 x 21 area: blocks (state, block entity data, scheduled ticks), light (block and sky light) and entities.
+
+Two runs with the same settings must print the same hashes, and a run with every module off must print the same hashes as a run with every module on. Any optimization that touches world logic has to keep this true; a different hash shows the first checkpoint where the world diverged.
+
 ## Invariants
 
 1. No engine class imports Minecraft or NeoForge; the adapter layer is the only place that does.

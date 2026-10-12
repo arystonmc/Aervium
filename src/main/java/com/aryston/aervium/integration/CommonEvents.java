@@ -1,6 +1,7 @@
 package com.aryston.aervium.integration;
 
 import com.aryston.aervium.world.TickTimeRecorder;
+import com.aryston.aervium.world.parity.ParityHarness;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -13,6 +14,7 @@ public final class CommonEvents {
         NeoForge.EVENT_BUS.addListener(CommonEvents::onServerTickStart);
         NeoForge.EVENT_BUS.addListener(CommonEvents::onServerTickEnd);
         NeoForge.EVENT_BUS.addListener(CommonEvents::onServerStopped);
+        ParityHarness.register();
     }
 
     private static void onServerTickStart(ServerTickEvent.Pre event) {
