@@ -322,7 +322,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### WorldgenCheck
 - Path: `src/main/java/com/aryston/aervium/world/parity/WorldgenCheck.java`
-- Role: Active with `-Daervium.parity.worldgen=true` instead of the scenario. Freezes ticks, force-loads `aervium.parity.worldgenRadius` (12) chunks around 0, 0, hashes every chunk's blocks and biomes when its terrain step finishes, and once all are full logs the combined terrain hash, missing chunks, generation time and light worker CPU, then stops the server.
+- Role: Active with `-Daervium.parity.worldgen=true` instead of the scenario. Freezes ticks, force-loads `aervium.parity.worldgenRadius` (12) chunks around 0, 0, hashes every chunk's blocks and biomes when its terrain step finishes, and once all are full logs the combined terrain hash, missing chunks, a save and load round trip of every section through the real chunk codecs, generation time, process CPU and light worker CPU, then stops the server.
 - Depends on: `StateHash`, `ServerLightTimings`, `ChunkStatusTasksTerrainMixin`.
 
 #### ParityScenario

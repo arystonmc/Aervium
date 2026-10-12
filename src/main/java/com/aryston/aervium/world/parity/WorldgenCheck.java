@@ -3,17 +3,25 @@ package com.aryston.aervium.world.parity;
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.core.parity.StateHash;
 import com.aryston.aervium.world.light.ServerLightTimings;
+import com.sun.management.OperatingSystemMXBean;
+import java.lang.management.ManagementFactory;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.Holder;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunkSection;
+import net.minecraft.world.level.chunk.PalettedContainer;
+import net.minecraft.world.level.chunk.PalettedContainerFactory;
+import net.minecraft.world.level.chunk.PalettedContainerRO;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
@@ -35,6 +43,7 @@ public final class WorldgenCheck {
 
     private static volatile boolean recording;
     private static long startNanos;
+    private static long startCpuNanos;
     private static boolean running;
 
     private WorldgenCheck() {
@@ -78,6 +87,62 @@ public final class WorldgenCheck {
         return chunk;
     }
 
+    /**
+     * Saves the blocks and biomes of every section with the real chunk codecs and loads them back; returns the number
+     * of sections, how many hold a single block and biome value, and how many came back different.
+     */
+    private static int[] checkSaves(ServerLevel level, int radius) {
+        PalettedContainerFactory factory = level.palettedContainerFactory();
+        int sections = 0;
+        int singleValue = 0;
+        int mismatches = 0;
+        for (int chunkX = -radius; chunkX <= radius; chunkX++) {
+            for (int chunkZ = -radius; chunkZ <= radius; chunkZ++) {
+                for (LevelChunkSection section : level.getChunkSource().getChunkNow(chunkX, chunkZ).getSections()) {
+                    sections++;
+                    Tag blockTag = factory.blockStatesContainerCodec().encodeStart(NbtOps.INSTANCE, section.getStates()).getOrThrow();
+                    Tag biomeTag = factory.biomeContainerCodec().encodeStart(NbtOps.INSTANCE, section.getBiomes()).getOrThrow();
+                    PalettedContainer<BlockState> blocks = factory.blockStatesContainerCodec().parse(NbtOps.INSTANCE, blockTag).getOrThrow();
+                    PalettedContainerRO<Holder<Biome>> biomes = factory.biomeContainerCodec().parse(NbtOps.INSTANCE, biomeTag).getOrThrow();
+                    if (section.getStates().bitsPerEntry() == 0 && section.getBiomes().bitsPerEntry() == 0) {
+                        singleValue++;
+                    }
+                    if (!sameContents(section, blocks, biomes)) {
+                        mismatches++;
+                    }
+                }
+            }
+        }
+        return new int[] {sections, singleValue, mismatches};
+    }
+
+    private static boolean sameContents(LevelChunkSection section, PalettedContainer<BlockState> blocks, PalettedContainerRO<Holder<Biome>> biomes) {
+        for (int y = 0; y < SECTION_SIZE; y++) {
+            for (int z = 0; z < SECTION_SIZE; z++) {
+                for (int x = 0; x < SECTION_SIZE; x++) {
+                    if (section.getBlockState(x, y, z) != blocks.get(x, y, z)) {
+                        return false;
+                    }
+                }
+            }
+        }
+        for (int y = 0; y < QUARTS_PER_SECTION; y++) {
+            for (int z = 0; z < QUARTS_PER_SECTION; z++) {
+                for (int x = 0; x < QUARTS_PER_SECTION; x++) {
+                    if (!section.getNoiseBiome(x, y, z).equals(biomes.get(x, y, z))) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    /** CPU time of the whole server process, so a result does not depend on idle waits or short-lived threads. */
+    private static long processCpuNanos() {
+        return ManagementFactory.getOperatingSystemMXBean() instanceof OperatingSystemMXBean os ? os.getProcessCpuTime() : 0L;
+    }
+
     private static int radius() {
         return Integer.getInteger(RADIUS_PROPERTY, DEFAULT_RADIUS);
     }
@@ -88,6 +153,7 @@ public final class WorldgenCheck {
         event.getServer().tickRateManager().setFrozen(true);
         ServerLightTimings.take();
         startNanos = System.nanoTime();
+        startCpuNanos = processCpuNanos();
         int radius = radius();
         for (int chunkX = -radius; chunkX <= radius; chunkX++) {
             for (int chunkZ = -radius; chunkZ <= radius; chunkZ++) {
@@ -114,6 +180,7 @@ public final class WorldgenCheck {
         }
         running = false;
         double generationMs = (System.nanoTime() - startNanos) / NANOS_PER_MILLI;
+        double cpuMs = (processCpuNanos() - startCpuNanos) / NANOS_PER_MILLI;
         ServerLightTimings.Totals light = ServerLightTimings.take();
         StateHash terrain = new StateHash();
         int missing = 0;
@@ -128,8 +195,12 @@ public final class WorldgenCheck {
             }
         }
         Aervium.LOGGER.info("Aervium worldgen check: terrain {} missing {}", terrain.hex(), missing);
-        Aervium.LOGGER.info("Aervium worldgen check: generated in {} ms, light worker {} ms CPU",
-            String.format(Locale.ROOT, "%.0f", generationMs), String.format(Locale.ROOT, "%.0f", light.cpuMs()));
+        int[] saveCheck = checkSaves(level, radius);
+        Aervium.LOGGER.info("Aervium worldgen check: save round trip of {} sections ({} with a single value), {} mismatches",
+            saveCheck[0], saveCheck[1], saveCheck[2]);
+        Aervium.LOGGER.info("Aervium worldgen check: generated in {} ms, process {} ms CPU, light worker {} ms CPU",
+            String.format(Locale.ROOT, "%.0f", generationMs), String.format(Locale.ROOT, "%.0f", cpuMs),
+            String.format(Locale.ROOT, "%.0f", light.cpuMs()));
         server.halt(false);
     }
 }
