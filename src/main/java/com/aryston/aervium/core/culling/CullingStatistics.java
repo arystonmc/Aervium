@@ -9,6 +9,8 @@ public final class CullingStatistics {
     private volatile int shadowHidden;
     private volatile int entitiesTested;
     private volatile int entitiesHidden;
+    private volatile int particlesTested;
+    private volatile int particlesHidden;
     private long cameraSectionTotal;
     private long cameraHiddenTotal;
     private int pendingShadowCasters;
@@ -39,6 +41,19 @@ public final class CullingStatistics {
 
     public int entitiesHidden() {
         return entitiesHidden;
+    }
+
+    public void particles(int tested, int hidden) {
+        particlesTested = tested;
+        particlesHidden = hidden;
+    }
+
+    public int particlesTested() {
+        return particlesTested;
+    }
+
+    public int particlesHidden() {
+        return particlesHidden;
     }
 
     public void beginShadows() {

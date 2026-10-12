@@ -54,7 +54,7 @@ final class CullingAudit {
         }
         sections += checked;
         if (++audits % REPORT_INTERVAL == 0) {
-            Aervium.LOGGER.info("Aervium culling audit: {} hidden sections, {} hidden entities, {} rays, {} rays reached a hidden target", sections, boxes, rays, violations);
+            Aervium.LOGGER.info("Aervium culling audit: {} hidden sections, {} hidden entities and particles, {} rays, {} rays reached a hidden target", sections, boxes, rays, violations);
         }
     }
 
@@ -102,7 +102,7 @@ final class CullingAudit {
         if (level == null || ++boxes % BOX_INTERVAL != 0) {
             return;
         }
-        trace(level, camera, clip, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, "entity box " + box);
+        trace(level, camera, clip, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, "hidden box " + box);
     }
 
     private static boolean onScreen(ClipMatrix clip, float x, float y, float z) {

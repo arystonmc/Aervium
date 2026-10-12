@@ -25,7 +25,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Chunk memory | `PalettedContainerMixin` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
-| Occlusion culling (caves, Helion shadow casters, entities) | `TerrainOcclusion`, `EntityOcclusion`, `HelionShadowCasters`, `OcclusionPass`, `DepthRaster`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `HelionShadowCastersMixin` |
+| Occlusion culling (caves, Helion shadow casters, entities, particles) | `TerrainOcclusion`, `EntityOcclusion`, `ParticleOcclusion`, `HelionShadowCasters`, `OcclusionPass`, `DepthRaster`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `QuadParticleGroupOcclusionMixin`, `ParticleAccessor`, `HelionShadowCastersMixin` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -242,7 +242,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### CullingStatistics
 - Path: `src/main/java/com/aryston/aervium/core/culling/CullingStatistics.java`
-- Role: Sections and hidden sections of the last camera pass and the last set of shadow cascades, and tested and hidden entities of the last frame, for the overlay, and the share of hidden sections since the last call of `takeCameraHiddenPercent` for the benchmark log.
+- Role: Sections and hidden sections of the last camera pass and the last set of shadow cascades, and tested and hidden entities and particles of the last frame, for the overlay, and the share of hidden sections since the last call of `takeCameraHiddenPercent` for the benchmark log.
 - Depends on: nothing.
 
 ### `com.aryston.aervium.core.module`
@@ -492,6 +492,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Notes: Only mobs, dropped items, experience orbs and armor stands are culled; glowing, named, leashed, riding or ridden entities are always drawn. With Helion loaded an entity under open sky is always drawn, because it may cast a sun shadow onto visible ground.
 - Depends on: `TerrainOcclusion`, `CullingAudit`.
 
+#### ParticleOcclusion
+- Path: `src/main/java/com/aryston/aervium/client/culling/ParticleOcclusion.java`
+- Role: Decides whether a particle is hidden from the camera: the box spans its position last tick and now, grown by one and a half times its quad size plus half a block, and is tested against this frame's camera raster in `TerrainOcclusion`. Counts tested and hidden particles for the overlay.
+- Depends on: `TerrainOcclusion`, `CullingAudit`.
+
 #### HelionShadowCasters
 - Path: `src/main/java/com/aryston/aervium/client/culling/HelionShadowCasters.java`
 - Role: Called by `HelionShadowCastersMixin` with Helion's cascades and caster lists; reads the light view of the first cascade (all cascades share it) through `lightView()` and passes the lists to `TerrainOcclusion`.
@@ -642,6 +647,16 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: At the start of `extractVisibleEntities` builds the frame's camera raster through `TerrainOcclusion.prepareCamera`; drops entities from `isEntityVisible` and block entities from `extractVisibleBlockEntities` that `EntityOcclusion` finds hidden.
 - Notes: Module `occlusionCulling`. Globally rendered block entities (drawn regardless of where the camera looks, like beacon beams) are never dropped.
 
+#### QuadParticleGroupOcclusionMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/QuadParticleGroupOcclusionMixin.java`
+- Role: Wraps the frustum check in `QuadParticleGroup.extractRenderState`; a particle inside the frustum that `ParticleOcclusion` finds hidden is not extracted.
+- Notes: Module `occlusionCulling`. Runs after `extractVisibleEntities`, so the frame's camera raster is ready.
+
+#### ParticleAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/ParticleAccessor.java`
+- Role: Accessor for the protected last-tick position (`xo`, `yo`, `zo`) of `Particle`.
+- Notes: Module `occlusionCulling`.
+
 #### HelionShadowCastersMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/HelionShadowCastersMixin.java`
 - Role: Pseudo mixin on Helion's `VanillaShadowCasterSource.collectSections`; filters the returned per-cascade caster lists with `HelionShadowCasters`.
@@ -695,7 +710,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

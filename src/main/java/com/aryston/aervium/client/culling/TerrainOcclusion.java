@@ -108,6 +108,7 @@ public final class TerrainOcclusion {
     public static void prepareCamera(List<SectionRenderDispatcher.RenderSection> sections, CameraRenderState camera, long now, long sectionFadeDuration) {
         cameraFrame = -1L;
         CullingStatistics.SHARED.entities(EntityOcclusion.takeTested(), EntityOcclusion.takeHidden());
+        CullingStatistics.SHARED.particles(ParticleOcclusion.takeTested(), ParticleOcclusion.takeHidden());
         if (!enabled || !camera.initialized || camera.isPanoramicMode || camera.isFrustumCaptured) {
             return;
         }

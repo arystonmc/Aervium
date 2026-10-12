@@ -56,6 +56,7 @@ final class OverlayLines {
         String camera = format("Culling camera %d of %d hidden (%d%%)", culling.cameraHidden(), culling.cameraSections(),
             CullingStatistics.percent(culling.cameraHidden(), culling.cameraSections()));
         camera += format("  entities %d of %d", culling.entitiesHidden(), culling.entitiesTested());
+        camera += format("  particles %d of %d", culling.particlesHidden(), culling.particlesTested());
         if (!HelionShadowCasters.active()) {
             return new Line(camera, MUTED);
         }
