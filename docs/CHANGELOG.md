@@ -15,6 +15,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Built-in item pipelines compile while the game loads instead of causing a hitch in game
 - Dynamic frame rate in the background and while paused
 - Lighter chunk section locks: about 33 MB less memory at render distance 16 and faster server ticks
+- Light updates copy only the changed parts of the light map: less garbage and lower memory peaks
 - Faster chunk draw lists: much higher lows with Helion's shadows and in caves
 - The log suggests Java settings for smoother frames, and benchmark reports record the garbage collector
 - Every optimization can be switched off in `config/aervium-modules.properties`

@@ -70,6 +70,13 @@ Uses less memory for loaded chunks.
 - Replaces a heavy safety lock inside every chunk section with a lighter one that catches the same errors, which saved about 33 MB of memory in the benchmark at render distance 16 and server ticks were faster in the same run
 - Since: 0.1
 
+### Lighter Light Updates
+Light changes no longer copy the whole light map of the world.
+
+- After every batch of light updates the game copied the light data of all loaded sections so other threads could read it safely; Aervium copies only the parts that changed and shares the rest, with exactly the same result
+- With the default garbage collector this cut garbage collection time and memory peaks in the benchmark (heap peak 4.0 GB to 3.0 GB, 0.1% low 14.6 to 17.9 FPS)
+- Since: 0.1
+
 ### Faster Chunk Drawing
 Prepares the list of chunks to draw with much less work every frame.
 
@@ -86,6 +93,6 @@ Tells you which Java settings give the smoothest frames.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`) with `true` or `false`; changes apply at the next start
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`) with `true` or `false`; changes apply at the next start
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

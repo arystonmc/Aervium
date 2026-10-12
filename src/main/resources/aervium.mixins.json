@@ -4,7 +4,10 @@
   "package": "com.aryston.aervium.mixin",
   "plugin": "com.aryston.aervium.integration.MixinModules",
   "mixins": [
-    "PalettedContainerMixin"
+    "BlockDataLayerStorageMapMixin",
+    "DataLayerStorageMapMixin",
+    "PalettedContainerMixin",
+    "SkyDataLayerStorageMapMixin"
   ],
   "client": [
     "CompiledSectionMeshMixin",

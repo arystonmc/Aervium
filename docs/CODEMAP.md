@@ -23,6 +23,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Pipelines compiled in the middle of a frame | `PipelineWarmup`, `PipelineCacheMixin` |
 | Dynamic frame rate | `FrameRatePolicy`, `FrameRateGovernor`, `FramerateLimitTrackerMixin` |
 | Chunk memory | `PalettedContainerMixin` |
+| Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `LevelRendererSectionSliceMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
@@ -217,6 +218,19 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Reads `key=true|false` lines (unknown lines are ignored, every module defaults to on) and writes every module back so players see all switches.
 - Depends on: `OptimizationModule`.
 
+### `com.aryston.aervium.core.collection`
+
+#### ShardedLongMap
+- Path: `src/main/java/com/aryston/aervium/core/collection/ShardedLongMap.java`
+- Role: Read-only `Long2ObjectOpenHashMap` view over 128 immutable shards (by mixed key hash); answers `get`, `getOrDefault`, `containsKey`, `size` and `isEmpty`, throws on writes and iteration, `clone()` returns itself.
+- Depends on: nothing (fastutil).
+
+#### ShardedLongMapBuilder
+- Path: `src/main/java/com/aryston/aervium/core/collection/ShardedLongMapBuilder.java`
+- Role: Keeps a mutable mirror of a map in 128 shards and publishes `ShardedLongMap` snapshots that copy only the shards written since the last snapshot; unchanged shards are shared between snapshots.
+- Members: `copyOf(Long2ObjectMap)`, `put(long, V)`, `remove(long)`, `publish()`.
+- Depends on: `ShardedLongMap`.
+
 ### `com.aryston.aervium.core.job`
 
 #### JobSystem
@@ -331,6 +345,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/integration/CommonEvents.java`
 - Role: Wires `ServerTickEvent.Pre` and `Post` and `ServerStoppedEvent` to `TickTimeRecorder` on both sides.
 - Depends on: `TickTimeRecorder`.
+
+#### LightSnapshotSource
+- Path: `src/main/java/com/aryston/aervium/integration/light/LightSnapshotSource.java`
+- Role: Interface `DataLayerStorageMapMixin` adds to the light storage maps: `aervium$snapshot()` returns the map for a new visible copy.
+- Depends on: nothing.
 
 #### CompatibilityGuard
 - Path: `src/main/java/com/aryston/aervium/integration/CompatibilityGuard.java`
@@ -508,6 +527,16 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Clears a mesh's cached slices whenever `UberGpuBuffer` frees its allocation and clears every cached slice when the buffer closes.
 - Notes: Module `sectionSliceCache`. Every new allocation of a mesh is preceded by `freeAllocation` of that mesh in `uploadStagedAllocations`, and allocations never move inside a heap, so a cached slice (or `ABSENT`) is always what vanilla would return.
 
+#### DataLayerStorageMapMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/DataLayerStorageMapMixin.java`
+- Role: Follows every write of a light storage map (`setLayer`, `copyDataLayer`, `removeLayer`) in a `ShardedLongMapBuilder` and implements `LightSnapshotSource`; the builder starts at the first copy, and a map that already is a snapshot returns itself.
+- Notes: Module `lightSnapshots`, both sides.
+
+#### BlockDataLayerStorageMapMixin, SkyDataLayerStorageMapMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/BlockDataLayerStorageMapMixin.java`, `src/main/java/com/aryston/aervium/mixin/SkyDataLayerStorageMapMixin.java`
+- Role: In `copy()` of the block and sky light maps, replace the `clone()` of the whole section map with `LightSnapshotSource.aervium$snapshot()`.
+- Notes: Module `lightSnapshots`, both sides. Vanilla `LayerLightSectionStorage.swapSectionMap` cloned the full map (several MB at render distance 32) after every light batch so other threads read a stable copy; the snapshot is still a complete, never-changing copy published at the same moment, so readers see exactly the vanilla data. It was about 18 % of all allocation; with G1 the benchmark spent 9 % less time in GC pauses, the 0.1% low rose from 14.6 to 17.9 FPS and the heap peak fell from 4014 to 3046 MB (1% low unchanged); with ZGC the difference was within noise.
+
 ## Tests
 
 Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI. Each test class sits in the package of the class it checks.
@@ -520,6 +549,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeSummaryTest.java` | Steady frames give equal average and lows; spikes lower the 1% and 0.1% lows and the average as computed by hand. |
 | `src/test/java/com/aryston/aervium/core/telemetry/TickSummaryTest.java` | Histogram buckets and their edges, ticks over 50 ms and their share, median. |
 | `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeRecorderTest.java` | Frame times are the gaps between frame starts; a reset drops the gap. |
+| `src/test/java/com/aryston/aervium/core/collection/ShardedLongMapTest.java` | Snapshot equals the source, published snapshots never change, random writes against a plain map, read-only behavior. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcAdviceTest.java` | Collector recognition from bean names, advice for G1 and for a small heap. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcPauseRecorderTest.java` | Pauses versus concurrent cycles, totals, pauses after a mark. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameBudgetTest.java` | Frame and system budgets, fixed 50 ms tick budget, budget edge, invalid target. |
@@ -540,7 +570,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | File | Purpose |
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `PalettedContainerMixin` on both sides; `CompiledSectionMeshMixin`, `LevelRendererSectionSliceMixin`, `UberGpuBufferMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `LevelRendererSectionSliceMixin`, `UberGpuBufferMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

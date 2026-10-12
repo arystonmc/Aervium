@@ -26,7 +26,10 @@ public final class MixinModules implements IMixinConfigPlugin {
         "PalettedContainerMixin", OptimizationModule.COMPACT_CHUNK_LOCKS,
         "CompiledSectionMeshMixin", OptimizationModule.SECTION_SLICE_CACHE,
         "UberGpuBufferMixin", OptimizationModule.SECTION_SLICE_CACHE,
-        "LevelRendererSectionSliceMixin", OptimizationModule.SECTION_SLICE_CACHE
+        "LevelRendererSectionSliceMixin", OptimizationModule.SECTION_SLICE_CACHE,
+        "DataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS,
+        "BlockDataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS,
+        "SkyDataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS
     );
 
     private ModuleSettings settings;

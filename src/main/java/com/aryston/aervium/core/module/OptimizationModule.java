@@ -5,7 +5,8 @@ public enum OptimizationModule {
     PIPELINE_CACHE("pipelineCache", true),
     PIPELINE_WARMUP("pipelineWarmup", true),
     COMPACT_CHUNK_LOCKS("compactChunkLocks", false),
-    SECTION_SLICE_CACHE("sectionSliceCache", true);
+    SECTION_SLICE_CACHE("sectionSliceCache", true),
+    LIGHT_SNAPSHOTS("lightSnapshots", false);
 
     private final String key;
     private final boolean renderer;
