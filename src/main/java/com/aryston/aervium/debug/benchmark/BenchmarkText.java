@@ -23,7 +23,7 @@ public final class BenchmarkText {
         line(text, "Aervium benchmark " + report.startedAt());
         line(text, RULE);
         line(text, "Aervium %s, Minecraft %s, Java %s, %s", environment.aerviumVersion(), environment.minecraftVersion(), environment.javaVersion(), environment.operatingSystem());
-        line(text, "GPU %s (%s), %d CPU threads, heap limit %.0f MB", environment.gpu(), environment.graphicsBackend(), environment.cpuThreads(), environment.maxHeapMb());
+        line(text, "GPU %s (%s), %d CPU threads, heap limit %.0f MB, %s collector", environment.gpu(), environment.graphicsBackend(), environment.cpuThreads(), environment.maxHeapMb(), environment.garbageCollector());
         line(text, "Window %dx%d, render distance %d, simulation distance %d, frame limit %d, vsync %s",
             environment.windowWidth(), environment.windowHeight(), environment.renderDistance(), environment.simulationDistance(),
             environment.framerateLimit(), environment.vsync() ? "on" : "off");

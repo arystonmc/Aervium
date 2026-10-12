@@ -9,6 +9,7 @@ public record BenchmarkEnvironment(
     String operatingSystem,
     int cpuThreads,
     double maxHeapMb,
+    String garbageCollector,
     String gpu,
     String graphicsBackend,
     int windowWidth,

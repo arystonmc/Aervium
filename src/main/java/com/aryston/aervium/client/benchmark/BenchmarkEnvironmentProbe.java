@@ -2,6 +2,7 @@ package com.aryston.aervium.client.benchmark;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.core.telemetry.ByteSizes;
+import com.aryston.aervium.core.telemetry.GarbageCollector;
 import com.aryston.aervium.debug.benchmark.BenchmarkEnvironment;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -30,6 +31,7 @@ final class BenchmarkEnvironmentProbe {
             System.getProperty("os.name") + " " + System.getProperty("os.version"),
             Runtime.getRuntime().availableProcessors(),
             ByteSizes.megabytes(Runtime.getRuntime().maxMemory()),
+            GarbageCollector.current().displayName(),
             device.name(),
             device.backendName(),
             window.getWidth(),

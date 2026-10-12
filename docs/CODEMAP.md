@@ -11,6 +11,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Server tick time (MSPT) statistics and histogram | `TickSummary`, `TickTimeRecorder` |
 | Ring buffers without per-frame allocation | `SampleRing`, `FrameTimeRecorder` |
 | Garbage collector pauses | `GcPauseRecorder`, `GcPauseClassifier` |
+| Collector in use and JVM flag advice | `GarbageCollector`, `GcAdvice` |
 | Frame budget and timed systems | `FrameBudget`, `TimedSystem`, `SystemTimings` |
 | Worker threads and results back on the main thread | `JobSystem`, `MainThreadQueue` |
 | Overlay drawing and text | `TelemetryOverlay`, `OverlayLines`, `ClientTelemetry` |
@@ -98,6 +99,18 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/core/telemetry/GcPauseClassifier.java`
 - Role: Tells pauses from concurrent collector cycles by collector name and action (ZGC and Shenandoah report cycles separately).
 - Depends on: nothing.
+
+#### GarbageCollector
+- Path: `src/main/java/com/aryston/aervium/core/telemetry/GarbageCollector.java`
+- Role: Enum of the collectors (ZGC, Shenandoah, G1, Parallel, Serial), recognized from the collector bean names; `lowLatency()` marks the concurrent ones.
+- Members: `current()`: the collector of this JVM; `fromBeanNames(Collection)`.
+- Depends on: nothing.
+
+#### GcAdvice
+- Path: `src/main/java/com/aryston/aervium/core/telemetry/GcAdvice.java`
+- Role: Advice on launcher JVM flags (low-pause collector, heap limit) for the startup log; a mod cannot change the collector of the running JVM.
+- Members: `forThisJvm()`; `advise(GarbageCollector, long, long)`: empty when nothing should change.
+- Depends on: `GarbageCollector`.
 
 #### GcPauseTotals
 - Path: `src/main/java/com/aryston/aervium/core/telemetry/GcPauseTotals.java`
@@ -479,6 +492,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeSummaryTest.java` | Steady frames give equal average and lows; spikes lower the 1% and 0.1% lows and the average as computed by hand. |
 | `src/test/java/com/aryston/aervium/core/telemetry/TickSummaryTest.java` | Histogram buckets and their edges, ticks over 50 ms and their share, median. |
 | `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeRecorderTest.java` | Frame times are the gaps between frame starts; a reset drops the gap. |
+| `src/test/java/com/aryston/aervium/core/telemetry/GcAdviceTest.java` | Collector recognition from bean names, advice for G1 and for a small heap. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcPauseRecorderTest.java` | Pauses versus concurrent cycles, totals, pauses after a mark. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameBudgetTest.java` | Frame and system budgets, fixed 50 ms tick budget, budget edge, invalid target. |
 | `src/test/java/com/aryston/aervium/core/budget/SystemTimingsTest.java` | Smoothing, peaks reset on sampling, over budget flags. |

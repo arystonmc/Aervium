@@ -7,6 +7,8 @@ import com.aryston.aervium.client.pipeline.ShaderCaches;
 import com.aryston.aervium.config.AerviumConfig;
 import com.aryston.aervium.core.budget.SystemTimings;
 import com.aryston.aervium.core.budget.TimedSystem;
+import com.aryston.aervium.core.telemetry.GarbageCollector;
+import com.aryston.aervium.core.telemetry.GcAdvice;
 import com.aryston.aervium.integration.CompatibilityGuard;
 import java.util.List;
 import java.util.Optional;
@@ -114,6 +116,7 @@ final class ClientEvents {
         if (!startupReported && minecraft.isGameLoadFinished()) {
             startupReported = true;
             ShaderCaches.reportStartup();
+            reportGarbageCollector();
         }
         while (AerviumKeys.TOGGLE_OVERLAY.consumeClick()) {
             toggleOverlay();
@@ -122,6 +125,12 @@ final class ClientEvents {
             TELEMETRY.clientTick(OVERLAY.budget(), snapshot -> OVERLAY.publish(snapshot, PASSIVE_RENDERER_MODS));
         }
         BENCHMARK.ifPresent(benchmark -> benchmark.clientTick(minecraft));
+    }
+
+    private static void reportGarbageCollector() {
+        Aervium.LOGGER.info("Aervium: {} garbage collector, heap limit {} MB",
+            GarbageCollector.current().displayName(), Runtime.getRuntime().maxMemory() / (1024 * 1024));
+        GcAdvice.forThisJvm().ifPresent(advice -> Aervium.LOGGER.warn("Aervium: for smoother frames, {}", advice));
     }
 
     private static void toggleOverlay() {

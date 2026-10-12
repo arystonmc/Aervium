@@ -85,7 +85,7 @@ class BenchmarkReportTest {
         TickSummary tickSummary = TickSummary.of(ticks, ticks.length);
         SceneResult walk = new SceneResult("walk", "Walking", 30.0, frameSummary, 0, tickSummary, new GcPauseTotals(2, 7.5, 5.0), 1800.0, 900.0);
         BenchmarkEnvironment environment = new BenchmarkEnvironment(
-            "0.1", "26.3", "25", "Windows 11 10.0", 16, 4096.0, "Test GPU", "Vulkan",
+            "0.1", "26.3", "25", "Windows 11 10.0", 16, 4096.0, "G1", "Test GPU", "Vulkan",
             1920, 1080, 12, 12, 260, false, 8_675_309L, List.of("aervium 0.1", "minecraft 26.3")
         );
         BlockPoint spawn = new BlockPoint(0, 64, 0);
