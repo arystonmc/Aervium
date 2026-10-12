@@ -114,6 +114,14 @@ Tells you which Java settings give the smoothest frames.
 - Benchmark reports record the collector, because it changes the lows: in the benchmark ZGC raised the 1% low from 34 to 47 FPS and the 0.1% low from 12 to 32 FPS against the default G1
 - Since: 0.1
 
+### First Launch Hardware Setup
+On its first launch Aervium looks at the PC and lightens settings a weak machine cannot carry.
+
+- Sorts the PC into low, medium or high from its CPU threads, Java memory limit, RAM, graphics card type (dedicated, integrated or software) and video memory; the weakest part decides
+- Low: render distance at most 8, simulation distance at most 6, leaf culling on. Medium: render distance at most 12, simulation distance at most 8. High: nothing changes
+- Only lowers, never raises, and only once; a toast says when something changed. `config/aervium-hardware.properties` records the class and the changes; delete it to detect again
+- Since: 0.1
+
 ### Crash Report Help
 When the game crashes, the crash report says whether Aervium was involved.
 

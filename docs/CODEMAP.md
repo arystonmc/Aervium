@@ -23,6 +23,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Pipelines compiled in the middle of a frame | `PipelineWarmup`, `PipelineCacheMixin` |
 | Dynamic frame rate | `FrameRatePolicy`, `FrameRateGovernor`, `FramerateLimitTrackerMixin` |
 | Chunk memory | `PalettedContainerMixin` |
+| First launch hardware class (lower distances, leaf culling on weak machines) | `HardwareClassifier`, `HardwareTier`, `HardwareProfile`, `GpuKind`, `HardwareSetup`, `VulkanMemoryProbe` |
 | Crash report entry (modules on, Aervium code in the crash) | `CrashSummary`, `CrashReportSection`, `CrashReportMixin`, `MixinModules` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
@@ -305,6 +306,23 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Finds Aervium code in a crash stack (merged mixin handlers by their `aervium$` name, frames in `com.aryston.aervium`) and builds the lines of the crash report entry: version, module states, the code found or "Aervium code in crash: none", one fixed `Aervium module in crash: <key>` line per module and how to test without it.
 - Depends on: nothing; the mixin lookup and module map come in as functions.
 
+### `com.aryston.aervium.core.hardware`
+
+#### HardwareClassifier
+- Path: `src/main/java/com/aryston/aervium/core/hardware/HardwareClassifier.java`
+- Role: Sorts a `HardwareProfile` into `LOW`, `MEDIUM` or `HIGH`; each part (CPU threads, heap, RAM, GPU kind and video memory) can only lower the class, and unknown values never do. Software renderers are low, integrated GPUs at most medium.
+- Depends on: `HardwareProfile`, `HardwareTier`, `GpuKind`.
+
+#### HardwareTier
+- Path: `src/main/java/com/aryston/aervium/core/hardware/HardwareTier.java`
+- Role: What each class sets on first launch: render and simulation distance caps (8/6 low, 12/8 medium, none high) that only lower, and leaf culling on for low.
+- Depends on: nothing.
+
+#### HardwareProfile, GpuKind
+- Path: `src/main/java/com/aryston/aervium/core/hardware/`
+- Role: The measured machine (CPU threads, max heap, physical RAM, GPU name, kind and device-local memory) and its log text.
+- Depends on: nothing.
+
 ### `com.aryston.aervium.core.parity`
 
 #### StateHash
@@ -502,9 +520,14 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Key binding category and the overlay toggle (F7).
 - Depends on: `Aervium`.
 
+#### HardwareSetup
+- Path: `src/main/java/com/aryston/aervium/client/HardwareSetup.java`
+- Role: When the game has loaded, measures the machine (device type from `DeviceInfo`, video memory from `VulkanMemoryProbe`, RAM from the OS bean) and logs its class. On Aervium's first launch only (no `config/aervium-hardware.properties` yet, and not a benchmark run) applies the class: lowers distances in `options.txt`, turns leaf culling on for low, writes the record file, and shows a toast when something changed. Deleting the file detects again.
+- Depends on: `HardwareClassifier`, `VulkanMemoryProbe`, `AerviumConfig`, `LeafCulling`.
+
 #### VulkanMemoryProbe
 - Path: `src/main/java/com/aryston/aervium/client/VulkanMemoryProbe.java`
-- Role: Reads used and budgeted device-local memory from the game's Vulkan memory allocator (`vmaGetHeapBudgets`).
+- Role: Reads used and budgeted device-local memory from the game's Vulkan memory allocator (`vmaGetHeapBudgets`), and the total size of the device-local heaps for the hardware class.
 - Depends on: `FrontendGpuDeviceAccessor`, `VramUsage`.
 
 ### `com.aryston.aervium.client.chunk`
@@ -802,6 +825,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/telemetry/GcAdviceTest.java` | Collector recognition from bean names, advice for G1 and for a small heap. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcPauseRecorderTest.java` | Pauses versus concurrent cycles, totals, pauses after a mark. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameBudgetTest.java` | Frame and system budgets, fixed 50 ms tick budget, budget edge, invalid target. |
+| `src/test/java/com/aryston/aervium/core/hardware/HardwareClassifierTest.java` | A gaming desktop is high, an integrated laptop medium; the weakest part (4 threads, small heap, software renderer, little video memory or RAM) decides; unknown values do not lower; tiers only lower distances. |
 | `src/test/java/com/aryston/aervium/core/crash/CrashSummaryTest.java` | No Aervium code gives the "none" line; a mixin handler in the stack names its module with the fixed marker and the switch-off hint; own frames and always-on mixins are listed without a hint. |
 | `src/test/java/com/aryston/aervium/core/parity/StateHashTest.java` | Same input same hash, order and every value matter, FNV offset basis for an empty hash. |
 | `src/test/java/com/aryston/aervium/core/budget/StallMeterTest.java` | Sum, average and longest stall, reset on take. |

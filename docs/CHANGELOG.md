@@ -7,6 +7,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
+- On first launch Aervium sorts the PC into low, medium or high and lightens settings on weak machines
 - Crash reports name the Aervium module whose code was in the crash and how to test without it
 - Initial mod setup for Minecraft 26.3 on NeoForge
 - Performance overlay with frame rate, 1% and 0.1% lows, a frame time graph, server tick time, garbage collector pauses and memory use (F7)

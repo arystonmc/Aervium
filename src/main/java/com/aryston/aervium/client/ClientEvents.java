@@ -123,6 +123,7 @@ final class ClientEvents {
             startupReported = true;
             ShaderCaches.reportStartup();
             reportGarbageCollector();
+            HardwareSetup.onGameLoaded(minecraft, BENCHMARK.isPresent());
         }
         while (AerviumKeys.TOGGLE_OVERLAY.consumeClick()) {
             toggleOverlay();

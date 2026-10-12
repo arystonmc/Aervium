@@ -41,6 +41,25 @@ final class VulkanMemoryProbe {
         }
     }
 
+    static long deviceLocalBytes() {
+        long allocator = allocator();
+        if (allocator == NO_ALLOCATOR) {
+            return 0L;
+        }
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            PointerBuffer propertiesPointer = stack.mallocPointer(1);
+            Vma.vmaGetMemoryProperties(allocator, propertiesPointer);
+            VkPhysicalDeviceMemoryProperties properties = VkPhysicalDeviceMemoryProperties.create(propertiesPointer.get(0));
+            long size = 0;
+            for (int heap = 0; heap < properties.memoryHeapCount(); heap++) {
+                if ((properties.memoryHeaps(heap).flags() & VK10.VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) != 0) {
+                    size += properties.memoryHeaps(heap).size();
+                }
+            }
+            return size;
+        }
+    }
+
     private static long allocator() {
         GpuDevice device = RenderSystem.tryGetDevice();
         if (device instanceof FrontendGpuDeviceAccessor accessor && accessor.aervium$backend() instanceof VulkanDevice vulkan) {
