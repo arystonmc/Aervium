@@ -19,6 +19,7 @@
     "LevelRendererSectionSliceMixin",
     "UberGpuBufferMixin",
     "FramerateLimitTrackerMixin",
+    "ModelBlockRendererLeafCullingMixin",
     "FrontendGpuDeviceAccessor",
     "GlslCompilerMixin",
     "PipelineCacheAccessor",

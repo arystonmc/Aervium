@@ -27,6 +27,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
 | Occlusion culling (caves, Helion shadow casters, entities, particles) | `TerrainOcclusion`, `EntityOcclusion`, `ParticleOcclusion`, `HelionShadowCasters`, `OcclusionPass`, `DepthRaster`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `QuadParticleGroupOcclusionMixin`, `ParticleAccessor`, `HelionShadowCastersMixin` |
 | Chunk mesh workers (own thread pool for chunk builds) | `MeshWorkers`, `LevelRendererMeshWorkersMixin`, `JobSystem`, `JobLoadMeter` |
+| Leaf culling (optional, off by default) | `LeafCulling`, `ModelBlockRendererLeafCullingMixin`, `AerviumConfig` |
 | Chunk upload and builder lock timings | `ChunkUploadTimings`, `StallMeter`, `SectionRenderDispatcherTimingMixin` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
@@ -417,7 +418,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### AerviumConfig
 - Path: `src/main/java/com/aryston/aervium/config/AerviumConfig.java`
-- Role: Client config: overlay visibility (saved when F7 toggles it), the target frame rate of the frame budget, and dynamic frame rate (on by default, 30 FPS in the background, 60 FPS while paused).
+- Role: Client config: overlay visibility (saved when F7 toggles it), the target frame rate of the frame budget, dynamic frame rate (on by default, 30 FPS in the background, 60 FPS while paused), occlusion culling (on) and leaf culling (off).
 - Depends on: `FrameBudget`, `FrameRatePolicy`.
 
 ### `com.aryston.aervium.client`
@@ -484,6 +485,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Same result as vanilla `LevelRenderer.extractSectionDrawGroups` (section infos, draw groups by buffer hash, translucent order, largest index count) built from the section records.
 - Depends on: `SectionDrawRecord`, `SectionDrawRecordHolder`, `SectionSliceHolder`, `TerrainOcclusion` (skips sections the camera pass found hidden); the access transformer for `LevelRenderer$ChunkDrawGroup`.
 - Notes: In the cave scene it cut the share of the render thread spent building draw lists from about 42 % to 28 %; the frame rate did not change because that scene waits on the GPU (`VulkanCommandEncoder.awaitSubmitCompletion`), so the gain shows on CPU-bound PCs.
+
+#### LeafCulling
+- Path: `src/main/java/com/aryston/aervium/client/chunk/LeafCulling.java`
+- Role: Optional leaf culling: a leaf face toward another leaf is skipped when the block behind that leaf is a leaf too, so only faces two or more leaves deep inside a tree are dropped. Switching it rebuilds every chunk through `LevelExtractor.allChanged` on the main thread.
+- Notes: Off by default because it changes the look slightly (inner faces show through the gaps of detailed leaves); with fast leaves vanilla already drops every face between leaves. Runs on the chunk build workers.
+- Depends on: nothing.
 
 #### ChunkUploadTimings
 - Path: `src/main/java/com/aryston/aervium/client/chunk/ChunkUploadTimings.java`
@@ -681,6 +688,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Accessor for the protected last-tick position (`xo`, `yo`, `zo`) of `Particle`.
 - Notes: Module `occlusionCulling`.
 
+#### ModelBlockRendererLeafCullingMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ModelBlockRendererLeafCullingMixin.java`
+- Role: At the start of `ModelBlockRenderer.shouldRenderFace` (the overload with the level and both positions) returns false for faces `LeafCulling` hides, only while face culling is on.
+- Notes: Not tied to a module; the `leafCulling` client setting switches it.
+
 #### SectionRenderDispatcherTimingMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/SectionRenderDispatcherTimingMixin.java`
 - Role: Times the lock call in `SectionRenderDispatcher.lock` and the whole of `uploadTerrainBuffersToGpu` for `ChunkUploadTimings`.
@@ -746,7 +758,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

@@ -18,5 +18,7 @@
   "aervium.configuration.pausedFps": "Paused Frame Rate",
   "aervium.configuration.pausedFps.tooltip": "Frame rate limit while the single player game is paused.",
   "aervium.configuration.occlusionCulling": "Occlusion Culling",
-  "aervium.configuration.occlusionCulling.tooltip": "Skips terrain hidden behind solid blocks, like caves behind stone, and shadow casters the sun cannot see. The picture stays the same. F6 turns it on and off in game to compare."
+  "aervium.configuration.occlusionCulling.tooltip": "Skips terrain hidden behind solid blocks, like caves behind stone, and shadow casters the sun cannot see. The picture stays the same. F6 turns it on and off in game to compare.",
+  "aervium.configuration.leafCulling": "Leaf Culling",
+  "aervium.configuration.leafCulling.tooltip": "Skips leaf faces buried two or more leaves deep inside a tree. Forests draw faster, but trees look slightly less dense through the gaps in the leaves, so it is off by default. Only matters with detailed (cutout) leaves; changing it rebuilds the chunks."
 }

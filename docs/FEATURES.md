@@ -100,6 +100,13 @@ Skips terrain you cannot see because solid blocks are in the way.
 - F6 turns it on and off in game to compare; the overlay (F7) shows how many chunks, entities and particles were skipped
 - Since: 0.1
 
+### Leaf Culling (Optional)
+Draws fewer hidden leaf faces inside trees.
+
+- With detailed leaves, vanilla also draws the faces between leaves deep inside a tree; with this setting on, faces two or more leaves deep are skipped and forests draw faster
+- Off by default, because trees look slightly less dense through the gaps in the leaves; turn on `leafCulling` in the Aervium settings, the chunks rebuild right away
+- Since: 0.1
+
 ### Garbage Collector Advice
 Tells you which Java settings give the smoothest frames.
 

@@ -24,3 +24,5 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Mobs, items, chests, signs and other entities hidden behind solid blocks are no longer drawn
 - Particles hidden behind solid blocks are no longer drawn
 - Chunks are prepared on Aervium's own threads, no longer waiting behind world generation in single player
+- Optional leaf culling for faster forests (off by default)
+- The overlay and benchmark show chunk upload time and how long the game waits for the chunk builders

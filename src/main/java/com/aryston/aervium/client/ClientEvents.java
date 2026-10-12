@@ -2,6 +2,7 @@ package com.aryston.aervium.client;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.client.benchmark.BenchmarkDriver;
+import com.aryston.aervium.client.chunk.LeafCulling;
 import com.aryston.aervium.client.culling.TerrainOcclusion;
 import com.aryston.aervium.client.pipeline.PipelineWarmup;
 import com.aryston.aervium.client.pipeline.ShaderCaches;
@@ -90,6 +91,7 @@ final class ClientEvents {
         OVERLAY.setVisible(AerviumConfig.OVERLAY_VISIBLE.getAsBoolean());
         OVERLAY.setBudget(AerviumConfig.frameBudget());
         TerrainOcclusion.setEnabled(AerviumConfig.OCCLUSION_CULLING.getAsBoolean());
+        LeafCulling.setEnabled(AerviumConfig.LEAF_CULLING.getAsBoolean());
         if (PASSIVE_RENDERER_MODS.isEmpty()) {
             FrameRateGovernor.apply(AerviumConfig.frameRatePolicy());
         }
