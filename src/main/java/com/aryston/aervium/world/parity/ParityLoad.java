@@ -1,6 +1,7 @@
 package com.aryston.aervium.world.parity;
 
 import com.aryston.aervium.Aervium;
+import com.aryston.aervium.world.collision.CollisionAudit;
 import com.aryston.aervium.world.poi.PoiAudit;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
@@ -81,6 +82,9 @@ final class ParityLoad {
     }
 
     static void report() {
+        if (CollisionAudit.ENABLED) {
+            Aervium.LOGGER.info("Aervium collision audit: {}", CollisionAudit.summary());
+        }
         if (PoiAudit.ENABLED) {
             Aervium.LOGGER.info("Aervium poi audit: {}", PoiAudit.summary());
         }

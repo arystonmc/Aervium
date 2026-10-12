@@ -100,6 +100,15 @@ Villagers find beds, job sites and bells with far less work.
 - Module `poiSearch`
 - Since: 0.1
 
+### Faster Mob Movement
+Moving mobs stop searching for entities they could never bump into.
+
+- Every step of every mob asks which nearby entities it would collide with, and vanilla checks every entity around it although only boats, shulkers and happy ghasts can be bumped into; Aervium counts those per chunk section and skips the search where there are none
+- Same results as vanilla; a built-in audit checks every skipped search and CI runs it
+- Cloud profile with 600 mobs: the entity collision search went from about 6 % to under 1 % of the server tick (2 to 5 % faster ticks)
+- Module `entityCollisions`
+- Since: 0.1
+
 ### Occlusion Culling
 Skips terrain you cannot see because solid blocks are in the way.
 
@@ -142,6 +151,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `poiSearch`) with `true` or `false`; changes apply at the next start
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `poiSearch`, `entityCollisions`) with `true` or `false`; changes apply at the next start
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

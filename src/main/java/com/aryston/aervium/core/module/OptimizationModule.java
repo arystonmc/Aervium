@@ -9,7 +9,8 @@ public enum OptimizationModule {
     LIGHT_SNAPSHOTS("lightSnapshots", false),
     OCCLUSION_CULLING("occlusionCulling", true),
     MESH_WORKERS("meshWorkers", true),
-    POI_SEARCH("poiSearch", false);
+    POI_SEARCH("poiSearch", false),
+    ENTITY_COLLISIONS("entityCollisions", false);
 
     private final String key;
     private final boolean renderer;
