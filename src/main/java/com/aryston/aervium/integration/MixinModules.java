@@ -7,12 +7,19 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import net.neoforged.fml.loading.FMLLoader;
 import net.neoforged.fml.loading.FMLPaths;
 import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodNode;
 import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
@@ -45,6 +52,9 @@ public final class MixinModules implements IMixinConfigPlugin {
     private static final String HELION_MOD_ID = "helion";
     private static final Set<String> HELION_MIXINS = Set.of("HelionShadowCastersMixin");
 
+    private static final Map<String, List<AppliedMixin>> APPLIED = new ConcurrentHashMap<>();
+    private static volatile Map<String, Boolean> activeModules = Map.of();
+
     private ModuleSettings settings;
     private boolean rendererReplaced;
     private boolean helionLoaded;
@@ -54,6 +64,26 @@ public final class MixinModules implements IMixinConfigPlugin {
         settings = readSettings(FMLPaths.CONFIGDIR.get().resolve(SETTINGS_FILE));
         rendererReplaced = CompatibilityGuard.REPLACED_RENDERERS.stream().anyMatch(MixinModules::loaded);
         helionLoaded = loaded(HELION_MOD_ID);
+        Map<String, Boolean> active = new LinkedHashMap<>();
+        for (OptimizationModule module : OptimizationModule.values()) {
+            active.put(module.key(), isActive(module));
+        }
+        activeModules = Collections.unmodifiableMap(active);
+    }
+
+    /** Every module key with whether its mixins were applied in this game, in declaration order. */
+    public static Map<String, Boolean> activeModules() {
+        return activeModules;
+    }
+
+    /** Module key of a mixin by simple name, or null when the mixin is not tied to a module. */
+    public static String moduleOf(String mixinSimpleName) {
+        OptimizationModule module = MIXIN_MODULES.get(mixinSimpleName);
+        return module == null ? null : module.key();
+    }
+
+    private boolean isActive(OptimizationModule module) {
+        return settings.isEnabled(module) && !(module.renderer() && rendererReplaced);
     }
 
     @Override
@@ -66,7 +96,7 @@ public final class MixinModules implements IMixinConfigPlugin {
         if (module == null) {
             return true;
         }
-        return settings.isEnabled(module) && !(module.renderer() && rendererReplaced);
+        return isActive(module);
     }
 
     @Override
@@ -89,6 +119,37 @@ public final class MixinModules implements IMixinConfigPlugin {
 
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
+        Set<String> methods = new HashSet<>();
+        try {
+            for (MethodNode method : mixinInfo.getClassNode(0).methods) {
+                methods.add(method.name);
+            }
+        } catch (RuntimeException unreadable) {
+            Aervium.LOGGER.debug("Aervium could not read the methods of {}", mixinClassName, unreadable);
+        }
+        APPLIED.computeIfAbsent(targetClassName, target -> new CopyOnWriteArrayList<>())
+            .add(new AppliedMixin(mixinInfo.getName(), Set.copyOf(methods)));
+    }
+
+    /**
+     * Aervium mixins applied to a class (dotted name) that declare the handler method; every Aervium mixin on that class
+     * when none declares it by that name.
+     */
+    public static Set<String> mixinsDeclaring(String targetClassName, String handlerName) {
+        List<AppliedMixin> applied = APPLIED.getOrDefault(targetClassName, List.of());
+        Set<String> declaring = new LinkedHashSet<>();
+        for (AppliedMixin mixin : applied) {
+            if (mixin.methods().contains(handlerName)) {
+                declaring.add(mixin.name());
+            }
+        }
+        if (declaring.isEmpty()) {
+            applied.forEach(mixin -> declaring.add(mixin.name()));
+        }
+        return declaring;
+    }
+
+    private record AppliedMixin(String name, Set<String> methods) {
     }
 
     private static boolean loaded(String modId) {

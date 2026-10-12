@@ -6,6 +6,7 @@
   "mixins": [
     "BlockDataLayerStorageMapMixin",
     "ChunkStatusTasksTerrainMixin",
+    "CrashReportMixin",
     "DataLayerStorageMapMixin",
     "LevelRandomAccessor",
     "PalettedContainerMixin",

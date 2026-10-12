@@ -23,6 +23,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Pipelines compiled in the middle of a frame | `PipelineWarmup`, `PipelineCacheMixin` |
 | Dynamic frame rate | `FrameRatePolicy`, `FrameRateGovernor`, `FramerateLimitTrackerMixin` |
 | Chunk memory | `PalettedContainerMixin` |
+| Crash report entry (modules on, Aervium code in the crash) | `CrashSummary`, `CrashReportSection`, `CrashReportMixin`, `MixinModules` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
 | Occlusion culling (caves, Helion shadow casters, entities, particles) | `TerrainOcclusion`, `EntityOcclusion`, `ParticleOcclusion`, `HelionShadowCasters`, `OcclusionPass`, `DepthRaster`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `QuadParticleGroupOcclusionMixin`, `ParticleAccessor`, `HelionShadowCastersMixin` |
@@ -297,6 +298,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Results of jobs that must be applied on the main thread; `drain(budget)` runs them in order until the time budget is spent (at least one per call).
 - Depends on: nothing.
 
+### `com.aryston.aervium.core.crash`
+
+#### CrashSummary
+- Path: `src/main/java/com/aryston/aervium/core/crash/CrashSummary.java`
+- Role: Finds Aervium code in a crash stack (merged mixin handlers by their `aervium$` name, frames in `com.aryston.aervium`) and builds the lines of the crash report entry: version, module states, the code found or "Aervium code in crash: none", one fixed `Aervium module in crash: <key>` line per module and how to test without it.
+- Depends on: nothing; the mixin lookup and module map come in as functions.
+
 ### `com.aryston.aervium.core.parity`
 
 #### StateHash
@@ -443,7 +451,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/integration/MixinModules.java`
 - Role: Mixin config plugin: reads and rewrites `config/aervium-modules.properties` before any mixin applies, skips the mixins of switched-off modules, skips renderer modules when Sodium or Iris is in the mod list and skips mixins into Helion classes when Helion is not installed.
 - Depends on: `ModuleSettings`, `OptimizationModule`, `CompatibilityGuard`.
-- Notes: Runs before mods are constructed, so it reads the mod list through `FMLLoader.getCurrent().getLoadingModList()`.
+- Notes: Runs before mods are constructed, so it reads the mod list through `FMLLoader.getCurrent().getLoadingModList()`. Also keeps, for the crash report, the active state of every module (`activeModules`), the module of each mixin (`moduleOf`) and which Aervium mixins were applied to each class with their method names (`mixinsDeclaring`, filled in `postApply`).
+
+#### CrashReportSection
+- Path: `src/main/java/com/aryston/aervium/integration/crash/CrashReportSection.java`
+- Role: Text of the "Aervium" System Details entry: collects the frames of the exception and its causes and runs `CrashSummary` with the mod version and `MixinModules` lookups.
+- Depends on: `CrashSummary`, `MixinModules`.
 
 ### `com.aryston.aervium.config`
 
@@ -729,6 +742,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Setter for the protected random tick position generator (`randValue`) of `Level`, used by `ParityHarness` to make random ticks repeatable.
 - Notes: Not tied to a module; it only adds an accessor.
 
+#### CrashReportMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/CrashReportMixin.java`
+- Role: Adds the "Aervium" entry from `CrashReportSection` to the system report once per crash report, at the start of `getDetails`.
+- Notes: Not tied to a module.
+
 #### ChunkStatusTasksTerrainMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/ChunkStatusTasksTerrainMixin.java`
 - Role: While `WorldgenCheck` records, chains `WorldgenCheck.terrainBuilt` onto the future `ChunkStatusTasks.buildTerrain` returns.
@@ -784,6 +802,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/telemetry/GcAdviceTest.java` | Collector recognition from bean names, advice for G1 and for a small heap. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcPauseRecorderTest.java` | Pauses versus concurrent cycles, totals, pauses after a mark. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameBudgetTest.java` | Frame and system budgets, fixed 50 ms tick budget, budget edge, invalid target. |
+| `src/test/java/com/aryston/aervium/core/crash/CrashSummaryTest.java` | No Aervium code gives the "none" line; a mixin handler in the stack names its module with the fixed marker and the switch-off hint; own frames and always-on mixins are listed without a hint. |
 | `src/test/java/com/aryston/aervium/core/parity/StateHashTest.java` | Same input same hash, order and every value matter, FNV offset basis for an empty hash. |
 | `src/test/java/com/aryston/aervium/core/budget/StallMeterTest.java` | Sum, average and longest stall, reset on take. |
 | `src/test/java/com/aryston/aervium/core/budget/SystemTimingsTest.java` | Smoothing, peaks reset on sampling, over budget flags. |
@@ -805,7 +824,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `DataLayerStorageMapMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

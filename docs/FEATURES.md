@@ -114,6 +114,14 @@ Tells you which Java settings give the smoothest frames.
 - Benchmark reports record the collector, because it changes the lows: in the benchmark ZGC raised the 1% low from 34 to 47 FPS and the 0.1% low from 12 to 32 FPS against the default G1
 - Since: 0.1
 
+### Crash Report Help
+When the game crashes, the crash report says whether Aervium was involved.
+
+- Every crash report gets an "Aervium" entry in its System Details: the version, which modules were on, and the Aervium code that ran in the crashing stack, or "none"
+- When a module's code was in the crash, the report names it on a fixed line (`Aervium module in crash: occlusionCulling`) and says how to test without it
+- The crash helper on the site reads these lines, so a known problem can point straight to its fix
+- Since: 0.1
+
 ### Switchable Modules
 Every optimization can be turned off.
 

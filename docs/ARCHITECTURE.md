@@ -155,6 +155,7 @@ The same run doubles as a light benchmark: the log prints the wall and CPU time 
 | `LevelExtractorOcclusionMixin` | `LevelExtractor.extractVisibleEntities`, `isEntityVisible`, block entity extraction | Entity visibility is only the frustum check; no event can drop an entity or block entity from a frame. |
 | `QuadParticleGroupOcclusionMixin`, `ParticleAccessor` | `QuadParticleGroup.extractRenderState`, `Particle.xo/yo/zo` | Particle extraction only checks the frustum and has no hook. |
 | `LevelRendererMeshWorkersMixin` | `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` | The chunk build executor is hard-wired to the shared background pool. |
+| `CrashReportMixin` | `CrashReport.getDetails` | NeoForge crash callables get no access to the exception, and the section needs its stack. |
 | `ChunkStatusTasksTerrainMixin` | `ChunkStatusTasks.buildTerrain` | The worldgen check needs each chunk right after its terrain step, before features from its neighbours land in it. Does nothing outside the check. |
 | `ThreadedLevelLightEngineTimingMixin` | `ThreadedLevelLightEngine.runUpdate` | The server light worker has no timing of its own. |
 | `SectionRenderDispatcherTimingMixin` | `SectionRenderDispatcher.lock` and `uploadTerrainBuffersToGpu` | Upload and builder lock time are invisible otherwise. |

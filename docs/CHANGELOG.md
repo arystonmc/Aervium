@@ -7,6 +7,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
+- Crash reports name the Aervium module whose code was in the crash and how to test without it
 - Initial mod setup for Minecraft 26.3 on NeoForge
 - Performance overlay with frame rate, 1% and 0.1% lows, a frame time graph, server tick time, garbage collector pauses and memory use (F7)
 - Built-in benchmark that flies a fixed route through a fixed-seed world and writes a JSON and a readable report
