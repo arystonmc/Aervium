@@ -136,6 +136,7 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 | `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` | `DataLayerStorageMap` writes, `copy()` of the block and sky light maps | The visible light map is always a full clone and the storage has no hook for how it is copied. |
 | `VisGraphMixin`, `VisibilitySetMixin`, `CompiledSectionMeshVisibilityAccessor` | `VisGraph.resolve`, `VisibilitySet`, `CompiledSectionMesh.visibilitySet` | The opaque blocks of a section are only known inside the mesh build. |
 | `LevelRendererOcclusionMixin` | `LevelRenderer.prepareChunkRenders` and `prepareChunkRendersIndirect` | No event tells which view a terrain pass is for. |
+| `LevelExtractorOcclusionMixin` | `LevelExtractor.extractVisibleEntities`, `isEntityVisible`, block entity extraction | Entity visibility is only the frustum check; no event can drop an entity or block entity from a frame. |
 | `HelionShadowCastersMixin` (pseudo, optional) | Helion `VanillaShadowCasterSource.collectSections` | Helion exposes no hook for its caster lists yet. |
 | `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin` | `LevelRenderer.extractSectionDrawGroups`, `CompiledSectionMesh`, `UberGpuBuffer.freeAllocation` and `close` | The terrain buffer slices of a mesh are only reachable through a map lookup and the draw list loop has no hook. |
 

@@ -25,7 +25,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Chunk memory | `PalettedContainerMixin` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
-| Occlusion culling (caves, Helion shadow casters) | `TerrainOcclusion`, `HelionShadowCasters`, `OcclusionPass`, `DepthRaster`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `HelionShadowCastersMixin` |
+| Occlusion culling (caves, Helion shadow casters, entities) | `TerrainOcclusion`, `EntityOcclusion`, `HelionShadowCasters`, `OcclusionPass`, `DepthRaster`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `HelionShadowCastersMixin` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -242,7 +242,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### CullingStatistics
 - Path: `src/main/java/com/aryston/aervium/core/culling/CullingStatistics.java`
-- Role: Sections and hidden sections of the last camera pass and the last set of shadow cascades, for the overlay, and the share of hidden sections since the last call of `takeCameraHiddenPercent` for the benchmark log.
+- Role: Sections and hidden sections of the last camera pass and the last set of shadow cascades, and tested and hidden entities of the last frame, for the overlay, and the share of hidden sections since the last call of `takeCameraHiddenPercent` for the benchmark log.
 - Depends on: nothing.
 
 ### `com.aryston.aervium.core.module`
@@ -482,9 +482,15 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### TerrainOcclusion
 - Path: `src/main/java/com/aryston/aervium/client/culling/TerrainOcclusion.java`
-- Role: Occlusion culling for terrain. `beginTerrainPass` marks a `prepareChunkRenders` call as the camera pass when its matrix equals the camera's view rotation (vanilla and Helion both pass a copy of it; Helion's shadow cascades pass the light view). `cameraVisibility` builds the camera raster from the game projection and view rotation and runs an `OcclusionPass` over the visible sections. `filterShadowCasters` runs one orthographic pass per shadow cascade in light space and removes casters the light cannot reach; results are reused while the light direction, the section list and every mesh stay the same.
+- Role: Occlusion culling for terrain and the camera raster that entity culling shares. `prepareCamera` builds the camera raster once per frame before entities are extracted; the terrain pass reuses it while the frame, the section list and the camera position are unchanged. `beginTerrainPass` marks a `prepareChunkRenders` call as the camera pass when its matrix equals the camera's view rotation (vanilla and Helion both pass a copy of it; Helion's shadow cascades pass the light view). `cameraVisibility` builds the camera raster from the game projection and view rotation and runs an `OcclusionPass` over the visible sections. `filterShadowCasters` runs one orthographic pass per shadow cascade in light space and removes casters the light cannot reach; results are reused while the light direction, the section list and every mesh stay the same.
 - Notes: Sections still fading in never occlude. Runs on the render thread; its time shows as `Occlusion culling` in the overlay. F6 and `occlusionCulling` in the client config switch it at runtime.
 - Depends on: `OcclusionPass`, `DepthRaster`, `ClipMatrix`, `CullingStatistics`, `OccluderHolder`, `CompiledSectionMeshVisibilityAccessor`.
+
+#### EntityOcclusion
+- Path: `src/main/java/com/aryston/aervium/client/culling/EntityOcclusion.java`
+- Role: Decides whether an entity or a block entity is hidden from the camera by testing its box (entities: interpolated bounding box grown by 1 block; block entities: the renderer's render box grown by half a block) against this frame's camera raster in `TerrainOcclusion`. Counts tested and hidden entities for the overlay.
+- Notes: Only mobs, dropped items, experience orbs and armor stands are culled; glowing, named, leashed, riding or ridden entities are always drawn. With Helion loaded an entity under open sky is always drawn, because it may cast a sun shadow onto visible ground.
+- Depends on: `TerrainOcclusion`, `CullingAudit`.
 
 #### HelionShadowCasters
 - Path: `src/main/java/com/aryston/aervium/client/culling/HelionShadowCasters.java`
@@ -631,6 +637,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Around `prepareChunkRenders` and `prepareChunkRendersIndirect` tells `TerrainOcclusion` which matrix the pass uses and the section fade-in time.
 - Notes: Module `occlusionCulling`. Camera culling itself runs in `SectionDrawLists`, so it also needs module `sectionSliceCache`.
 
+#### LevelExtractorOcclusionMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/LevelExtractorOcclusionMixin.java`
+- Role: At the start of `extractVisibleEntities` builds the frame's camera raster through `TerrainOcclusion.prepareCamera`; drops entities from `isEntityVisible` and block entities from `extractVisibleBlockEntities` that `EntityOcclusion` finds hidden.
+- Notes: Module `occlusionCulling`. Globally rendered block entities (drawn regardless of where the camera looks, like beacon beams) are never dropped.
+
 #### HelionShadowCastersMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/HelionShadowCastersMixin.java`
 - Role: Pseudo mixin on Helion's `VanillaShadowCasterSource.collectSections`; filters the returned per-cascade caster lists with `HelionShadowCasters`.
@@ -684,7 +695,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `DataLayerStorageMapMixin`, `PalettedContainerMixin` and `SkyDataLayerStorageMapMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 

@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 final class CullingAudit {
@@ -23,7 +24,9 @@ final class CullingAudit {
     private static final float SECTION = OcclusionPass.SECTION_SIZE;
 
     private static final BlockPos.MutableBlockPos POSITION = new BlockPos.MutableBlockPos();
+    private static final int BOX_INTERVAL = 7;
     private static int frames;
+    private static int boxes;
     private static int audits;
     private static long sections;
     private static long rays;
@@ -51,24 +54,29 @@ final class CullingAudit {
         }
         sections += checked;
         if (++audits % REPORT_INTERVAL == 0) {
-            Aervium.LOGGER.info("Aervium culling audit: {} hidden sections, {} rays, {} rays reached a hidden section", sections, rays, violations);
+            Aervium.LOGGER.info("Aervium culling audit: {} hidden sections, {} hidden entities, {} rays, {} rays reached a hidden target", sections, boxes, rays, violations);
         }
     }
 
     private static void audit(ClientLevel level, SectionRenderDispatcher.RenderSection section, Vec3 camera, ClipMatrix clip) {
         BlockPos origin = section.getRenderOrigin();
+        trace(level, camera, clip, origin.getX(), origin.getY(), origin.getZ(),
+            origin.getX() + SECTION, origin.getY() + SECTION, origin.getZ() + SECTION, "section at " + origin);
+    }
+
+    private static void trace(ClientLevel level, Vec3 camera, ClipMatrix clip,
+                                 double minX, double minY, double minZ, double maxX, double maxY, double maxZ, String target) {
         for (int ray = 0; ray < RAYS_PER_SECTION; ray++) {
-            double x = origin.getX() + random() * SECTION;
-            double y = origin.getY() + random() * SECTION;
-            double z = origin.getZ() + random() * SECTION;
+            double x = minX + random() * (maxX - minX);
+            double y = minY + random() * (maxY - minY);
+            double z = minZ + random() * (maxZ - minZ);
             float relativeX = (float) (x - camera.x);
             float relativeY = (float) (y - camera.y);
             float relativeZ = (float) (z - camera.z);
             if (!onScreen(clip, relativeX, relativeY, relativeZ)) {
                 continue;
             }
-            double entry = VoxelRay.entry(camera.x, camera.y, camera.z, x, y, z,
-                origin.getX(), origin.getY(), origin.getZ(), origin.getX() + SECTION, origin.getY() + SECTION, origin.getZ() + SECTION);
+            double entry = VoxelRay.entry(camera.x, camera.y, camera.z, x, y, z, minX, minY, minZ, maxX, maxY, maxZ);
             if (Double.isNaN(entry)) {
                 continue;
             }
@@ -83,11 +91,18 @@ final class CullingAudit {
             rays++;
             if (VoxelRay.reaches(camera.x, camera.y, camera.z, endX, endY, endZ, (bx, by, bz) -> level.getBlockState(POSITION.set(bx, by, bz)).isSolidRender())) {
                 if (violations++ < MAX_LOGGED_VIOLATIONS) {
-                    Aervium.LOGGER.warn("Aervium culling audit: section at {} was hidden but the camera at {} sees it through ({}, {}, {})",
-                        origin, camera, x, y, z);
+                    Aervium.LOGGER.warn("Aervium culling audit: {} was hidden but the camera at {} sees it through ({}, {}, {})", target, camera, x, y, z);
                 }
             }
         }
+    }
+
+    static void hiddenBox(AABB box, Vec3 camera, ClipMatrix clip) {
+        ClientLevel level = Minecraft.getInstance().level;
+        if (level == null || ++boxes % BOX_INTERVAL != 0) {
+            return;
+        }
+        trace(level, camera, clip, box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ, "entity box " + box);
     }
 
     private static boolean onScreen(ClipMatrix clip, float x, float y, float z) {

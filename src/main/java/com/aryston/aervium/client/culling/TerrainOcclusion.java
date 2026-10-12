@@ -16,6 +16,7 @@ import net.minecraft.client.renderer.chunk.SectionMesh;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4fc;
 import org.jspecify.annotations.Nullable;
@@ -34,7 +35,8 @@ public final class TerrainOcclusion {
     private static final float FULLY_FADED_IN = 1.0F;
     private static final int MAX_CACHED_CASCADES = 8;
 
-    private static final OcclusionPass PASS = new OcclusionPass();
+    private static final OcclusionPass CAMERA_PASS = new OcclusionPass();
+    private static final OcclusionPass SHADOW_PASS = new OcclusionPass();
     private static final DepthRaster SHADOW_RASTER = new DepthRaster(SHADOW_SIZE, SHADOW_SIZE);
     private static final ClipMatrix CLIP = new ClipMatrix();
     private static final ClipMatrix VIEW = new ClipMatrix();
@@ -46,6 +48,15 @@ public final class TerrainOcclusion {
     private static long fadeDuration = Long.MAX_VALUE;
     private static @Nullable DepthRaster cameraRaster;
     private static @Nullable CameraRenderState cameraPass;
+    private static @Nullable Vec3 cameraOrigin;
+    private static long frame;
+    private static long cameraFrame = -1L;
+    private static int cameraSize;
+    private static @Nullable Object cameraFirst;
+    private static @Nullable Object cameraLast;
+    private static float cameraX;
+    private static float cameraY;
+    private static float cameraZ;
 
     private TerrainOcclusion() {
     }
@@ -56,12 +67,17 @@ public final class TerrainOcclusion {
 
     public static void setEnabled(boolean value) {
         enabled = value;
+        cameraFrame = -1L;
         Arrays.fill(CASCADE_SIGNATURES, 0L);
         if (!value) {
             CullingStatistics.SHARED.camera(0, 0);
             CullingStatistics.SHARED.beginShadows();
             CullingStatistics.SHARED.endShadows();
         }
+    }
+
+    public static void frameStarted() {
+        frame++;
     }
 
     public static long fadeDuration() {
@@ -78,10 +94,22 @@ public final class TerrainOcclusion {
         cameraPass = null;
     }
 
-    public static @Nullable OcclusionPass cameraVisibility(List<SectionRenderDispatcher.RenderSection> sections, long now, long fadeDuration) {
+    public static @Nullable OcclusionPass cameraVisibility(List<SectionRenderDispatcher.RenderSection> sections, long now, long sectionFadeDuration) {
         CameraRenderState camera = cameraPass;
         if (camera == null) {
             return null;
+        }
+        if (!cameraPassCurrent(sections)) {
+            prepareCamera(sections, camera, now, sectionFadeDuration);
+        }
+        return CAMERA_PASS;
+    }
+
+    public static void prepareCamera(List<SectionRenderDispatcher.RenderSection> sections, CameraRenderState camera, long now, long sectionFadeDuration) {
+        cameraFrame = -1L;
+        CullingStatistics.SHARED.entities(EntityOcclusion.takeTested(), EntityOcclusion.takeHidden());
+        if (!enabled || !camera.initialized || camera.isPanoramicMode || camera.isFrustumCaptured) {
+            return;
         }
         long start = SystemTimings.begin();
         DepthRaster raster = cameraRaster(camera.projectionMatrix);
@@ -90,14 +118,56 @@ public final class TerrainOcclusion {
         camera.viewRotationMatrix.get(MATRIX);
         CLIP.multiply(VIEW.set(MATRIX)).depthFromW(CAMERA_NEAR, CAMERA_FAR);
         raster.begin(CLIP, true);
-        fill(sections, camera.pos, now, fadeDuration);
-        PASS.run(raster, MAX_CAMERA_OCCLUDER_BOXES);
-        CullingStatistics.SHARED.camera(PASS.size(), PASS.hidden());
+        fill(CAMERA_PASS, sections, camera.pos, now, sectionFadeDuration);
+        CAMERA_PASS.run(raster, MAX_CAMERA_OCCLUDER_BOXES);
+        CullingStatistics.SHARED.camera(CAMERA_PASS.size(), CAMERA_PASS.hidden());
         if (CullingAudit.ENABLED) {
-            CullingAudit.afterCameraPass(sections, PASS, camera.pos, CLIP);
+            CullingAudit.afterCameraPass(sections, CAMERA_PASS, camera.pos, CLIP);
         }
+        cameraFrame = frame;
+        cameraSize = sections.size();
+        cameraFirst = sections.isEmpty() ? null : sections.getFirst();
+        cameraLast = sections.isEmpty() ? null : sections.getLast();
+        cameraX = (float) camera.pos.x;
+        cameraY = (float) camera.pos.y;
+        cameraZ = (float) camera.pos.z;
+        cameraOrigin = camera.pos;
         SystemTimings.SHARED.end(TimedSystem.CULLING, start);
-        return PASS;
+    }
+
+    public static boolean isVisibleToCamera(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+        DepthRaster raster = cameraRaster;
+        Vec3 origin = cameraOrigin;
+        if (cameraFrame != frame || raster == null || origin == null) {
+            return true;
+        }
+        if (!Double.isFinite(minX) || !Double.isFinite(minY) || !Double.isFinite(minZ)
+            || !Double.isFinite(maxX) || !Double.isFinite(maxY) || !Double.isFinite(maxZ)) {
+            return true;
+        }
+        return raster.isVisible(
+            (float) (minX - origin.x), (float) (minY - origin.y), (float) (minZ - origin.z),
+            (float) (maxX - origin.x), (float) (maxY - origin.y), (float) (maxZ - origin.z)
+        );
+    }
+
+    static void auditHiddenBox(AABB box) {
+        DepthRaster raster = cameraRaster;
+        Vec3 origin = cameraOrigin;
+        if (raster != null && origin != null) {
+            CullingAudit.hiddenBox(box, origin, raster.matrix());
+        }
+    }
+
+    private static boolean cameraPassCurrent(List<SectionRenderDispatcher.RenderSection> sections) {
+        CameraRenderState camera = cameraPass;
+        return cameraFrame == frame
+            && camera != null
+            && sections.size() == cameraSize
+            && (sections.isEmpty() || sections.getFirst() == cameraFirst && sections.getLast() == cameraLast)
+            && (float) camera.pos.x == cameraX
+            && (float) camera.pos.y == cameraY
+            && (float) camera.pos.z == cameraZ;
     }
 
     public static void filterShadowCasters(List<List<SectionRenderDispatcher.RenderSection>> cascades, Matrix4fc lightView, Vec3 camera, long now, long fadeDuration) {
@@ -171,20 +241,20 @@ public final class TerrainOcclusion {
         lightView.get(MATRIX);
         CLIP.multiply(VIEW.set(MATRIX));
         SHADOW_RASTER.begin(CLIP, false);
-        fill(sections, camera, now, fadeDuration);
-        PASS.run(SHADOW_RASTER, MAX_SHADOW_OCCLUDER_BOXES);
+        fill(SHADOW_PASS, sections, camera, now, fadeDuration);
+        SHADOW_PASS.run(SHADOW_RASTER, MAX_SHADOW_OCCLUDER_BOXES);
         for (int index = 0; index < keep.length; index++) {
-            keep[index] = PASS.isVisible(index);
+            keep[index] = SHADOW_PASS.isVisible(index);
         }
         return keep;
     }
 
-    private static void fill(List<SectionRenderDispatcher.RenderSection> sections, Vec3 camera, long now, long fadeDuration) {
-        PASS.clear();
+    private static void fill(OcclusionPass pass, List<SectionRenderDispatcher.RenderSection> sections, Vec3 camera, long now, long fadeDuration) {
+        pass.clear();
         for (int index = 0, size = sections.size(); index < size; index++) {
             SectionRenderDispatcher.RenderSection section = sections.get(index);
             BlockPos origin = section.getRenderOrigin();
-            PASS.add(
+            pass.add(
                 (float) (origin.getX() - camera.x),
                 (float) (origin.getY() - camera.y),
                 (float) (origin.getZ() - camera.z),

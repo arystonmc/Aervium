@@ -99,6 +99,7 @@ final class ClientEvents {
         long now = System.nanoTime();
         frameStart = now;
         TELEMETRY.frameStarted(now);
+        TerrainOcclusion.frameStarted();
         if (BENCHMARK.isPresent()) {
             BENCHMARK.get().frameStarted(now);
         }

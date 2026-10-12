@@ -21,3 +21,4 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Every optimization can be switched off in `config/aervium-modules.properties`
 - Occlusion culling: terrain hidden behind solid blocks, like caves behind stone, is no longer drawn (F6 to compare)
 - With Helion, chunks the sun cannot see are left out of the shadow maps; shadows look the same
+- Mobs, items, chests, signs and other entities hidden behind solid blocks are no longer drawn
