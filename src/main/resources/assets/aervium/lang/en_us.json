@@ -1,6 +1,9 @@
 {
   "key.category.aervium.aervium": "Aervium",
   "key.aervium.overlay": "Toggle Performance Overlay",
+  "key.aervium.culling": "Toggle Occlusion Culling",
+  "aervium.culling.on": "Aervium occlusion culling: on",
+  "aervium.culling.off": "Aervium occlusion culling: off",
   "aervium.configuration.title": "Aervium Settings",
   "aervium.configuration.section.aervium.client.toml": "Client Settings",
   "aervium.configuration.section.aervium.client.toml.title": "Aervium Client Settings",
@@ -13,5 +16,7 @@
   "aervium.configuration.unfocusedFps": "Background Frame Rate",
   "aervium.configuration.unfocusedFps.tooltip": "Frame rate limit while another window has the focus.",
   "aervium.configuration.pausedFps": "Paused Frame Rate",
-  "aervium.configuration.pausedFps.tooltip": "Frame rate limit while the single player game is paused."
+  "aervium.configuration.pausedFps.tooltip": "Frame rate limit while the single player game is paused.",
+  "aervium.configuration.occlusionCulling": "Occlusion Culling",
+  "aervium.configuration.occlusionCulling.tooltip": "Skips terrain hidden behind solid blocks, like caves behind stone, and shadow casters the sun cannot see. The picture stays the same. F6 turns it on and off in game to compare."
 }

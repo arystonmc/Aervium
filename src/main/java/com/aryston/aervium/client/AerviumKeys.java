@@ -18,11 +18,20 @@ final class AerviumKeys {
         CATEGORY
     );
 
+    static final KeyMapping TOGGLE_CULLING = new KeyMapping(
+        "key.aervium.culling",
+        KeyConflictContext.IN_GAME,
+        InputConstants.Type.KEYBOARD,
+        InputConstants.KEY_F6,
+        CATEGORY
+    );
+
     private AerviumKeys() {
     }
 
     static void register(RegisterKeyMappingsEvent event) {
         event.registerCategory(CATEGORY);
         event.register(TOGGLE_OVERLAY);
+        event.register(TOGGLE_CULLING);
     }
 }

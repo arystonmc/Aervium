@@ -11,6 +11,9 @@
   ],
   "client": [
     "CompiledSectionMeshMixin",
+    "CompiledSectionMeshVisibilityAccessor",
+    "HelionShadowCastersMixin",
+    "LevelRendererOcclusionMixin",
     "LevelRendererSectionSliceMixin",
     "UberGpuBufferMixin",
     "FramerateLimitTrackerMixin",
@@ -20,6 +23,8 @@
     "PipelineCacheMixin",
     "RenderSectionMixin",
     "RenderSystemMixin",
+    "VisGraphMixin",
+    "VisibilitySetMixin",
     "VulkanRenderPipelineMixin"
   ],
   "injectors": {

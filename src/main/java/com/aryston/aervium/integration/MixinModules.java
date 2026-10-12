@@ -30,21 +30,35 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("DataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS),
         Map.entry("BlockDataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS),
         Map.entry("SkyDataLayerStorageMapMixin", OptimizationModule.LIGHT_SNAPSHOTS),
-        Map.entry("RenderSectionMixin", OptimizationModule.SECTION_SLICE_CACHE)
+        Map.entry("RenderSectionMixin", OptimizationModule.SECTION_SLICE_CACHE),
+        Map.entry("VisGraphMixin", OptimizationModule.OCCLUSION_CULLING),
+        Map.entry("VisibilitySetMixin", OptimizationModule.OCCLUSION_CULLING),
+        Map.entry("CompiledSectionMeshVisibilityAccessor", OptimizationModule.OCCLUSION_CULLING),
+        Map.entry("LevelRendererOcclusionMixin", OptimizationModule.OCCLUSION_CULLING),
+        Map.entry("HelionShadowCastersMixin", OptimizationModule.OCCLUSION_CULLING)
     );
+
+    private static final String HELION_MOD_ID = "helion";
+    private static final Set<String> HELION_MIXINS = Set.of("HelionShadowCastersMixin");
 
     private ModuleSettings settings;
     private boolean rendererReplaced;
+    private boolean helionLoaded;
 
     @Override
     public void onLoad(String mixinPackage) {
         settings = readSettings(FMLPaths.CONFIGDIR.get().resolve(SETTINGS_FILE));
-        rendererReplaced = CompatibilityGuard.REPLACED_RENDERERS.stream().anyMatch(id -> FMLLoader.getCurrent().getLoadingModList().getModFileById(id) != null);
+        rendererReplaced = CompatibilityGuard.REPLACED_RENDERERS.stream().anyMatch(MixinModules::loaded);
+        helionLoaded = loaded(HELION_MOD_ID);
     }
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        OptimizationModule module = MIXIN_MODULES.get(mixinClassName.substring(mixinClassName.lastIndexOf(PACKAGE_SEPARATOR) + 1));
+        String simpleName = mixinClassName.substring(mixinClassName.lastIndexOf(PACKAGE_SEPARATOR) + 1);
+        if (HELION_MIXINS.contains(simpleName) && !helionLoaded) {
+            return false;
+        }
+        OptimizationModule module = MIXIN_MODULES.get(simpleName);
         if (module == null) {
             return true;
         }
@@ -71,6 +85,10 @@ public final class MixinModules implements IMixinConfigPlugin {
 
     @Override
     public void postApply(String targetClassName, ClassNode targetClass, String mixinClassName, IMixinInfo mixinInfo) {
+    }
+
+    private static boolean loaded(String modId) {
+        return FMLLoader.getCurrent().getLoadingModList().getModFileById(modId) != null;
     }
 
     private static ModuleSettings readSettings(Path file) {

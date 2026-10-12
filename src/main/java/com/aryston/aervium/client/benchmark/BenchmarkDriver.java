@@ -2,6 +2,7 @@ package com.aryston.aervium.client.benchmark;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.client.FrameRateGovernor;
+import com.aryston.aervium.core.culling.CullingStatistics;
 import com.aryston.aervium.core.job.JobSystem;
 import com.aryston.aervium.core.job.MainThreadQueue;
 import com.aryston.aervium.core.telemetry.FrameTimeRecorder;
@@ -172,6 +173,7 @@ public final class BenchmarkDriver {
         camera.place(player, minecraft.level, path, tick);
         tick++;
         if (tick == BenchmarkRoute.SETTLE_TICKS) {
+            CullingStatistics.SHARED.takeCameraHiddenPercent();
             measurement = new SceneMeasurement(BenchmarkScene.values()[sceneIndex], frames.frameTimes(), TickTimeRecorder.SERVER.mark(), gcPauses.mark(), System.nanoTime());
             lastVramBytes = vramProbe.get().usedBytes();
         }
@@ -199,8 +201,9 @@ public final class BenchmarkDriver {
         allFrames.add(frameNanos);
         allTicks.add(tickNanos);
         measurement = null;
-        Aervium.LOGGER.info("Aervium benchmark: {} average {} FPS, 1% low {} FPS, MSPT {} ms",
-            result.scene(), Math.round(result.frames().averageFps()), Math.round(result.frames().onePercentLowFps()), Math.round(result.ticks().averageMs()));
+        Aervium.LOGGER.info("Aervium benchmark: {} average {} FPS, 1% low {} FPS, MSPT {} ms, occlusion culling hid {}% of sections",
+            result.scene(), Math.round(result.frames().averageFps()), Math.round(result.frames().onePercentLowFps()), Math.round(result.ticks().averageMs()),
+            CullingStatistics.SHARED.takeCameraHiddenPercent());
         if (sceneIndex + 1 < BenchmarkScene.values().length) {
             startScene(minecraft, sceneIndex + 1);
             return;

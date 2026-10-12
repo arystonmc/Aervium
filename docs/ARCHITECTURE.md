@@ -36,6 +36,7 @@ Engine (game-independent, unit tested)
    core/telemetry             ring buffers, statistics, GC pauses, snapshots
    core/budget                frame budget, timed systems, timing scopes
    core/job                   work-stealing job system, main-thread queue
+   core/culling               software depth raster, occluder boxes, occlusion passes
    world/                     server-side engine parts (tick recorder now, TPS work in Phase 4)
    debug/route, debug/benchmark  camera routes, benchmark scenes, commands, reports
 ```
@@ -81,6 +82,15 @@ Vanilla compiles every GLSL shader to SPIR-V with shaderc at each start and reso
 - `PipelineWarmup` compiles the built-in pipelines vanilla would only compile on the render thread at first use and inserts them through the budgeted main-thread queue.
 - The startup report in the log (`Aervium startup: ...`) shows the time to the first screen, shader hits and misses and pipeline creation time; `PipelineCacheMixin` logs every pipeline compiled late on the render thread.
 
+### Occlusion Culling
+Vanilla's cave culling only knows whether two faces of a section are connected by air; a cave behind a stone wall still gets drawn when air connects it to the camera somewhere. Aervium adds a software occlusion test, the technique console games used before GPUs could do it themselves.
+
+- While a section mesh is built, its opaque blocks (the same ones vanilla's `VisGraph` sees) become up to 24 occluder boxes.
+- Camera pass, every frame: the visible sections are sorted near to far; each is tested against a 256-pixel-wide depth raster and, if visible, draws its occluder boxes into it. Hidden sections are skipped in the draw list only; vanilla's visible list stays untouched, so section updates, translucency sorting and entities work as before.
+- Shadow pass (with Helion): the same test per cascade in light space with an orthographic raster. A caster the light cannot see is lossless to drop, because the shadow map stores only the nearest depth and the casters in front of it are in the same cascade.
+- Both tests are conservative (see `DepthRaster`), so nothing visible is ever dropped. Sections still fading in never occlude.
+- `-Daervium.cullingAudit=true` checks this in game: rays through the real blocks to hidden sections must never get through (`CullingAudit`). The benchmark log shows the share of sections the camera pass hid per scene.
+
 ### Modules
 Optimizations that change game classes are mixins grouped into modules (`OptimizationModule`). `MixinModules` reads `config/aervium-modules.properties` before any mixin applies and writes every switch back; renderer modules also stay off with Sodium or Iris. Features that run later (dynamic frame rate) use the normal client config.
 
@@ -124,6 +134,9 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 | `FramerateLimitTrackerMixin` | `FramerateLimitTracker.getFramerateLimit` | The frame limit has no API. |
 | `PalettedContainerMixin` | `PalettedContainer` threading check | The check is a private field of every container. |
 | `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` | `DataLayerStorageMap` writes, `copy()` of the block and sky light maps | The visible light map is always a full clone and the storage has no hook for how it is copied. |
+| `VisGraphMixin`, `VisibilitySetMixin`, `CompiledSectionMeshVisibilityAccessor` | `VisGraph.resolve`, `VisibilitySet`, `CompiledSectionMesh.visibilitySet` | The opaque blocks of a section are only known inside the mesh build. |
+| `LevelRendererOcclusionMixin` | `LevelRenderer.prepareChunkRenders` and `prepareChunkRendersIndirect` | No event tells which view a terrain pass is for. |
+| `HelionShadowCastersMixin` (pseudo, optional) | Helion `VanillaShadowCasterSource.collectSections` | Helion exposes no hook for its caster lists yet. |
 | `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin` | `LevelRenderer.extractSectionDrawGroups`, `CompiledSectionMesh`, `UberGpuBuffer.freeAllocation` and `close` | The terrain buffer slices of a mesh are only reachable through a map lookup and the draw list loop has no hook. |
 
 ## Phases
@@ -133,7 +146,7 @@ The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>
 | 0 Foundation and measurement | Project, adapter layer, telemetry (frame times, lows, MSPT, GC, RAM, VRAM, timing scopes), overlay, repeatable benchmark, unit tests | Done in 0.1 (unreleased) |
 | 1 Core and stutter killers | Done: SPIR-V disk cache, persistent Vulkan pipeline cache, warm-up of built-in pipelines vanilla compiles mid-game, dynamic frame rate (background and pause), lighter chunk section locks, switchable modules, startup report. Moved to Phase 2: zero-allocation frame arenas (FFM) and job priorities, because chunk meshing is their first real user. Still open: more memory reductions after heap analysis, faster resource loading | In progress |
 | 2 Streaming and meshing | Zero-allocation frame arenas (FFM) and job priorities and dependencies for the mesh jobs, Predictive chunk streaming along the movement direction, parallel meshing on the job system, budgeted GPU uploads, compact vertex formats, faster light engine (ScalableLux-like) | Planned |
-| 3 Culling and draw | Software occlusion culling (caves), entity and block entity culling, leaf and face culling, batched GUI and text drawing (ImmediatelyFast-like), multi-draw indirect | Planned |
+| 3 Culling and draw | Started: software occlusion culling for the camera and Helion's shadow cascades. Next: entity and block entity culling with the same raster, leaf and face culling, batched GUI and text drawing (ImmediatelyFast-like), multi-draw indirect | In progress |
 | 4 World and TPS | Server tick optimizations that keep vanilla behavior (Lithium-like, clean room), parallel chunk generation (C2ME-like), network compression and batching (Krypton-like) | Planned |
 | 5 Advanced Vulkan | GPU-driven culling, meshlets, async compute and transfer queues, two render paths: baseline for integrated GPUs and advanced for strong GPUs | Planned |
 | 6 Frame lock and LOD | Dynamic resolution to hold a target frame time, distant terrain LOD (Distant Horizons-like), extended settings (Sodium Extra-like) | Planned |

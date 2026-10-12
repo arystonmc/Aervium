@@ -83,6 +83,14 @@ Prepares the list of chunks to draw with much less work every frame.
 - Remembers where each chunk's geometry sits on the GPU instead of searching for it again in every pass, which matters most with Helion's shadows; in the benchmark with Helion at render distance 32 the 1% low rose from 36 to 51 FPS and caves from 58 to 78 FPS
 - Since: 0.1
 
+### Occlusion Culling
+Skips terrain you cannot see because solid blocks are in the way.
+
+- Caves, tunnels and rooms hidden behind stone or walls are not sent to the graphics card; the picture stays exactly the same, only frames get cheaper where the GPU was the limit
+- With Helion, chunks the sun cannot see (buried under other terrain) are left out of the shadow maps; shadows look the same because the terrain above already casts them
+- F6 turns it on and off in game to compare; the overlay (F7) shows how many chunks were skipped
+- Since: 0.1
+
 ### Garbage Collector Advice
 Tells you which Java settings give the smoothest frames.
 
@@ -93,6 +101,6 @@ Tells you which Java settings give the smoothest frames.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`) with `true` or `false`; changes apply at the next start
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`) with `true` or `false`; changes apply at the next start
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

@@ -1,6 +1,9 @@
 {
   "key.category.aervium.aervium": "Aervium",
   "key.aervium.overlay": "Performans Panelini Aç/Kapat",
+  "key.aervium.culling": "Görünmezlik Ayıklamayı Aç/Kapat",
+  "aervium.culling.on": "Aervium görünmezlik ayıklama: açık",
+  "aervium.culling.off": "Aervium görünmezlik ayıklama: kapalı",
   "aervium.configuration.title": "Aervium Ayarları",
   "aervium.configuration.section.aervium.client.toml": "İstemci Ayarları",
   "aervium.configuration.section.aervium.client.toml.title": "Aervium İstemci Ayarları",
@@ -13,5 +16,7 @@
   "aervium.configuration.unfocusedFps": "Arka Plan Kare Hızı",
   "aervium.configuration.unfocusedFps.tooltip": "Başka bir pencere odaktayken kare hızı sınırı.",
   "aervium.configuration.pausedFps": "Duraklatma Kare Hızı",
-  "aervium.configuration.pausedFps.tooltip": "Tek oyunculu oyun duraklatıldığında kare hızı sınırı."
+  "aervium.configuration.pausedFps.tooltip": "Tek oyunculu oyun duraklatıldığında kare hızı sınırı.",
+  "aervium.configuration.occlusionCulling": "Görünmezlik Ayıklama",
+  "aervium.configuration.occlusionCulling.tooltip": "Katı blokların arkasında kalan araziyi (taşın arkasındaki mağaralar gibi) ve güneşin göremediği gölge vericileri çizmez. Görüntü aynı kalır. Oyunda F6 ile açıp kapatıp karşılaştırabilirsin."
 }

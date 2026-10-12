@@ -30,6 +30,9 @@ public final class AerviumConfig {
     public static final ModConfigSpec.IntValue PAUSED_FPS = BUILDER
         .defineInRange("pausedFps", DEFAULT_PAUSED_FPS, MIN_THROTTLED_FPS, MAX_THROTTLED_FPS);
 
+    public static final ModConfigSpec.BooleanValue OCCLUSION_CULLING = BUILDER
+        .define("occlusionCulling", true);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private AerviumConfig() {

@@ -19,3 +19,5 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Faster chunk draw lists: much higher lows with Helion's shadows and in caves
 - The log suggests Java settings for smoother frames, and benchmark reports record the garbage collector
 - Every optimization can be switched off in `config/aervium-modules.properties`
+- Occlusion culling: terrain hidden behind solid blocks, like caves behind stone, is no longer drawn (F6 to compare)
+- With Helion, chunks the sun cannot see are left out of the shadow maps; shadows look the same

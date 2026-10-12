@@ -3,6 +3,8 @@ package com.aryston.aervium.client.chunk;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import com.aryston.aervium.client.culling.TerrainOcclusion;
+import com.aryston.aervium.core.culling.OcclusionPass;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +37,11 @@ public final class SectionDrawLists {
         Int2ObjectOpenHashMap<LevelRenderer.ChunkDrawGroup> drawGroupCache = new Int2ObjectOpenHashMap<>();
         Object[] sections = visibleSections.elements();
         int size = visibleSections.size();
+        OcclusionPass occlusion = TerrainOcclusion.cameraVisibility(visibleSections, now, fadeDuration);
         for (int index = 0; index < size; index++) {
+            if (occlusion != null && !occlusion.isVisible(index)) {
+                continue;
+            }
             SectionRenderDispatcher.RenderSection section = (SectionRenderDispatcher.RenderSection) sections[index];
             SectionMesh mesh = section.getSectionMesh();
             SectionDrawRecordHolder holder = (SectionDrawRecordHolder) section;

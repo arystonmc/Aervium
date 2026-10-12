@@ -1,0 +1,102 @@
+package com.aryston.aervium.client.culling;
+
+import com.aryston.aervium.Aervium;
+import com.aryston.aervium.core.culling.ClipMatrix;
+import com.aryston.aervium.core.culling.OcclusionPass;
+import com.aryston.aervium.core.culling.VoxelRay;
+import java.util.List;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
+
+final class CullingAudit {
+    static final boolean ENABLED = Boolean.getBoolean("aervium.cullingAudit");
+    private static final int FRAME_INTERVAL = 30;
+    private static final int MAX_SECTIONS = 48;
+    private static final int RAYS_PER_SECTION = 24;
+    private static final int REPORT_INTERVAL = 20;
+    private static final int MAX_LOGGED_VIOLATIONS = 20;
+    private static final double MIN_ENTRY_DISTANCE = 0.5;
+    private static final double STEP_BACK = 1.0E-4;
+    private static final float SECTION = OcclusionPass.SECTION_SIZE;
+
+    private static final BlockPos.MutableBlockPos POSITION = new BlockPos.MutableBlockPos();
+    private static int frames;
+    private static int audits;
+    private static long sections;
+    private static long rays;
+    private static long violations;
+    private static long seed = 0x9E3779B97F4A7C15L;
+
+    private CullingAudit() {
+    }
+
+    static void afterCameraPass(List<SectionRenderDispatcher.RenderSection> visible, OcclusionPass pass, Vec3 camera, ClipMatrix clip) {
+        if (++frames % FRAME_INTERVAL != 0) {
+            return;
+        }
+        ClientLevel level = Minecraft.getInstance().level;
+        if (level == null) {
+            return;
+        }
+        int checked = 0;
+        for (int index = 0; index < pass.size() && checked < MAX_SECTIONS; index++) {
+            if (pass.isVisible(index)) {
+                continue;
+            }
+            checked++;
+            audit(level, visible.get(index), camera, clip);
+        }
+        sections += checked;
+        if (++audits % REPORT_INTERVAL == 0) {
+            Aervium.LOGGER.info("Aervium culling audit: {} hidden sections, {} rays, {} rays reached a hidden section", sections, rays, violations);
+        }
+    }
+
+    private static void audit(ClientLevel level, SectionRenderDispatcher.RenderSection section, Vec3 camera, ClipMatrix clip) {
+        BlockPos origin = section.getRenderOrigin();
+        for (int ray = 0; ray < RAYS_PER_SECTION; ray++) {
+            double x = origin.getX() + random() * SECTION;
+            double y = origin.getY() + random() * SECTION;
+            double z = origin.getZ() + random() * SECTION;
+            float relativeX = (float) (x - camera.x);
+            float relativeY = (float) (y - camera.y);
+            float relativeZ = (float) (z - camera.z);
+            if (!onScreen(clip, relativeX, relativeY, relativeZ)) {
+                continue;
+            }
+            double entry = VoxelRay.entry(camera.x, camera.y, camera.z, x, y, z,
+                origin.getX(), origin.getY(), origin.getZ(), origin.getX() + SECTION, origin.getY() + SECTION, origin.getZ() + SECTION);
+            if (Double.isNaN(entry)) {
+                continue;
+            }
+            double length = Math.sqrt(relativeX * relativeX + relativeY * relativeY + relativeZ * relativeZ);
+            if (entry * length < MIN_ENTRY_DISTANCE) {
+                continue;
+            }
+            double before = Math.max(0.0, entry - STEP_BACK / length);
+            double endX = camera.x + (x - camera.x) * before;
+            double endY = camera.y + (y - camera.y) * before;
+            double endZ = camera.z + (z - camera.z) * before;
+            rays++;
+            if (VoxelRay.reaches(camera.x, camera.y, camera.z, endX, endY, endZ, (bx, by, bz) -> level.getBlockState(POSITION.set(bx, by, bz)).isSolidRender())) {
+                if (violations++ < MAX_LOGGED_VIOLATIONS) {
+                    Aervium.LOGGER.warn("Aervium culling audit: section at {} was hidden but the camera at {} sees it through ({}, {}, {})",
+                        origin, camera, x, y, z);
+                }
+            }
+        }
+    }
+
+    private static boolean onScreen(ClipMatrix clip, float x, float y, float z) {
+        float w = clip.w(x, y, z);
+        return w > 0.5F && Math.abs(clip.x(x, y, z)) <= w && Math.abs(clip.y(x, y, z)) <= w;
+    }
+
+    private static double random() {
+        seed = seed * 6364136223846793005L + 1442695040888963407L;
+        return (seed >>> 11) * 0x1.0p-53;
+    }
+}
