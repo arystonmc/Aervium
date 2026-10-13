@@ -1,5 +1,6 @@
 package com.aryston.aervium.client.chunk;
 
+import com.aryston.aervium.core.mesh.FaceRanges;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.pipeline.IndexType;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
@@ -51,8 +52,9 @@ public final class SectionDrawRecord {
                 firstIndex = (int) (slice.indexBufferOffset() / indexType.bytes);
             }
             int baseVertex = (int) (slice.vertexBufferOffset() / vertexFormat.getVertexSize());
+            FaceRanges faces = mesh instanceof FaceRangesHolder holder ? holder.aervium$faceRanges(layer.ordinal()) : null;
             draws[count++] = new LayerDraw(
-                layer, vertexBuffer, indexBuffer, indexType, groupHash, draw.indexCount(), firstIndex, baseVertex, draw.hasCustomIndexBuffer()
+                layer, vertexBuffer, indexBuffer, indexType, groupHash, draw.indexCount(), firstIndex, baseVertex, draw.hasCustomIndexBuffer(), faces
             );
         }
         return new SectionDrawRecord(mesh, draws, count);

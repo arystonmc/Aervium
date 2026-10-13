@@ -14,6 +14,8 @@ public final class CullingStatistics {
     private volatile long cameraJobNanos;
     private long cameraSectionTotal;
     private long cameraHiddenTotal;
+    private long faceQuadTotal;
+    private long faceSkippedTotal;
     private int pendingShadowCasters;
     private int pendingShadowHidden;
 
@@ -36,6 +38,18 @@ public final class CullingStatistics {
         int percent = (int) (cameraSectionTotal == 0 ? 0 : Math.round(100.0 * cameraHiddenTotal / cameraSectionTotal));
         cameraSectionTotal = 0;
         cameraHiddenTotal = 0;
+        return percent;
+    }
+
+    public void faces(long quads, long skipped) {
+        faceQuadTotal += quads;
+        faceSkippedTotal += skipped;
+    }
+
+    public int takeFaceSkippedPercent() {
+        int percent = (int) (faceQuadTotal == 0 ? 0 : Math.round(100.0 * faceSkippedTotal / faceQuadTotal));
+        faceQuadTotal = 0;
+        faceSkippedTotal = 0;
         return percent;
     }
 

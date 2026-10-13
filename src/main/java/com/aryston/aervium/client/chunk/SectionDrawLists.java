@@ -4,6 +4,8 @@ import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import com.aryston.aervium.client.culling.TerrainOcclusion;
+import com.aryston.aervium.core.culling.CullingStatistics;
+import com.aryston.aervium.core.mesh.FaceRanges;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -12,9 +14,12 @@ import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.chunk.SectionMesh;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.core.BlockPos;
 
 public final class SectionDrawLists {
+    private static final int INDICES_PER_QUAD = 6;
+
     private SectionDrawLists() {
     }
 
@@ -37,6 +42,9 @@ public final class SectionDrawLists {
         Object[] sections = visibleSections.elements();
         int size = visibleSections.size();
         boolean occlusion = TerrainOcclusion.cullsCameraSections();
+        CameraRenderState faceCamera = FaceCulling.cameraPass();
+        long faceQuads = 0L;
+        long faceSkipped = 0L;
         for (int index = 0; index < size; index++) {
             SectionRenderDispatcher.RenderSection section = (SectionRenderDispatcher.RenderSection) sections[index];
             if (occlusion && TerrainOcclusion.hiddenFromCamera(section)) {
@@ -60,6 +68,7 @@ public final class SectionDrawLists {
             sectionInfos.add(new DynamicGpuData.ChunkSectionInfo(
                 renderOffset.getX(), renderOffset.getY(), renderOffset.getZ(), section.getVisibility(now, fadeDuration)
             ));
+
             for (int slot = 0; slot < record.count; slot++) {
                 LayerDraw draw = record.slot(slot);
                 if (!draw.customIndexBuffer() && draw.indexCount() > largestIndexCount) {
@@ -84,9 +93,49 @@ public final class SectionDrawLists {
                     drawGroupCache.put(groupHash, drawGroup);
                     drawGroups.get(layer).add(drawGroup);
                 }
-                drawGroup.draws().add(new DynamicGpuData.IndexedDraw(draw.indexCount(), 1, draw.firstIndex(), draw.baseVertex(), sectionInfoDataIndex));
+                FaceRanges faces = draw.faces();
+                int visible = faces == null || faceCamera == null ? FaceRanges.ALL : faces.visibleBuckets(
+                    faceCamera.pos.x - renderOffset.getX(), faceCamera.pos.y - renderOffset.getY(), faceCamera.pos.z - renderOffset.getZ()
+                );
+                if (faces != null && faceCamera != null) {
+                    faceQuads += draw.indexCount() / INDICES_PER_QUAD;
+                }
+                if (visible == FaceRanges.ALL) {
+                    drawGroup.draws().add(new DynamicGpuData.IndexedDraw(draw.indexCount(), 1, draw.firstIndex(), draw.baseVertex(), sectionInfoDataIndex));
+                } else {
+                    faceSkipped += draw.indexCount() / INDICES_PER_QUAD - addFacingDraws(drawGroup.draws(), draw, faces, visible, sectionInfoDataIndex);
+                }
             }
         }
+        if (faceCamera != null) {
+            CullingStatistics.SHARED.faces(faceQuads, faceSkipped);
+        }
         return largestIndexCount;
+    }
+
+    private static int addFacingDraws(List<DynamicGpuData.IndexedDraw> draws, LayerDraw draw, FaceRanges faces, int visible, int sectionInfoDataIndex) {
+        int runStart = -1;
+        int drawn = 0;
+        for (int bucket = 0; bucket <= FaceRanges.BUCKETS; bucket++) {
+            boolean include = bucket < FaceRanges.BUCKETS && ((visible >> bucket & 1) != 0 || faces.quadCount(bucket) == 0);
+            if (include) {
+                if (runStart < 0) {
+                    runStart = bucket;
+                }
+                continue;
+            }
+            if (runStart >= 0) {
+                int firstQuad = faces.firstQuad(runStart);
+                int quads = faces.firstQuad(bucket) - firstQuad;
+                if (quads > 0) {
+                    drawn += quads;
+                    draws.add(new DynamicGpuData.IndexedDraw(
+                        quads * INDICES_PER_QUAD, 1, draw.firstIndex() + firstQuad * INDICES_PER_QUAD, draw.baseVertex(), sectionInfoDataIndex
+                    ));
+                }
+                runStart = -1;
+            }
+        }
+        return drawn;
     }
 }

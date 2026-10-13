@@ -92,6 +92,9 @@ Vanilla's cave culling only knows whether two faces of a section are connected b
 - Both tests are conservative (see `DepthRaster`), so nothing visible is ever dropped. Sections still fading in never occlude.
 - `-Daervium.cullingAudit=true` checks this in game: rays through the real blocks to hidden sections must never get through (`CullingAudit`). The benchmark log shows the share of sections the camera pass hid per scene.
 
+### Face Culling
+The GPU throws away a triangle that faces away from the camera only after its vertices went through the vertex shader. Aervium groups the quads of every solid and cutout section mesh by the side they face while the mesh is built (`FacingSort`) and, in the camera pass, leaves out the groups whose planes all lie in front of the eye, so a section seen from one side sends only up to three of its six face directions to the GPU. Only faces the GPU would cull are left out, with half a block of margin for view bobbing; shadow passes and any other view keep every face.
+
 ### Modules
 Optimizations that change game classes are mixins grouped into modules (`OptimizationModule`). `MixinModules` reads `config/aervium-modules.properties` before any mixin applies and writes every switch back; renderer modules also stay off with Sodium or Iris. Features that run later (dynamic frame rate) use the normal client config.
 

@@ -25,10 +25,12 @@
     "ThreadedLevelLightEngineTimingMixin"
   ],
   "client": [
+    "CompiledSectionMeshFacingMixin",
     "CompiledSectionMeshMixin",
     "CompiledSectionMeshVisibilityAccessor",
     "HelionShadowCastersMixin",
     "LevelExtractorOcclusionMixin",
+    "LevelRendererFaceCullingMixin",
     "LevelRendererMeshWorkersMixin",
     "LevelRendererOcclusionMixin",
     "LevelRendererSectionSliceMixin",

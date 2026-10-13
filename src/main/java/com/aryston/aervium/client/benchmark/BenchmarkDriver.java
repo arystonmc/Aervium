@@ -183,6 +183,7 @@ public final class BenchmarkDriver {
         tick++;
         if (tick == BenchmarkRoute.SETTLE_TICKS) {
             CullingStatistics.SHARED.takeCameraHiddenPercent();
+            CullingStatistics.SHARED.takeFaceSkippedPercent();
             measurement = new SceneMeasurement(BenchmarkScene.values()[sceneIndex], frames.frameTimes(), TickTimeRecorder.SERVER.mark(), gcPauses.mark(), System.nanoTime());
             lastVramBytes = vramProbe.get().usedBytes();
             meshMeter = MeshWorkers.meter(System.nanoTime());
@@ -240,9 +241,9 @@ public final class BenchmarkDriver {
         allFrames.add(frameNanos);
         allTicks.add(tickNanos);
         measurement = null;
-        Aervium.LOGGER.info("Aervium benchmark: {} average {} FPS, 1% low {} FPS, MSPT {} ms, occlusion culling hid {}% of sections",
+        Aervium.LOGGER.info("Aervium benchmark: {} average {} FPS, 1% low {} FPS, MSPT {} ms, occlusion culling hid {}% of sections, face culling skipped {}% of solid quads",
             result.scene(), Math.round(result.frames().averageFps()), Math.round(result.frames().onePercentLowFps()), Math.round(result.ticks().averageMs()),
-            CullingStatistics.SHARED.takeCameraHiddenPercent());
+            CullingStatistics.SHARED.takeCameraHiddenPercent(), CullingStatistics.SHARED.takeFaceSkippedPercent());
         logChunkBuilds(result.scene());
         if (sceneIndex + 1 < BenchmarkScene.values().length) {
             startScene(minecraft, sceneIndex + 1);

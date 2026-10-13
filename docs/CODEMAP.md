@@ -35,6 +35,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Leaf culling (optional, off by default) | `LeafCulling`, `ModelBlockRendererLeafCullingMixin`, `AerviumConfig` |
 | Chunk upload and builder lock timings | `ChunkUploadTimings`, `StallMeter`, `SectionRenderDispatcherTimingMixin` |
 | Server light worker timings | `ServerLightTimings`, `ThreadedLevelLightEngineTimingMixin` |
+| Face culling (skip terrain faces turned away from the camera) | `FacingSort`, `FaceRanges`, `FaceCulling`, `FaceRangesHolder`, `CompiledSectionMeshFacingMixin`, `LevelRendererFaceCullingMixin`, `SectionDrawLists` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -263,7 +264,20 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### CullingStatistics
 - Path: `src/main/java/com/aryston/aervium/core/culling/CullingStatistics.java`
-- Role: Sections and hidden sections of the last camera pass and the last set of shadow cascades, and tested and hidden entities and particles of the last frame, for the overlay, the worker time of the last camera pass, and the share of hidden sections since the last call of `takeCameraHiddenPercent` for the benchmark log.
+- Role: Sections and hidden sections of the last camera pass and the last set of shadow cascades, and tested and hidden entities and particles of the last frame, for the overlay, the worker time of the last camera pass, the share of hidden sections since the last call of `takeCameraHiddenPercent`, and the share of solid terrain quads face culling skipped since the last call of `takeFaceSkippedPercent`, for the benchmark log.
+- Depends on: nothing.
+
+### `com.aryston.aervium.core.mesh`
+
+#### FacingSort
+- Path: `src/main/java/com/aryston/aervium/core/mesh/FacingSort.java`
+- Role: Reorders the quads of a finished chunk layer mesh in place into seven groups: quads whose plane is not axis aligned first, then east, west, up, down, south and north facing quads. A quad's facing is the normal of its diagonals in vertex order (counter-clockwise seen from the front, the order Minecraft's baked faces use and the GPU culls by); all four corners must lie on one plane. Records per group the plane nearest the far side (lowest plane for faces toward positive axes, highest for negative) and returns a `FaceRanges`.
+- Notes: Counting sort through a per-thread scratch array; runs on the chunk build workers before upload. Reads the position as three floats at the start of each vertex in native byte order.
+- Depends on: `FaceRanges`.
+
+#### FaceRanges
+- Path: `src/main/java/com/aryston/aervium/core/mesh/FaceRanges.java`
+- Role: The first quad of each facing group of one layer mesh and its plane bound. `visibleBuckets` gives the groups that can face an eye at a section-relative position: a group is skipped only when the eye is at least half a block behind every plane in it (the margin covers view bobbing, which moves the real eye slightly).
 - Depends on: nothing.
 
 ### `com.aryston.aervium.core.module`
@@ -560,7 +574,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### SectionDrawRecord, LayerDraw
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawRecord.java`, `src/main/java/com/aryston/aervium/client/chunk/LayerDraw.java`
-- Role: Everything `extractSectionDrawGroups` computes for one section mesh, prepared once: per drawable layer the buffers, index type, group hash, index count, first index and base vertex, in layer order (up to three slots).
+- Role: Everything `extractSectionDrawGroups` computes for one section mesh, prepared once: per drawable layer the buffers, index type, group hash, index count, first index, base vertex and the layer's `FaceRanges` when face culling sorted it, in layer order (up to three slots).
 - Notes: Valid while its mesh is the section's mesh and no allocation of that mesh was freed; `CompiledSectionMeshMixin` invalidates it together with the cached slices. A mesh's draws never change while it is shown (they are filled in its constructor and cleared only when it is released).
 
 #### SectionDrawRecordHolder
@@ -570,9 +584,20 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### SectionDrawLists
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawLists.java`
-- Role: Same result as vanilla `LevelRenderer.extractSectionDrawGroups` (section infos, draw groups by buffer hash, translucent order, largest index count) built from the section records.
-- Depends on: `SectionDrawRecord`, `SectionDrawRecordHolder`, `SectionSliceHolder`, `TerrainOcclusion` (skips sections the last finished camera pass hid); the access transformer for `LevelRenderer$ChunkDrawGroup`.
+- Role: Same result as vanilla `LevelRenderer.extractSectionDrawGroups` (section infos, draw groups by buffer hash, translucent order, largest index count) built from the section records. In the camera pass (`FaceCulling.cameraPass`) a layer with `FaceRanges` gets one draw per run of facing groups that can face the camera instead of one draw for the whole layer; empty groups join runs, so a section needs at most four draws per layer. Counts drawn and skipped quads for `CullingStatistics`.
+- Depends on: `FaceCulling`, `FaceRanges`, `CullingStatistics`, `SectionDrawRecord`, `SectionDrawRecordHolder`, `SectionSliceHolder`, `TerrainOcclusion` (skips sections the last finished camera pass hid); the access transformer for `LevelRenderer$ChunkDrawGroup`.
 - Notes: In the cave scene it cut the share of the render thread spent building draw lists from about 42 % to 28 %; the frame rate did not change because that scene waits on the GPU (`VulkanCommandEncoder.awaitSubmitCompletion`), so the gain shows on CPU-bound PCs.
+
+#### FaceCulling
+- Path: `src/main/java/com/aryston/aervium/client/chunk/FaceCulling.java`
+- Role: Sorts every solid and cutout layer of a new section mesh by facing (`FacingSort`) when the layer uses the vanilla block vertex format and the shared quad index buffer, and marks a `prepareChunkRenders` call as the camera pass when its matrix equals the camera's view rotation, so Helion's shadow cascades and other views keep drawing every face.
+- Notes: Module `faceCulling`. Needs `sectionSliceCache` too, because the faces are skipped in `SectionDrawLists`. Translucent layers keep vanilla's sorted order. A skipped face is one the GPU would cull as a back face anyway, so the picture is unchanged; the gain is vertex work. Benchmark on lavapipe: 35 % of solid quads skipped in the village and redstone scenes, 49 % in the caves.
+- Depends on: `FacingSort`, `FaceRanges`, `SectionLayers`.
+
+#### FaceRangesHolder
+- Path: `src/main/java/com/aryston/aervium/client/chunk/FaceRangesHolder.java`
+- Role: Interface `CompiledSectionMeshFacingMixin` adds to `CompiledSectionMesh`: the `FaceRanges` of a layer, or none.
+- Depends on: `FaceRanges`.
 
 #### LeafCulling
 - Path: `src/main/java/com/aryston/aervium/client/chunk/LeafCulling.java`
@@ -826,6 +851,16 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: At the head of `PoiManager.getInChunk`, answers from the occupied sections of a fully loaded column; columns not fully in memory fall through to vanilla, which loads them. With `PoiAudit.ENABLED` also runs the vanilla search and compares.
 - Notes: Module `poiSearch`. Uses `SectionStorageAccessor` for the map and the level height.
 
+#### CompiledSectionMeshFacingMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/CompiledSectionMeshFacingMixin.java`
+- Role: At the end of the `CompiledSectionMesh` constructor (on the chunk build worker, before the layers are uploaded) sorts the layers through `FaceCulling.sortLayers` and keeps the ranges; implements `FaceRangesHolder`.
+- Notes: Module `faceCulling`, renderer module.
+
+#### LevelRendererFaceCullingMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererFaceCullingMixin.java`
+- Role: Around `prepareChunkRenders` and `prepareChunkRendersIndirect` tells `FaceCulling` which matrix the pass uses.
+- Notes: Module `faceCulling`, renderer module.
+
 #### LevelRendererMeshWorkersMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererMeshWorkersMixin.java`
 - Role: Replaces the executor argument of `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` with `MeshWorkers.executor()`.
@@ -921,6 +956,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/culling/DepthRasterTest.java` | Walls hide boxes behind them but never boxes in front, partly covered boxes, gaps, a section never hides itself, near plane clipping, boxes behind the camera, orthographic light space, and 200 random scenes checked against ray casting: nothing visible is ever hidden. |
 | `src/test/java/com/aryston/aervium/core/culling/OpaqueMaskTest.java` | Empty and sparse sections give no boxes, a solid section is one box, a cave pocket splits into a few boxes with the exact volume, boxes only ever cover opaque blocks. |
 | `src/test/java/com/aryston/aervium/core/culling/VoxelRayTest.java` | Rays through open air, blocked by an opaque block, start block ignored, diagonal rays visit every crossed block, box entry parameter. |
+| `src/test/java/com/aryston/aervium/core/mesh/FacingSortTest.java` | Quads are grouped by facing with their bytes intact and slanted quads first; the winding of Minecraft's up face counts as up; groups behind the eye by more than the margin are skipped and both sides stay when the eye is between the planes. |
 | `src/test/java/com/aryston/aervium/core/culling/OcclusionPipelineTest.java` | A camera pass arrives one frame later and `begin` never blocks while one is in flight; `clear` drops the result in flight; `covers` accepts only eyes within the reach; the worker result equals the same `OcclusionPass` run directly. |
 | `src/test/java/com/aryston/aervium/core/culling/OcclusionPassTest.java` | A solid wall of sections hides the sections behind it and none of its own; sections that may not occlude hide nothing; `depthFromW` keeps depth order. |
 | `src/test/java/com/aryston/aervium/core/collection/ShardedLongMapTest.java` | Snapshot equals the source, published snapshots never change, random writes against a plain map, read-only behavior. |
@@ -951,7 +987,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
 
 ## Asset Folders
 
