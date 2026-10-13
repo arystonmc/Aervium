@@ -11,6 +11,7 @@ public final class CullingStatistics {
     private volatile int entitiesHidden;
     private volatile int particlesTested;
     private volatile int particlesHidden;
+    private volatile long cameraJobNanos;
     private long cameraSectionTotal;
     private long cameraHiddenTotal;
     private int pendingShadowCasters;
@@ -21,6 +22,14 @@ public final class CullingStatistics {
         cameraHidden = hidden;
         cameraSectionTotal += sections;
         cameraHiddenTotal += hidden;
+    }
+
+    public void cameraJob(long nanos) {
+        cameraJobNanos = nanos;
+    }
+
+    public long cameraJobNanos() {
+        return cameraJobNanos;
     }
 
     public int takeCameraHiddenPercent() {

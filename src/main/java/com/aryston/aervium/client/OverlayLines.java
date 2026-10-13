@@ -24,6 +24,7 @@ final class OverlayLines {
     static final int ALERT = 0xFFFF5C5C;
 
     private static final double MEGABYTES_PER_GIGABYTE = 1024.0;
+    private static final double NANOS_PER_MILLI = 1.0E6;
 
     private OverlayLines() {
     }
@@ -62,6 +63,7 @@ final class OverlayLines {
         }
         String camera = format("Culling camera %d of %d hidden (%d%%)", culling.cameraHidden(), culling.cameraSections(),
             CullingStatistics.percent(culling.cameraHidden(), culling.cameraSections()));
+        camera += format("  worker %.2f ms", culling.cameraJobNanos() / NANOS_PER_MILLI);
         camera += format("  entities %d of %d", culling.entitiesHidden(), culling.entitiesTested());
         camera += format("  particles %d of %d", culling.particlesHidden(), culling.particlesTested());
         if (!HelionShadowCasters.active()) {

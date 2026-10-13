@@ -42,6 +42,7 @@
     "PipelineCacheMixin",
     "QuadParticleGroupOcclusionMixin",
     "RenderSectionMixin",
+    "RenderSectionOcclusionMixin",
     "SectionRenderDispatcherTimingMixin",
     "RenderSystemMixin",
     "VisGraphMixin",

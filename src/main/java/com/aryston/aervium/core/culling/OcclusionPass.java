@@ -56,6 +56,11 @@ public final class OcclusionPass {
     }
 
     public void run(DepthRaster raster, int maxOccluderBoxes) {
+        run(raster, maxOccluderBoxes, 0.0F);
+    }
+
+    public void run(DepthRaster raster, int maxOccluderBoxes, float reach) {
+        float margin = GEOMETRY_MARGIN + reach;
         ClipMatrix clip = raster.matrix();
         float half = SECTION_SIZE * 0.5F;
         for (int index = 0; index < size; index++) {
@@ -74,8 +79,8 @@ public final class OcclusionPass {
             float y = originY[index];
             float z = originZ[index];
             if (!raster.isVisible(
-                x - GEOMETRY_MARGIN, y - GEOMETRY_MARGIN, z - GEOMETRY_MARGIN,
-                x + SECTION_SIZE + GEOMETRY_MARGIN, y + SECTION_SIZE + GEOMETRY_MARGIN, z + SECTION_SIZE + GEOMETRY_MARGIN
+                x - margin, y - margin, z - margin,
+                x + SECTION_SIZE + margin, y + SECTION_SIZE + margin, z + SECTION_SIZE + margin
             )) {
                 visible[index] = false;
                 hidden++;

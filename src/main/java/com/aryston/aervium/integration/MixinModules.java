@@ -42,6 +42,7 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("VisibilitySetMixin", OptimizationModule.OCCLUSION_CULLING),
         Map.entry("CompiledSectionMeshVisibilityAccessor", OptimizationModule.OCCLUSION_CULLING),
         Map.entry("LevelRendererOcclusionMixin", OptimizationModule.OCCLUSION_CULLING),
+        Map.entry("RenderSectionOcclusionMixin", OptimizationModule.OCCLUSION_CULLING),
         Map.entry("LevelExtractorOcclusionMixin", OptimizationModule.OCCLUSION_CULLING),
         Map.entry("ParticleAccessor", OptimizationModule.OCCLUSION_CULLING),
         Map.entry("QuadParticleGroupOcclusionMixin", OptimizationModule.OCCLUSION_CULLING),

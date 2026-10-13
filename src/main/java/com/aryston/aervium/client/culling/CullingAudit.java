@@ -3,8 +3,8 @@ package com.aryston.aervium.client.culling;
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.core.culling.ClipMatrix;
 import com.aryston.aervium.core.culling.OcclusionPass;
+import com.aryston.aervium.core.culling.OcclusionPipeline;
 import com.aryston.aervium.core.culling.VoxelRay;
-import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
@@ -36,7 +36,7 @@ final class CullingAudit {
     private CullingAudit() {
     }
 
-    static void afterCameraPass(List<SectionRenderDispatcher.RenderSection> visible, OcclusionPass pass, Vec3 camera, ClipMatrix clip) {
+    static void afterCameraPass(OcclusionPipeline.Frame result, Vec3 camera) {
         if (++frames % FRAME_INTERVAL != 0) {
             return;
         }
@@ -45,12 +45,12 @@ final class CullingAudit {
             return;
         }
         int checked = 0;
-        for (int index = 0; index < pass.size() && checked < MAX_SECTIONS; index++) {
-            if (pass.isVisible(index)) {
+        for (int index = 0; index < result.size() && checked < MAX_SECTIONS; index++) {
+            if (result.isVisible(index)) {
                 continue;
             }
             checked++;
-            audit(level, visible.get(index), camera, clip);
+            audit(level, (SectionRenderDispatcher.RenderSection) result.target(index), camera, result.clip());
         }
         sections += checked;
         if (++audits % REPORT_INTERVAL == 0) {
