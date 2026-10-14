@@ -16,6 +16,8 @@ public final class CullingStatistics {
     private long cameraHiddenTotal;
     private long faceQuadTotal;
     private long faceSkippedTotal;
+    private long shadowCasterTotal;
+    private long shadowHiddenTotal;
     private int pendingShadowCasters;
     private int pendingShadowHidden;
 
@@ -38,6 +40,13 @@ public final class CullingStatistics {
         int percent = (int) (cameraSectionTotal == 0 ? 0 : Math.round(100.0 * cameraHiddenTotal / cameraSectionTotal));
         cameraSectionTotal = 0;
         cameraHiddenTotal = 0;
+        return percent;
+    }
+
+    public int takeShadowHiddenPercent() {
+        int percent = (int) (shadowCasterTotal == 0 ? 0 : Math.round(100.0 * shadowHiddenTotal / shadowCasterTotal));
+        shadowCasterTotal = 0;
+        shadowHiddenTotal = 0;
         return percent;
     }
 
@@ -92,6 +101,8 @@ public final class CullingStatistics {
     public void endShadows() {
         shadowCasters = pendingShadowCasters;
         shadowHidden = pendingShadowHidden;
+        shadowCasterTotal += pendingShadowCasters;
+        shadowHiddenTotal += pendingShadowHidden;
     }
 
     public int cameraSections() {

@@ -124,7 +124,7 @@ Skips terrain you cannot see because solid blocks are in the way.
 - Caves, tunnels and rooms hidden behind stone or walls are not sent to the graphics card; the picture stays exactly the same, only frames get cheaper where the GPU was the limit
 - With Helion, chunks the sun cannot see (buried under other terrain) are left out of the shadow maps; shadows look the same because the terrain above already casts them
 - Mobs, dropped items, armor stands, chests, signs and other block entities behind walls are skipped the same way, and so are particles like smoke, flames and drips; with Helion, entities under open sky are still drawn so their sun shadows stay
-- The visibility test runs on its own background thread, so it no longer costs frame time on the main thread
+- The visibility tests for the camera and for Helion's shadows run on their own background threads, so they no longer cost frame time on the main thread
 - F6 turns it on and off in game to compare; the overlay (F7) shows how many chunks, entities and particles were skipped
 - Since: 0.1
 

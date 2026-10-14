@@ -7,7 +7,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
-- Occlusion culling runs on its own background thread instead of the main thread
+- Occlusion culling, including the check for Helion shadows, runs on background threads instead of the main thread
 - Block faces turned away from the camera are no longer sent to the graphics card
 - Idle hoppers skip searching for items and minecarts when none are near (same results as vanilla)
 - Moving mobs skip the search for entities they could bump into when none are near (same results as vanilla)
