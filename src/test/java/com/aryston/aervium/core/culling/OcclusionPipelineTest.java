@@ -93,6 +93,71 @@ class OcclusionPipelineTest {
         }
     }
 
+    @Test
+    void wideningReachesFartherEyesAndOnlyRevealsSections() {
+        OcclusionPipeline pipeline = new OcclusionPipeline(Runnable::run, 10_000);
+        OcclusionPipeline.Frame frame = pipeline.begin(0L, EYE_X, EYE_Y, EYE_Z, 0.125F);
+        fillWallScene(frame);
+        pipeline.submit(frame);
+        pipeline.activateFinished();
+        int hiddenBefore = frame.hidden();
+        assertFalse(frame.isVisible(0));
+        assertFalse(frame.covers(EYE_X + 2.0, EYE_Y, EYE_Z));
+
+        assertEquals(0, frame.widen(0.1F));
+        assertEquals(0, frame.widen(2.5F));
+        assertTrue(frame.covers(EYE_X + 2.0, EYE_Y, EYE_Z));
+        assertFalse(frame.isVisible(0));
+        assertEquals(hiddenBefore, frame.hidden());
+
+        assertEquals(1, frame.widen(200.0F));
+        assertTrue(frame.isVisible(0));
+        assertEquals(hiddenBefore - 1, frame.hidden());
+    }
+
+    @Test
+    void aChangedOccluderInFrontRevealsOnlyTheSectionsBehindIt() {
+        OcclusionPipeline pipeline = new OcclusionPipeline(Runnable::run, 10_000);
+        OcclusionPipeline.Frame frame = pipeline.begin(0L, EYE_X, EYE_Y, EYE_Z, 0.0F);
+        fillWallScene(frame);
+        pipeline.submit(frame);
+        pipeline.activateFinished();
+        int wallInFront = wallIndex(0, 0);
+        int wallFarAway = wallIndex(-10, -10);
+
+        frame.beginChanges();
+        assertTrue(frame.hiddenDespiteChanges(0));
+        assertFalse(frame.hiddenDespiteChanges(wallInFront));
+
+        frame.markChanged(wallFarAway);
+        assertTrue(frame.hiddenDespiteChanges(0));
+
+        frame.markChanged(wallInFront);
+        assertFalse(frame.hiddenDespiteChanges(0));
+
+        frame.beginChanges();
+        assertTrue(frame.hiddenDespiteChanges(0));
+    }
+
+    @Test
+    void onlyTheSameBoxesAndFadeStateCountAsUnchanged() {
+        OcclusionPipeline pipeline = new OcclusionPipeline(Runnable::run, 10_000);
+        OcclusionPipeline.Frame frame = pipeline.begin(0L, EYE_X, EYE_Y, EYE_Z, 0.0F);
+        fillWallScene(frame);
+        pipeline.submit(frame);
+        pipeline.activateFinished();
+        int wall = wallIndex(0, 0);
+
+        assertTrue(frame.sameOccluders(wall, SOLID, true));
+        assertFalse(frame.sameOccluders(wall, SOLID, false));
+        assertFalse(frame.sameOccluders(wall, solid(), true));
+        assertTrue(frame.sameOccluders(0, OccluderBoxes.NONE, true));
+    }
+
+    private static int wallIndex(int x, int y) {
+        return 1 + (x + 10) * 20 + (y + 10);
+    }
+
     private static Object fillWallScene(OcclusionPipeline.Frame frame) {
         frame.raster(128, 64);
         frame.clip().copy(view());

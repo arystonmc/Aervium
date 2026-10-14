@@ -18,6 +18,16 @@ class BenchmarkCommandsTest {
     }
 
     @Test
+    void forceLoadsExactlyTheCrowdArea() {
+        BlockPoint center = new BlockPoint(100, 70, 200);
+        assertEquals("forceload add 93 196 107 204", BenchmarkCommands.forceLoadCrowd(center, true));
+        assertEquals("forceload remove 93 196 107 204", BenchmarkCommands.forceLoadCrowd(center, false));
+        List<String> crowd = BenchmarkCommands.villageCrowd(center, (x, z) -> 64);
+        assertTrue(crowd.getFirst().startsWith("summon minecraft:villager 93 64 196 "));
+        assertTrue(crowd.getLast().startsWith("summon minecraft:villager 107 64 204 "));
+    }
+
+    @Test
     void buildsTheRedstoneClocksAfterTheirSurroundings() {
         List<String> commands = BenchmarkCommands.redstoneBuild(new BlockPoint(0, 90, 0));
         assertTrue(commands.get(0).endsWith("minecraft:air"));

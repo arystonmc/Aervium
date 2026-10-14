@@ -28,6 +28,22 @@ class CullingStatisticsTest {
         assertEquals(100, statistics.shadowCasters());
     }
 
+    @Test
+    void cameraResultsCountEveryFrameSinceTheLastTake() {
+        CullingStatistics statistics = new CullingStatistics();
+        statistics.cameraResult(CameraResult.CURRENT);
+        statistics.cameraResult(CameraResult.WIDENED);
+        statistics.cameraResult(CameraResult.OUT_OF_REACH);
+        statistics.cameraResult(CameraResult.TOO_OLD);
+        statistics.cameraResult(CameraResult.NONE);
+
+        CameraResultCounts counts = statistics.takeCameraResults();
+        assertEquals(5, counts.frames());
+        assertEquals(1, counts.widened());
+        assertEquals(3, counts.missing());
+        assertEquals(0, statistics.takeCameraResults().frames());
+    }
+
     private static void shadowFrame(CullingStatistics statistics, int casters, int hidden) {
         statistics.beginShadows();
         statistics.shadowCascade(casters, hidden);

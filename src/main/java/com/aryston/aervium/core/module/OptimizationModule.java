@@ -12,14 +12,21 @@ public enum OptimizationModule {
     FACE_CULLING("faceCulling", true),
     POI_SEARCH("poiSearch", false),
     ENTITY_COLLISIONS("entityCollisions", false),
-    HOPPER_SEARCH("hopperSearch", false);
+    HOPPER_SEARCH("hopperSearch", false),
+    COMPACT_VERTICES("compactVertices", true, false);
 
     private final String key;
     private final boolean renderer;
+    private final boolean enabledByDefault;
 
     OptimizationModule(String key, boolean renderer) {
+        this(key, renderer, true);
+    }
+
+    OptimizationModule(String key, boolean renderer, boolean enabledByDefault) {
         this.key = key;
         this.renderer = renderer;
+        this.enabledByDefault = enabledByDefault;
     }
 
     public String key() {
@@ -28,5 +35,9 @@ public enum OptimizationModule {
 
     public boolean renderer() {
         return renderer;
+    }
+
+    public boolean enabledByDefault() {
+        return enabledByDefault;
     }
 }

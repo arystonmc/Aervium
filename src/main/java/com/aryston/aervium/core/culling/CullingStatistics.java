@@ -1,5 +1,7 @@
 package com.aryston.aervium.core.culling;
 
+import java.util.Arrays;
+
 public final class CullingStatistics {
     public static final CullingStatistics SHARED = new CullingStatistics();
 
@@ -20,6 +22,27 @@ public final class CullingStatistics {
     private long shadowHiddenTotal;
     private int pendingShadowCasters;
     private int pendingShadowHidden;
+    private final long[] cameraResults = new long[CameraResult.values().length];
+
+    public void cameraResult(CameraResult result) {
+        cameraResults[result.ordinal()]++;
+    }
+
+    public CameraResultCounts takeCameraResults() {
+        long frames = 0L;
+        for (long count : cameraResults) {
+            frames += count;
+        }
+        CameraResultCounts counts = new CameraResultCounts(
+            frames,
+            cameraResults[CameraResult.WIDENED.ordinal()],
+            cameraResults[CameraResult.NONE.ordinal()],
+            cameraResults[CameraResult.TOO_OLD.ordinal()],
+            cameraResults[CameraResult.OUT_OF_REACH.ordinal()]
+        );
+        Arrays.fill(cameraResults, 0L);
+        return counts;
+    }
 
     public void camera(int sections, int hidden) {
         cameraSections = sections;

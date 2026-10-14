@@ -87,13 +87,28 @@ Vanilla's cave culling only knows whether two faces of a section are connected b
 
 - While a section mesh is built, its opaque blocks (the same ones vanilla's `VisGraph` sees) become up to 24 occluder boxes.
 - Camera pass, every frame: the visible sections are sorted near to far; each is tested against a 256-pixel-wide depth raster and, if visible, draws its occluder boxes into it. Hidden sections are skipped in the draw list only; vanilla's visible list stays untouched, so section updates, translucency sorting and entities work as before.
-- The camera pass runs on its own worker, one frame behind (`OcclusionPipeline`), so the render thread only copies the section list and never waits. Running it on the render thread cost half the frame rate at render distance 32 (98.8 to 47.1 FPS on Can's PC, 2026-10-12). A late result is only used while the eye stays within its reach (a margin from the last frame's movement that every test box grows by); the raster covers 25 % more than the screen and a box crossing its edge counts as visible, because visibility from one eye position does not change when the camera turns.
-- Shadow pass (with Helion): the same test per cascade in light space with an orthographic raster, on its own worker (`Aervium Shadow Culling`, one `OcclusionPipeline` per cascade). The render thread only hashes each cascade (light direction, section list, meshes, fade state) and applies a finished result while the hash still matches, so the result is exact; while a cascade changes every frame its casters are all kept. A caster the light cannot see is lossless to drop, because the shadow map stores only the nearest depth and the casters in front of it are in the same cascade. Running this pass on the render thread cost a quarter of the frame rate at render distance 32 (100.7 to 76.3 FPS average, 1% low 58.7 to 28.1 on Can's PC, 2026-10-14).
+- The camera pass runs on its own worker, one frame behind (`OcclusionPipeline`), so the render thread only copies the section list and never waits. Running it on the render thread cost half the frame rate at render distance 32 (98.8 to 47.1 FPS on Can's PC, 2026-10-12). A late result is only used while the eye stays within its reach (a margin from the last frame's movement that every test box grows by); when the eye moved past it, for example after a slow frame, the sections the result hid are tested again on the render thread with a margin grown to the eye (up to 8 blocks, `Frame.widen`) instead of drawing every section, which used to turn one slow frame into several (12 % of the elytra frames drew everything; the 0.1% low rose from 34.8 to 38.9 FPS on Can's PC, 2026-10-14); the raster covers 25 % more than the screen and a box crossing its edge counts as visible, because visibility from one eye position does not change when the camera turns.
+- Shadow pass (with Helion): the same test per cascade in light space with an orthographic raster, on its own worker (`Aervium Shadow Culling`, one `OcclusionPipeline` per cascade). A finished result is matched to the current caster list by section position (`ShadowCascadeCulling`): while the light direction is unchanged, a caster it hid is dropped unless the caster changed or an occluder that left the list or changed covers one of its raster tiles (`TileMask`), so the result stays exact while the camera moves and the cascade gains and loses sections at its edges. On the benchmark route it still hides no caster: Helion's caster lists hold only sections with geometry near the light frustum (31 to 351 per cascade, almost all of them surface), and the worker draws 200 to 1800 occluder boxes without any caster lying behind them (diagnostic run 2026-10-14). A caster the light cannot see is lossless to drop, because the shadow map stores only the nearest depth and the casters in front of it are in the same cascade. Running this pass on the render thread cost a quarter of the frame rate at render distance 32 (100.7 to 76.3 FPS average, 1% low 58.7 to 28.1 on Can's PC, 2026-10-14).
 - Both tests are conservative (see `DepthRaster`), so nothing visible is ever dropped. Sections still fading in never occlude.
 - `-Daervium.cullingAudit=true` checks this in game: rays through the real blocks to hidden sections must never get through (`CullingAudit`). The benchmark log shows the share of sections the camera pass hid and of shadow casters the shadow pass hid per scene.
 
 ### Face Culling
 The GPU throws away a triangle that faces away from the camera only after its vertices went through the vertex shader. Aervium groups the quads of every solid and cutout section mesh by the side they face while the mesh is built (`FacingSort`) and, in the camera pass, leaves out the groups whose planes all lie in front of the eye, so a section seen from one side sends only up to three of its six face directions to the GPU. Only faces the GPU would cull are left out, with half a block of margin for view bobbing; shadow passes and any other view keep every face.
+
+### Compact Terrain Vertices
+Vanilla stores every terrain vertex in 28 bytes (three floats for the position, color, two floats for the texture, two shorts for light). The module `compactVertices` (off by default until measured on Can's PC) stores solid and cutout terrain in 16 bytes, 43 % less vertex memory and upload:
+
+| Attribute | Format | Content |
+|---|---|---|
+| `PositionLight` | RGBA16_UINT | x, y, z in 1/2048 block steps over -8 to +24 blocks of the section; block light in the low and sky light in the high byte of w |
+| `Color` | RGBA8_UNORM | unchanged |
+| `PackedUV0` | RG16_UINT | atlas coordinates times 65536 |
+
+1. The pipelines decide the format: `ChunkSectionLayer` takes its vertex size from the vanilla solid and cutout pipelines, so the module gives exactly those four pipelines (direct and multi-draw) the compact format, the define `AERVIUM_COMPACT_VERTICES=1` and the vertex shader `aervium:terrain/compact` while `RenderPipelines` is set up. The chunk buffers and draw offsets follow on their own.
+2. Chunks are still built in the vanilla format, so face sorting and NeoForge geometry renderers see vanilla data; right before the upload `CompactVertexEncoder` rewrites the mesh in place.
+3. Translucent terrain keeps the vanilla format, because vanilla sorts translucent quads from their float positions.
+4. Helion reads the define, not Aervium code: its geometry pipelines inherit the format with `toBuilder()`, its shadow pipelines copy it from the vanilla pipeline, and its terrain shaders decode under `#ifdef AERVIUM_COMPACT_VERTICES`. Helion turns its geometry buffer and shadows off for a format version it does not know.
+5. Exactness: model coordinates on the 1/16 grid and texture coordinates of a power-of-two atlas are exact; other positions move by at most 1/4096 block, other texture coordinates round toward the inside of their quad, so no face samples the neighbouring sprite. Vanilla models stay within one block of their block, far inside the range; a vertex outside it is moved to the edge and logged once.
 
 ### Modules
 Optimizations that change game classes are mixins grouped into modules (`OptimizationModule`). `MixinModules` reads `config/aervium-modules.properties` before any mixin applies and writes every switch back; renderer modules also stay off with Sodium or Iris. Features that run later (dynamic frame rate) use the normal client config.
@@ -104,8 +119,9 @@ Optimizations that change game classes are mixins grouped into modules (`Optimiz
 
 1. Deletes the previous `aervium-benchmark` world and creates a fresh one: seed 8675309, spectator, peaceful, cheats on.
 2. Freezes time at noon and the weather, turns mob spawning off, finds the spawn, the nearest village and the redstone platform height on the server thread.
-3. Warms up for 400 ticks at the start of the first route.
-4. Runs every scene: 200 ticks of settling (camera already moving, world set up), then 600 measured ticks.
+3. Force-loads the village crowd area, summons the 40 villagers as soon as its entities are loaded and releases the area, so no scene starts with a summon (the redstone clocks stay built at their scene, because they lie within the simulation distance of the first routes and would tick during them).
+4. Warms up for 400 ticks at the start of the first route.
+5. Runs every scene: 200 ticks of settling (camera already moving, world set up), then 600 measured ticks. The log names the longest frame while settling: the jump to a new scene costs 100 to 500 ms on Can's PC (JFR 2026-10-14: vanilla moving the view area and releasing old meshes, Helion rescanning its shadow caster sections, chunk uploads), which is why settling is not measured.
 
 | Scene | Route | Stresses |
 |---|---|---|
@@ -141,8 +157,8 @@ The same run doubles as a light benchmark: the log prints the wall and CPU time 
 2. Nothing allocates per frame in recording or drawing code; copies and summaries happen at most every five ticks.
 3. Every job result reaches Minecraft state only through `MainThreadQueue` on the main thread.
 4. The benchmark restores every option it changes (pause on lost focus) and only deletes its own `aervium-benchmark` world.
-. Every optimization is a module: mixins of a switched-off module are never applied (`MixinModules`), and runtime features read their switch from the config.
-7. Caches are content addressed: anything that changes the result (game version, sources, includes, defines, GPU, driver) changes the key or invalidates the data, so a stale cache can never be used.
+5. Every optimization is a module: mixins of a switched-off module are never applied (`MixinModules`), and runtime features read their switch from the config. A module that changes what the player sees or is not yet measured on Can's PC starts off (`OptimizationModule.enabledByDefault`).
+6. Caches are content addressed: anything that changes the result (game version, sources, includes, defines, GPU, driver) changes the key or invalidates the data, so a stale cache can never be used.
 
 ## Mixins
 
@@ -171,6 +187,9 @@ The same run doubles as a light benchmark: the log prints the wall and CPU time 
 | `ModelBlockRendererLeafCullingMixin` | `ModelBlockRenderer.shouldRenderFace` | Leaf face culling only depends on the block state, never on the leaves around it. |
 | `HelionShadowCastersMixin` (pseudo, optional) | Helion `VanillaShadowCasterSource.collectSections` | Helion exposes no hook for its caster lists yet. |
 | `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin` | `LevelRenderer.extractSectionDrawGroups`, `CompiledSectionMesh`, `UberGpuBuffer.freeAllocation` and `close` | The terrain buffer slices of a mesh are only reachable through a map lookup and the draw list loop has no hook. |
+| `RenderPipelineBuilderCompactMixin` | `RenderPipeline.Builder.build` for the vanilla solid and cutout terrain pipelines | The chunk buffers take their vertex size from these static pipelines; NeoForge pipeline modifiers only swap pipelines at draw time. |
+| `SectionCompilerCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin` | `SectionCompiler.getOrBeginLayer`, the upload call in `CompileTask.doTask`, `MeshData` | No hook between the mesh build and the upload, and the builder format of a layer is fixed. |
+| `ChunkSectionsToRenderCompactMixin` | the wireframe override in `ChunkSectionsToRender.renderGroup` | The debug override pipelines are chosen inside the method. |
 
 ## Phases
 
@@ -178,9 +197,9 @@ The same run doubles as a light benchmark: the log prints the wall and CPU time 
 |---|---|---|
 | 0 Foundation and measurement | Project, adapter layer, telemetry (frame times, lows, MSPT, GC, RAM, VRAM, timing scopes), overlay, repeatable benchmark, unit tests | Done in 0.1 (unreleased) |
 | 1 Core and stutter killers | Done: SPIR-V disk cache, persistent Vulkan pipeline cache, warm-up of built-in pipelines vanilla compiles mid-game, dynamic frame rate (background and pause), lighter chunk section locks, switchable modules, startup report. Moved to Phase 2: zero-allocation frame arenas (FFM) and job priorities, because chunk meshing is their first real user. Still open: more memory reductions after heap analysis, faster resource loading | In progress |
-| 2 Streaming and meshing | Started: chunk builds on their own worker pool. Next: zero-allocation frame arenas (FFM) and job priorities and dependencies for the mesh jobs, predictive chunk streaming along the movement direction, parallel meshing on the job system, budgeted GPU uploads, compact vertex formats, faster light engine (ScalableLux-like) | Planned |
-| 3 Culling and draw | Done: software occlusion culling for the camera, Helion's shadow cascades, entities, block entities and particles. Done: optional leaf culling (off by default). Next: face culling, batched GUI and text drawing (ImmediatelyFast-like), multi-draw indirect | In progress |
-| 4 World and TPS | Server tick optimizations that keep vanilla behavior (Lithium-like, clean room), parallel chunk generation (C2ME-like), network compression and batching (Krypton-like) | Planned |
+| 2 Streaming and meshing | Started: chunk builds on their own worker pool; compact terrain vertices (`compactVertices`, off by default: 4 % higher average and 20 to 32 % less video memory on Can's PC, lows within noise in two runs). Profile 2026-10-14: the mesh workers are 4 to 24 % busy and the render thread waits for them at most 17 ms per scene, so meshing does not limit frames yet; biome tint blending is 19 % of build time and the first target once it does. Next: zero-allocation frame arenas (FFM) and job priorities and dependencies for the mesh jobs, predictive chunk streaming along the movement direction, parallel meshing on the job system, budgeted GPU uploads, faster light engine (ScalableLux-like) | In progress |
+| 3 Culling and draw | Done: software occlusion culling for the camera, Helion's shadow cascades, entities, block entities and particles. Done: optional leaf culling (off by default), face culling, culling results that survive slow frames and shadow results matched by section. Next: batched GUI and text drawing (ImmediatelyFast-like), multi-draw indirect | In progress |
+| 4 World and TPS | Started: point of interest search (`poiSearch`), entity collision search (`entityCollisions`) and idle hopper search (`hopperSearch`) skips, checked by the parity, worldgen and audit runs. Next: more server tick work from profiles, parallel chunk generation (C2ME-like), network compression and batching (Krypton-like) | In progress |
 | 5 Advanced Vulkan | GPU-driven culling, meshlets, async compute and transfer queues, two render paths: baseline for integrated GPUs and advanced for strong GPUs | Planned |
 | 6 Frame lock and LOD | Dynamic resolution to hold a target frame time, distant terrain LOD (Distant Horizons-like), extended settings (Sodium Extra-like) | Planned |
 

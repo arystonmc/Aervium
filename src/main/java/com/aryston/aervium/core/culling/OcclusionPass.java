@@ -55,6 +55,25 @@ public final class OcclusionPass {
         return visible[index];
     }
 
+    public boolean occludes(int index) {
+        return canOcclude[index];
+    }
+
+    public boolean sameOccluders(int index, OccluderBoxes sectionBoxes, boolean occluder) {
+        return boxes[index] == sectionBoxes && canOcclude[index] == (occluder && !sectionBoxes.isEmpty());
+    }
+
+    public boolean sectionTiles(DepthRaster raster, int index, int[] range) {
+        float x = originX[index];
+        float y = originY[index];
+        float z = originZ[index];
+        return raster.tileRange(
+            x - GEOMETRY_MARGIN, y - GEOMETRY_MARGIN, z - GEOMETRY_MARGIN,
+            x + SECTION_SIZE + GEOMETRY_MARGIN, y + SECTION_SIZE + GEOMETRY_MARGIN, z + SECTION_SIZE + GEOMETRY_MARGIN,
+            range
+        );
+    }
+
     public void run(DepthRaster raster, int maxOccluderBoxes) {
         run(raster, maxOccluderBoxes, 0.0F);
     }
@@ -99,6 +118,28 @@ public final class OcclusionPass {
                 occluderBoxes++;
             }
         }
+    }
+
+    public int widen(DepthRaster raster, float reach) {
+        float margin = GEOMETRY_MARGIN + reach;
+        int revealed = 0;
+        for (int index = 0; index < size; index++) {
+            if (visible[index]) {
+                continue;
+            }
+            float x = originX[index];
+            float y = originY[index];
+            float z = originZ[index];
+            if (raster.isVisible(
+                x - margin, y - margin, z - margin,
+                x + SECTION_SIZE + margin, y + SECTION_SIZE + margin, z + SECTION_SIZE + margin
+            )) {
+                visible[index] = true;
+                hidden--;
+                revealed++;
+            }
+        }
+        return revealed;
     }
 
     private void grow() {

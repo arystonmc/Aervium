@@ -156,6 +156,35 @@ public final class DepthRaster {
         return false;
     }
 
+    public int tilesX() {
+        return tilesX;
+    }
+
+    public int tilesY() {
+        return tilesY;
+    }
+
+    public boolean tileRange(float minX, float minY, float minZ, float maxX, float maxY, float maxZ, int[] range) {
+        if (!project(minX, minY, minZ, maxX, maxY, maxZ)) {
+            return false;
+        }
+        float left = Float.POSITIVE_INFINITY;
+        float right = Float.NEGATIVE_INFINITY;
+        float bottom = Float.POSITIVE_INFINITY;
+        float top = Float.NEGATIVE_INFINITY;
+        for (int corner = 0; corner < 8; corner++) {
+            left = Math.min(left, cornerX[corner]);
+            right = Math.max(right, cornerX[corner]);
+            bottom = Math.min(bottom, cornerY[corner]);
+            top = Math.max(top, cornerY[corner]);
+        }
+        range[0] = Math.clamp((int) Math.floor(left) / TILE, 0, tilesX - 1);
+        range[1] = Math.clamp((int) Math.floor(bottom) / TILE, 0, tilesY - 1);
+        range[2] = Math.clamp(((int) Math.ceil(right) - 1) / TILE, 0, tilesX - 1);
+        range[3] = Math.clamp(((int) Math.ceil(top) - 1) / TILE, 0, tilesY - 1);
+        return true;
+    }
+
     float depthAt(int x, int y) {
         return depth[y * width + x];
     }

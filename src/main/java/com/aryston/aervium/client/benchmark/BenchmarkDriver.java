@@ -5,10 +5,12 @@ import com.aryston.aervium.client.FrameRateGovernor;
 import com.aryston.aervium.client.chunk.ChunkUploadTimings;
 import com.aryston.aervium.client.chunk.MeshWorkers;
 import com.aryston.aervium.core.budget.StallMeter;
+import com.aryston.aervium.core.culling.CameraResultCounts;
 import com.aryston.aervium.core.culling.CullingStatistics;
 import com.aryston.aervium.core.job.JobLoadMeter;
 import com.aryston.aervium.core.job.JobSystem;
 import com.aryston.aervium.core.job.MainThreadQueue;
+import com.aryston.aervium.core.telemetry.Durations;
 import com.aryston.aervium.core.telemetry.FrameTimeRecorder;
 import com.aryston.aervium.core.telemetry.FrameTimeSummary;
 import com.aryston.aervium.core.telemetry.GcPauseRecorder;
@@ -49,6 +51,7 @@ public final class BenchmarkDriver {
     private static final DateTimeFormatter STARTED_AT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final int FRAME_CAPACITY = 1 << 17;
     private static final int VRAM_SAMPLE_INTERVAL_TICKS = 20;
+    private static final int MAX_PREPARE_TICKS = 600;
 
     private final GcPauseRecorder gcPauses;
     private final JobSystem jobs;
@@ -62,6 +65,7 @@ public final class BenchmarkDriver {
     private final List<long[]> allTicks = new ArrayList<>();
     private Stage stage = Stage.CREATE_WORLD;
     private CompletableFuture<BenchmarkAnchors> pendingAnchors;
+    private CompletableFuture<Boolean> pendingCrowd;
     private BenchmarkAnchors anchors;
     private String startedAt;
     private boolean pauseOnLostFocus;
@@ -74,6 +78,7 @@ public final class BenchmarkDriver {
     private JobLoadMeter meshMeter;
     private long queuedSum;
     private int queuedSamples;
+    private long settleMark;
 
     private BenchmarkDriver(GcPauseRecorder gcPauses, JobSystem jobs, MainThreadQueue mainThread, Supplier<VramUsage> vramProbe) {
         this.gcPauses = gcPauses;
@@ -100,6 +105,7 @@ public final class BenchmarkDriver {
             case CREATE_WORLD -> createWorld(minecraft);
             case WAIT_FOR_PLAYER -> waitForPlayer(minecraft);
             case LOCATE -> locate(minecraft);
+            case PREPARE -> prepare(minecraft);
             case WARMUP -> warmUp(minecraft);
             case SCENE -> runScene(minecraft);
             case FINISHED -> {
@@ -147,7 +153,32 @@ public final class BenchmarkDriver {
         Aervium.LOGGER.info("Aervium benchmark: spawn {}, village {} (found: {}), redstone {}", anchors.spawn(), anchors.village(), anchors.villageFound(), anchors.redstone());
         path = BenchmarkRoute.path(BenchmarkScene.values()[0], anchors);
         tick = 0;
-        stage = Stage.WARMUP;
+        BenchmarkWorld.loadCrowdArea(minecraft.getSingleplayerServer(), anchors);
+        stage = Stage.PREPARE;
+    }
+
+    private void prepare(Minecraft minecraft) {
+        if (leftWorld(minecraft)) {
+            return;
+        }
+        holdInputActive(minecraft);
+        camera.place(minecraft.player, minecraft.level, path, 0);
+        tick++;
+        if (pendingCrowd == null) {
+            pendingCrowd = BenchmarkWorld.summonCrowdWhenLoaded(minecraft.getSingleplayerServer(), anchors);
+            return;
+        }
+        if (!pendingCrowd.isDone()) {
+            return;
+        }
+        boolean summoned = pendingCrowd.join();
+        pendingCrowd = null;
+        if (summoned) {
+            tick = 0;
+            stage = Stage.WARMUP;
+        } else if (tick > MAX_PREPARE_TICKS) {
+            abort(minecraft, "the village area did not load", new IllegalStateException("village chunks not loaded after " + tick + " ticks"));
+        }
     }
 
     private void warmUp(Minecraft minecraft) {
@@ -168,6 +199,7 @@ public final class BenchmarkDriver {
         path = BenchmarkRoute.path(scene, anchors);
         tick = 0;
         camera.reset();
+        settleMark = frames.frameTimes().recorded();
         BenchmarkWorld.setUpScene(minecraft.getSingleplayerServer(), scene, anchors);
         stage = Stage.SCENE;
         Aervium.LOGGER.info("Aervium benchmark: scene {} ({})", scene.id(), scene.description());
@@ -185,6 +217,8 @@ public final class BenchmarkDriver {
             CullingStatistics.SHARED.takeCameraHiddenPercent();
             CullingStatistics.SHARED.takeFaceSkippedPercent();
             CullingStatistics.SHARED.takeShadowHiddenPercent();
+            CullingStatistics.SHARED.takeCameraResults();
+            logSettling(BenchmarkScene.values()[sceneIndex].id());
             measurement = new SceneMeasurement(BenchmarkScene.values()[sceneIndex], frames.frameTimes(), TickTimeRecorder.SERVER.mark(), gcPauses.mark(), System.nanoTime());
             lastVramBytes = vramProbe.get().usedBytes();
             meshMeter = MeshWorkers.meter(System.nanoTime());
@@ -233,6 +267,17 @@ public final class BenchmarkDriver {
             scene, averageQueued, Math.round(load.jobsPerSecond()), MeshWorkers.workers(), Math.round(load.busyShare() * 100.0));
     }
 
+    private void logSettling(String scene) {
+        long longest = LongStream.of(frames.frameTimes().since(settleMark)).max().orElse(0L);
+        Aervium.LOGGER.info(String.format(Locale.ROOT, "Aervium benchmark: %s longest frame while settling %.1f ms", scene, Durations.millis(longest)));
+    }
+
+    private static void logCameraResults(String scene) {
+        CameraResultCounts counts = CullingStatistics.SHARED.takeCameraResults();
+        Aervium.LOGGER.info("Aervium benchmark: {} camera culling result missing in {} of {} frames (none {}, too old {}, eye out of reach {}), widened in {}",
+            scene, counts.missing(), counts.frames(), counts.none(), counts.tooOld(), counts.outOfReach(), counts.widened());
+    }
+
     private void finishScene(Minecraft minecraft) {
         long[] frameNanos = measurement.frameTimes(frames.frameTimes());
         long recordedFrames = measurement.framesRecordedSince(frames.frameTimes());
@@ -246,6 +291,7 @@ public final class BenchmarkDriver {
             result.scene(), Math.round(result.frames().averageFps()), Math.round(result.frames().onePercentLowFps()), Math.round(result.ticks().averageMs()),
             CullingStatistics.SHARED.takeCameraHiddenPercent(), CullingStatistics.SHARED.takeShadowHiddenPercent(), CullingStatistics.SHARED.takeFaceSkippedPercent());
         logChunkBuilds(result.scene());
+        logCameraResults(result.scene());
         if (sceneIndex + 1 < BenchmarkScene.values().length) {
             startScene(minecraft, sceneIndex + 1);
             return;
@@ -319,6 +365,7 @@ public final class BenchmarkDriver {
         CREATE_WORLD,
         WAIT_FOR_PLAYER,
         LOCATE,
+        PREPARE,
         WARMUP,
         SCENE,
         FINISHED

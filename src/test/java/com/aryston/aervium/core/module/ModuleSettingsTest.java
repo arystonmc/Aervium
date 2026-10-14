@@ -10,9 +10,16 @@ import org.junit.jupiter.api.Test;
 
 class ModuleSettingsTest {
     @Test
-    void everyModuleIsOnByDefault() {
+    void everyModuleStartsAtItsDefault() {
         ModuleSettings settings = ModuleSettings.parse(List.of());
-        Arrays.stream(OptimizationModule.values()).forEach(module -> assertTrue(settings.isEnabled(module)));
+        Arrays.stream(OptimizationModule.values()).forEach(module -> assertEquals(module.enabledByDefault(), settings.isEnabled(module)));
+        assertTrue(settings.isEnabled(OptimizationModule.OCCLUSION_CULLING));
+        assertFalse(settings.isEnabled(OptimizationModule.COMPACT_VERTICES));
+    }
+
+    @Test
+    void aDefaultOffModuleCanBeSwitchedOn() {
+        assertTrue(ModuleSettings.parse(List.of("compactVertices=true")).isEnabled(OptimizationModule.COMPACT_VERTICES));
     }
 
     @Test

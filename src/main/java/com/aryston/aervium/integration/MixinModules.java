@@ -56,7 +56,12 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("ServerLevelEntityCollisionsMixin", OptimizationModule.ENTITY_COLLISIONS),
         Map.entry("EntitySectionHopperMixin", OptimizationModule.HOPPER_SEARCH),
         Map.entry("HopperBlockEntityItemSearchMixin", OptimizationModule.HOPPER_SEARCH),
-        Map.entry("HopperEntityContainerSearchMixin", OptimizationModule.HOPPER_SEARCH)
+        Map.entry("HopperEntityContainerSearchMixin", OptimizationModule.HOPPER_SEARCH),
+        Map.entry("RenderPipelineBuilderCompactMixin", OptimizationModule.COMPACT_VERTICES),
+        Map.entry("SectionCompilerCompactMixin", OptimizationModule.COMPACT_VERTICES),
+        Map.entry("CompileTaskCompactMixin", OptimizationModule.COMPACT_VERTICES),
+        Map.entry("MeshDataCompactMixin", OptimizationModule.COMPACT_VERTICES),
+        Map.entry("ChunkSectionsToRenderCompactMixin", OptimizationModule.COMPACT_VERTICES)
     );
 
     private static final String HELION_MOD_ID = "helion";

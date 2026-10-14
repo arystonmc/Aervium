@@ -16,6 +16,7 @@ import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.StructureTags;
 import net.minecraft.world.Difficulty;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.LevelSettings;
 import net.minecraft.world.level.WorldDataConfiguration;
@@ -62,21 +63,44 @@ final class BenchmarkWorld {
     }
 
     static void setUpScene(IntegratedServer server, BenchmarkScene scene, BenchmarkAnchors anchors) {
+        if (scene != BenchmarkScene.REDSTONE) {
+            return;
+        }
         server.execute(() -> {
+            Aervium.LOGGER.info("Aervium benchmark: building {} redstone clocks", BenchmarkCommands.clockCount());
+            run(server, BenchmarkCommands.redstoneBuild(anchors.redstone()));
+        });
+    }
+
+    static void loadCrowdArea(IntegratedServer server, BenchmarkAnchors anchors) {
+        server.execute(() -> run(server, List.of(BenchmarkCommands.forceLoadCrowd(anchors.village(), true))));
+    }
+
+    static CompletableFuture<Boolean> summonCrowdWhenLoaded(IntegratedServer server, BenchmarkAnchors anchors) {
+        return server.submit(() -> {
             ServerLevel level = server.overworld();
-            switch (scene) {
-                case VILLAGE -> {
-                    Aervium.LOGGER.info("Aervium benchmark: summoning {} villagers", BenchmarkCommands.crowdSize());
-                    run(server, BenchmarkCommands.villageCrowd(anchors.village(), (x, z) -> surfaceY(level, x, z)));
-                }
-                case REDSTONE -> {
-                    Aervium.LOGGER.info("Aervium benchmark: building {} redstone clocks", BenchmarkCommands.clockCount());
-                    run(server, BenchmarkCommands.redstoneBuild(anchors.redstone()));
-                }
-                default -> {
+            BlockPoint center = anchors.village();
+            if (!crowdLoaded(level, center)) {
+                return false;
+            }
+            Aervium.LOGGER.info("Aervium benchmark: summoning {} villagers before the first scene", BenchmarkCommands.crowdSize());
+            run(server, BenchmarkCommands.villageCrowd(center, (x, z) -> surfaceY(level, x, z)));
+            run(server, List.of(BenchmarkCommands.forceLoadCrowd(center, false)));
+            return true;
+        });
+    }
+
+    private static boolean crowdLoaded(ServerLevel level, BlockPoint center) {
+        BlockPoint first = BenchmarkCommands.crowdFirst(center);
+        BlockPoint last = BenchmarkCommands.crowdLast(center);
+        for (int chunkX = SectionPos.blockToSectionCoord(first.x()); chunkX <= SectionPos.blockToSectionCoord(last.x()); chunkX++) {
+            for (int chunkZ = SectionPos.blockToSectionCoord(first.z()); chunkZ <= SectionPos.blockToSectionCoord(last.z()); chunkZ++) {
+                if (!level.areEntitiesLoaded(ChunkPos.pack(chunkX, chunkZ))) {
+                    return false;
                 }
             }
-        });
+        }
+        return true;
     }
 
     private static BenchmarkAnchors locateAnchors(ServerLevel level) {

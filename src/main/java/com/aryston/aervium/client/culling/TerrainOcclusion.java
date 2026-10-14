@@ -3,6 +3,7 @@ package com.aryston.aervium.client.culling;
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.core.budget.SystemTimings;
 import com.aryston.aervium.core.budget.TimedSystem;
+import com.aryston.aervium.core.culling.CameraResult;
 import com.aryston.aervium.core.culling.ClipMatrix;
 import com.aryston.aervium.core.culling.CullingStatistics;
 import com.aryston.aervium.core.culling.DepthRaster;
@@ -11,8 +12,6 @@ import com.aryston.aervium.core.culling.OcclusionPass;
 import com.aryston.aervium.core.culling.OcclusionPipeline;
 import com.aryston.aervium.core.job.JobSystem;
 import com.aryston.aervium.mixin.CompiledSectionMeshVisibilityAccessor;
-import it.unimi.dsi.fastutil.HashCommon;
-import java.util.Arrays;
 import java.util.List;
 import net.minecraft.client.renderer.chunk.CompiledSectionMesh;
 import net.minecraft.client.renderer.chunk.SectionMesh;
@@ -35,15 +34,17 @@ public final class TerrainOcclusion {
     private static final float CAMERA_FAR = 4096.0F;
     private static final float SECTION_REACH = OcclusionPass.SECTION_SIZE * 0.5F * (float) Math.sqrt(3.0) + OcclusionPass.GEOMETRY_MARGIN;
     private static final float HALF_SECTION = OcclusionPass.SECTION_SIZE * 0.5F;
-    private static final float FULLY_FADED_IN = 1.0F;
+    static final float FULLY_FADED_IN = 1.0F;
     private static final int MAX_SHADOW_CASCADES = 8;
-    private static final long NO_SIGNATURE = 0L;
 
     private static final float GUARD_BAND = 0.8F;
     private static final float MIN_REACH = 0.125F;
     private static final float MAX_REACH = 4.0F;
     private static final float REACH_FRAMES = 3.0F;
     private static final long MAX_RESULT_AGE = 6L;
+    private static final long MAX_RESULT_AGE_NANOS = 60_000_000L;
+    private static final float MAX_WIDENED_REACH = 8.0F;
+    private static final int NOT_HIDDEN = 0;
 
     private static final JobSystem JOBS = new JobSystem(
         "Aervium Culling",
@@ -58,9 +59,7 @@ public final class TerrainOcclusion {
         Thread.NORM_PRIORITY,
         (thread, failure) -> Aervium.LOGGER.error("Aervium shadow culling worker {} failed", thread.getName(), failure)
     );
-    private static final OcclusionPipeline[] SHADOW_CASCADES = shadowPipelines();
-    private static final long[] SUBMITTED_SIGNATURES = new long[MAX_SHADOW_CASCADES];
-    private static final long[] ACTIVE_SIGNATURES = new long[MAX_SHADOW_CASCADES];
+    private static final ShadowCascadeCulling[] SHADOW_CASCADES = shadowCascades();
     private static final ClipMatrix VIEW = new ClipMatrix();
     private static final float[] MATRIX = new float[16];
 
@@ -135,14 +134,17 @@ public final class TerrainOcclusion {
             CullingStatistics.SHARED.cameraJob(finished.jobNanos());
         }
         OcclusionPipeline.Frame active = CAMERA.active();
-        if (active != null && frame - active.frame() <= MAX_RESULT_AGE && active.covers(eye.x, eye.y, eye.z)) {
+        float reach = reach(eye);
+        CameraResult result = cameraResult(active, eye, reach);
+        CullingStatistics.SHARED.cameraResult(result);
+        if (result == CameraResult.CURRENT || result == CameraResult.WIDENED) {
             current = active;
             currentEye = eye;
-            if (CullingAudit.ENABLED && active == finished) {
+            if (CullingAudit.ENABLED && (active == finished || result == CameraResult.WIDENED)) {
                 CullingAudit.afterCameraPass(active, eye);
             }
         }
-        OcclusionPipeline.Frame next = CAMERA.begin(frame, eye.x, eye.y, eye.z, reach(eye));
+        OcclusionPipeline.Frame next = CAMERA.begin(frame, eye.x, eye.y, eye.z, reach);
         if (next != null) {
             snapshot(next, sections, camera, now, sectionFadeDuration);
             CAMERA.submit(next);
@@ -168,6 +170,36 @@ public final class TerrainOcclusion {
         Vec3 eye = currentEye;
         if (result != null && eye != null) {
             CullingAudit.hiddenBox(box, eye, result.clip());
+        }
+    }
+
+    private static CameraResult cameraResult(OcclusionPipeline.@Nullable Frame active, Vec3 eye, float reach) {
+        if (active == null) {
+            return CameraResult.NONE;
+        }
+        if (frame - active.frame() > MAX_RESULT_AGE && System.nanoTime() - active.submittedNanos() > MAX_RESULT_AGE_NANOS) {
+            return CameraResult.TOO_OLD;
+        }
+        if (active.covers(eye.x, eye.y, eye.z)) {
+            return CameraResult.CURRENT;
+        }
+        float widened = (float) active.distanceTo(eye.x, eye.y, eye.z) + reach;
+        if (widened > MAX_WIDENED_REACH) {
+            return CameraResult.OUT_OF_REACH;
+        }
+        if (active.widen(widened) > 0) {
+            unmarkRevealed(active);
+        }
+        return CameraResult.WIDENED;
+    }
+
+    private static void unmarkRevealed(OcclusionPipeline.Frame result) {
+        int generation = result.generation();
+        for (int index = 0, size = result.size(); index < size; index++) {
+            CameraOcclusionHolder section = (CameraOcclusionHolder) result.target(index);
+            if (result.isVisible(index) && section.aervium$hiddenGeneration() == generation) {
+                section.aervium$setHiddenGeneration(NOT_HIDDEN);
+            }
         }
     }
 
@@ -219,48 +251,14 @@ public final class TerrainOcclusion {
         for (int cascade = 0; cascade < cascades.size(); cascade++) {
             List<SectionRenderDispatcher.RenderSection> sections = cascades.get(cascade);
             int before = sections.size();
-            int hidden = cascade < MAX_SHADOW_CASCADES ? filterCascade(cascade, sections, lightView, camera, now, fadeDuration) : 0;
+            int hidden = cascade < MAX_SHADOW_CASCADES ? SHADOW_CASCADES[cascade].filter(sections, lightView, camera, frame, now, fadeDuration) : 0;
             CullingStatistics.SHARED.shadowCascade(before, hidden);
         }
         CullingStatistics.SHARED.endShadows();
         SystemTimings.SHARED.end(TimedSystem.CULLING, start);
     }
 
-    private static int filterCascade(int cascade, List<SectionRenderDispatcher.RenderSection> sections, Matrix4fc lightView, Vec3 camera, long now, long fadeDuration) {
-        OcclusionPipeline pipeline = SHADOW_CASCADES[cascade];
-        if (pipeline.activateFinished() != null) {
-            ACTIVE_SIGNATURES[cascade] = SUBMITTED_SIGNATURES[cascade];
-        }
-        long signature = signature(sections, lightView, now, fadeDuration);
-        OcclusionPipeline.Frame result = pipeline.active();
-        if (result != null && ACTIVE_SIGNATURES[cascade] == signature && result.size() == sections.size()) {
-            return removeHidden(sections, result);
-        }
-        if (sections.isEmpty() || SUBMITTED_SIGNATURES[cascade] == signature) {
-            return 0;
-        }
-        OcclusionPipeline.Frame next = pipeline.begin(frame, camera.x, camera.y, camera.z, 0.0F);
-        if (next != null) {
-            snapshotShadow(next, sections, lightView, now, fadeDuration);
-            SUBMITTED_SIGNATURES[cascade] = signature;
-            pipeline.submit(next);
-        }
-        return 0;
-    }
-
-    private static int removeHidden(List<SectionRenderDispatcher.RenderSection> sections, OcclusionPipeline.Frame result) {
-        int before = sections.size();
-        int kept = 0;
-        for (int index = 0; index < before; index++) {
-            if (result.isVisible(index)) {
-                sections.set(kept++, sections.get(index));
-            }
-        }
-        sections.subList(kept, before).clear();
-        return before - kept;
-    }
-
-    private static void snapshotShadow(OcclusionPipeline.Frame next, List<SectionRenderDispatcher.RenderSection> sections, Matrix4fc lightView, long now, long fadeDuration) {
+    static void snapshotShadow(OcclusionPipeline.Frame next, List<SectionRenderDispatcher.RenderSection> sections, Matrix4fc lightView, long now, long fadeDuration) {
         float minX = Float.POSITIVE_INFINITY;
         float minY = Float.POSITIVE_INFINITY;
         float minZ = Float.POSITIVE_INFINITY;
@@ -305,40 +303,17 @@ public final class TerrainOcclusion {
     }
 
     private static void clearShadowResults() {
-        for (OcclusionPipeline pipeline : SHADOW_CASCADES) {
-            pipeline.clear();
+        for (ShadowCascadeCulling cascade : SHADOW_CASCADES) {
+            cascade.clear();
         }
-        Arrays.fill(SUBMITTED_SIGNATURES, NO_SIGNATURE);
-        Arrays.fill(ACTIVE_SIGNATURES, NO_SIGNATURE);
     }
 
-    private static OcclusionPipeline[] shadowPipelines() {
-        OcclusionPipeline[] pipelines = new OcclusionPipeline[MAX_SHADOW_CASCADES];
-        for (int cascade = 0; cascade < pipelines.length; cascade++) {
-            pipelines[cascade] = new OcclusionPipeline(SHADOW_JOBS::submit, MAX_SHADOW_OCCLUDER_BOXES);
+    private static ShadowCascadeCulling[] shadowCascades() {
+        ShadowCascadeCulling[] cascades = new ShadowCascadeCulling[MAX_SHADOW_CASCADES];
+        for (int cascade = 0; cascade < cascades.length; cascade++) {
+            cascades[cascade] = new ShadowCascadeCulling(SHADOW_JOBS::submit, MAX_SHADOW_OCCLUDER_BOXES);
         }
-        return pipelines;
-    }
-
-    private static long signature(List<SectionRenderDispatcher.RenderSection> sections, Matrix4fc lightView, long now, long fadeDuration) {
-        long hash = sections.size();
-        hash = mix(hash, Float.floatToIntBits(lightView.m00()));
-        hash = mix(hash, Float.floatToIntBits(lightView.m01()));
-        hash = mix(hash, Float.floatToIntBits(lightView.m02()));
-        hash = mix(hash, Float.floatToIntBits(lightView.m10()));
-        hash = mix(hash, Float.floatToIntBits(lightView.m11()));
-        hash = mix(hash, Float.floatToIntBits(lightView.m12()));
-        for (int index = 0, size = sections.size(); index < size; index++) {
-            SectionRenderDispatcher.RenderSection section = sections.get(index);
-            hash = mix(hash, section.getSectionNode());
-            hash = mix(hash, System.identityHashCode(occluders(section.getSectionMesh())));
-            hash = mix(hash, section.getVisibility(now, fadeDuration) >= FULLY_FADED_IN ? 1 : 0);
-        }
-        return hash == 0L ? 1L : hash;
-    }
-
-    private static long mix(long hash, long value) {
-        return HashCommon.mix(hash * 31 + value);
+        return cascades;
     }
 
     static OccluderBoxes occluders(SectionMesh mesh) {

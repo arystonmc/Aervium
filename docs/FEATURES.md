@@ -125,6 +125,7 @@ Skips terrain you cannot see because solid blocks are in the way.
 - With Helion, chunks the sun cannot see (buried under other terrain) are left out of the shadow maps; shadows look the same because the terrain above already casts them
 - Mobs, dropped items, armor stands, chests, signs and other block entities behind walls are skipped the same way, and so are particles like smoke, flames and drips; with Helion, entities under open sky are still drawn so their sun shadows stay
 - The visibility tests for the camera and for Helion's shadows run on their own background threads, so they no longer cost frame time on the main thread
+- When a frame takes longer than usual and the camera moved past the last visibility result, that result is stretched to the new position instead of drawing every chunk for a few frames, so one slow frame no longer causes the next ones
 - F6 turns it on and off in game to compare; the overlay (F7) shows how many chunks, entities and particles were skipped
 - Since: 0.1
 
@@ -132,6 +133,13 @@ Skips terrain you cannot see because solid blocks are in the way.
 Sends only the block faces that can face you to the graphics card.
 
 - Faces on the far side of every chunk are left out before they reach the graphics card (about a third to a half of all solid faces); the picture stays exactly the same
+- Since: 0.1
+
+### Compact Chunk Vertices (Optional)
+Stores terrain in a smaller format so the graphics card has less to read.
+
+- Solid and cutout terrain uses 16 instead of 28 bytes per vertex: about a quarter to a third less video memory at render distance 32 and less work for every pass that draws terrain, including Helion's shadows; the picture stays the same (in Helion's visual test the terrain matched pixel for pixel)
+- Off by default while its effect on the lows is measured; turn on `compactVertices` in `config/aervium-modules.properties` and restart
 - Since: 0.1
 
 ### Leaf Culling (Optional)
@@ -167,6 +175,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`) with `true` or `false`; changes apply at the next start
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`) with `true` or `false`; changes apply at the next start; `compactVertices` starts off, every other module on
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

@@ -44,6 +44,7 @@ public final class OcclusionPipeline {
     }
 
     public void submit(Frame next) {
+        next.submittedNanos = System.nanoTime();
         pending = next;
         executor.execute(next::run);
     }
@@ -60,6 +61,8 @@ public final class OcclusionPipeline {
 
         private final OcclusionPass pass = new OcclusionPass();
         private final ClipMatrix clip = new ClipMatrix();
+        private final TileMask changes = new TileMask();
+        private final int[] range = new int[4];
         private final int maxOccluderBoxes;
         private DepthRaster raster;
         private Object[] targets = new Object[INITIAL_CAPACITY];
@@ -70,6 +73,7 @@ public final class OcclusionPipeline {
         private double eyeZ;
         private float reach;
         private long jobNanos;
+        private long submittedNanos;
         private volatile boolean finished;
         private volatile boolean failed;
 
@@ -140,6 +144,10 @@ public final class OcclusionPipeline {
             return jobNanos;
         }
 
+        public long submittedNanos() {
+            return submittedNanos;
+        }
+
         public int size() {
             return pass.size();
         }
@@ -169,10 +177,46 @@ public final class OcclusionPipeline {
         }
 
         public boolean covers(double x, double y, double z) {
+            return distanceTo(x, y, z) <= reach;
+        }
+
+        public double distanceTo(double x, double y, double z) {
             double dx = x - eyeX;
             double dy = y - eyeY;
             double dz = z - eyeZ;
-            return dx * dx + dy * dy + dz * dz <= (double) reach * reach;
+            return Math.sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        public boolean sameOccluders(int index, OccluderBoxes boxes, boolean occluder) {
+            return pass.sameOccluders(index, boxes, occluder);
+        }
+
+        public void beginChanges() {
+            changes.clear(raster.tilesX(), raster.tilesY());
+        }
+
+        public void markChanged(int index) {
+            if (!pass.occludes(index)) {
+                return;
+            }
+            if (pass.sectionTiles(raster, index, range)) {
+                changes.mark(range);
+            } else {
+                changes.markEverything();
+            }
+        }
+
+        public boolean hiddenDespiteChanges(int index) {
+            return !pass.isVisible(index) && pass.sectionTiles(raster, index, range) && !changes.any(range);
+        }
+
+        public int widen(float nextReach) {
+            if (nextReach <= reach) {
+                return 0;
+            }
+            int revealed = pass.widen(raster, nextReach);
+            reach = nextReach;
+            return revealed;
         }
 
         public boolean isVisible(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {

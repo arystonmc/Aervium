@@ -7,6 +7,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
+- Optional compact chunk vertices: terrain takes 16 instead of 28 bytes per vertex, for less video memory and faster drawing (off by default)
 - Occlusion culling, including the check for Helion shadows, runs on background threads instead of the main thread
 - Block faces turned away from the camera are no longer sent to the graphics card
 - Idle hoppers skip searching for items and minecarts when none are near (same results as vanilla)
@@ -33,3 +34,9 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Chunks are prepared on Aervium's own threads, no longer waiting behind world generation in single player
 - Optional leaf culling for faster forests (off by default)
 - The overlay and benchmark show chunk upload time and how long the game waits for the chunk builders
+
+### Changed
+- Occlusion culling keeps working through slow frames instead of drawing every chunk for a few frames, for steadier frame times when flying
+- With Helion, the shadow check keeps its last result while you move instead of starting over every frame
+- The benchmark summons the village crowd before the first scene and logs the longest frame of every scene start
+

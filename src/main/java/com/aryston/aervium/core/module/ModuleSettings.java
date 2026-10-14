@@ -19,7 +19,7 @@ public final class ModuleSettings {
 
     public static ModuleSettings parse(List<String> lines) {
         Map<OptimizationModule, Boolean> enabled = new EnumMap<>(OptimizationModule.class);
-        Arrays.stream(OptimizationModule.values()).forEach(module -> enabled.put(module, true));
+        Arrays.stream(OptimizationModule.values()).forEach(module -> enabled.put(module, module.enabledByDefault()));
         for (String line : lines) {
             String[] parts = line.split(ASSIGNMENT, 2);
             if (parts.length == 2) {

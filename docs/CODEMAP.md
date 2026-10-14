@@ -30,12 +30,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Crash report entry (modules on, Aervium code in the crash) | `CrashSummary`, `CrashReportSection`, `CrashReportMixin`, `MixinModules` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
-| Occlusion culling (caves, Helion shadow casters, entities, particles) | `TerrainOcclusion`, `EntityOcclusion`, `ParticleOcclusion`, `HelionShadowCasters`, `OcclusionPipeline`, `OcclusionPass`, `DepthRaster`, `CameraOcclusionHolder`, `RenderSectionOcclusionMixin`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `QuadParticleGroupOcclusionMixin`, `ParticleAccessor`, `HelionShadowCastersMixin` |
+| Occlusion culling (caves, Helion shadow casters, entities, particles) | `TerrainOcclusion`, `ShadowCascadeCulling`, `CameraResult`, `TileMask`, `EntityOcclusion`, `ParticleOcclusion`, `HelionShadowCasters`, `OcclusionPipeline`, `OcclusionPass`, `DepthRaster`, `CameraOcclusionHolder`, `RenderSectionOcclusionMixin`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `QuadParticleGroupOcclusionMixin`, `ParticleAccessor`, `HelionShadowCastersMixin` |
 | Chunk mesh workers (own thread pool for chunk builds) | `MeshWorkers`, `LevelRendererMeshWorkersMixin`, `JobSystem`, `JobLoadMeter` |
 | Leaf culling (optional, off by default) | `LeafCulling`, `ModelBlockRendererLeafCullingMixin`, `AerviumConfig` |
 | Chunk upload and builder lock timings | `ChunkUploadTimings`, `StallMeter`, `SectionRenderDispatcherTimingMixin` |
 | Server light worker timings | `ServerLightTimings`, `ThreadedLevelLightEngineTimingMixin` |
 | Face culling (skip terrain faces turned away from the camera) | `FacingSort`, `FaceRanges`, `FaceCulling`, `FaceRangesHolder`, `CompiledSectionMeshFacingMixin`, `LevelRendererFaceCullingMixin`, `SectionDrawLists` |
+| Compact terrain vertices (16 instead of 28 bytes, off by default) | `CompactVertexEncoder`, `CompactTerrainFormat`, `CompactMeshUpload`, `CompactWireframe`, `RenderPipelineBuilderCompactMixin`, `SectionCompilerCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `ChunkSectionsToRenderCompactMixin`, `shaders/terrain/compact.vsh` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -253,21 +254,37 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### OcclusionPass
 - Path: `src/main/java/com/aryston/aervium/core/culling/OcclusionPass.java`
-- Role: One culling pass over a list of sections: orders them near to far by projected depth, tests each section box (grown by one block for geometry that reaches out of its section, plus an optional reach for camera movement) against the raster, and draws the occluder boxes only of sections that turned out visible, until a box budget is spent. Reusable arrays, no allocation once grown.
+- Role: One culling pass over a list of sections: orders them near to far by projected depth, tests each section box (grown by one block for geometry that reaches out of its section, plus an optional reach for camera movement) against the raster, and draws the occluder boxes only of sections that turned out visible, until a box budget is spent. `widen` tests the hidden sections again with a larger reach; `sectionTiles` gives the raster tiles a section box covers. Reusable arrays, no allocation once grown.
 - Depends on: `DepthRaster`, `OccluderBoxes`.
 
 #### OcclusionPipeline
 - Path: `src/main/java/com/aryston/aervium/core/culling/OcclusionPipeline.java`
-- Role: Runs an `OcclusionPass` (the camera pass, or one Helion shadow cascade with a reach of 0) on a worker one frame behind the render thread. Two `Frame`s (pass, raster, clip matrix, eye position, reach and the opaque target object of each entry) alternate: the render thread fills a free frame and submits it, the worker rasterizes and tests it, and the render thread takes the finished frame at its next call of `activateFinished` while the next one is in flight. `begin` returns nothing while a frame is in flight, so the render thread never waits. `Frame.covers` says whether a later eye position is within the frame's reach; `Frame.isVisible` tests a world box grown by the reach. `clear` drops the active frame and the result in flight.
+- Role: Runs an `OcclusionPass` (the camera pass, or one Helion shadow cascade with a reach of 0) on a worker one frame behind the render thread. Two `Frame`s (pass, raster, clip matrix, eye position, reach and the opaque target object of each entry) alternate: the render thread fills a free frame and submits it, the worker rasterizes and tests it, and the render thread takes the finished frame at its next call of `activateFinished` while the next one is in flight. `begin` returns nothing while a frame is in flight, so the render thread never waits. `Frame.covers` says whether a later eye position is within the frame's reach; `Frame.isVisible` tests a world box grown by the reach. `Frame.widen` raises the reach of a finished frame for an eye that moved past it: only the sections the pass hid are tested again against the final raster with the larger margin, so widening can only reveal sections. `Frame.sameOccluders`, `beginChanges`, `markChanged` and `hiddenDespiteChanges` let a shadow cascade reuse a result after its section list changed: the tiles of every occluder that left the list or changed are marked in a `TileMask`, and a hidden section stays hidden only when none of its tiles is marked. `clear` drops the active frame and the result in flight.
 - Notes: A frame's data belongs to the worker between `submit` and `finished`; the volatile `finished` flag publishes the result.
-- Depends on: `OcclusionPass`, `DepthRaster`, `ClipMatrix`, `OccluderBoxes`.
+- Depends on: `OcclusionPass`, `DepthRaster`, `ClipMatrix`, `OccluderBoxes`, `TileMask`.
 
 #### CullingStatistics
 - Path: `src/main/java/com/aryston/aervium/core/culling/CullingStatistics.java`
-- Role: Sections and hidden sections of the last camera pass and the last set of shadow cascades, and tested and hidden entities and particles of the last frame, for the overlay, the worker time of the last camera pass, the share of hidden sections since the last call of `takeCameraHiddenPercent`, the share of hidden shadow casters since the last call of `takeShadowHiddenPercent`, and the share of solid terrain quads face culling skipped since the last call of `takeFaceSkippedPercent`, for the benchmark log.
+- Role: Sections and hidden sections of the last camera pass and the last set of shadow cascades, and tested and hidden entities and particles of the last frame, for the overlay, the worker time of the last camera pass, the share of hidden sections since the last call of `takeCameraHiddenPercent`, the share of hidden shadow casters since the last call of `takeShadowHiddenPercent`, and the share of solid terrain quads face culling skipped since the last call of `takeFaceSkippedPercent`, for the benchmark log. `cameraResult` counts per frame whether the camera result was current, widened, missing, too old or out of reach (`CameraResult`, `takeCameraResults`).
+- Depends on: nothing.
+
+#### CameraResult, CameraResultCounts
+- Path: `src/main/java/com/aryston/aervium/core/culling/CameraResult.java`, `src/main/java/com/aryston/aervium/core/culling/CameraResultCounts.java`
+- Role: What a frame's camera culling could use (the current result, a widened older result, none, a result more than 6 frames and 60 ms old, or one whose eye is beyond 8 blocks) and the counts per scene for the benchmark log; every missing result means every section is drawn that frame.
+- Depends on: nothing.
+
+#### TileMask
+- Path: `src/main/java/com/aryston/aervium/core/culling/TileMask.java`
+- Role: One flag per 8 x 8 raster tile, reused between frames: marks the tile ranges of changed shadow occluders and answers whether a range touches a marked tile (or everything is marked).
 - Depends on: nothing.
 
 ### `com.aryston.aervium.core.mesh`
+
+#### CompactVertexEncoder
+- Path: `src/main/java/com/aryston/aervium/core/mesh/CompactVertexEncoder.java`
+- Role: Rewrites a finished chunk layer mesh in place from the vanilla 28-byte block vertex into the 16-byte compact vertex, front to back so no unread vertex is overwritten: position as three unsigned shorts in 1/2048 block steps over -8 to +24 blocks of the section with block light in the low and sky light in the high byte of a fourth short, the color unchanged, texture coordinates as two unsigned shorts over 65536. Texture coordinates that are not on the 1/65536 grid round toward the inside of their quad, so a face never samples the neighbouring sprite. Positions outside the range are moved to its edge and counted.
+- Notes: Per-thread instance (`encodeInPlace`), runs on the chunk build workers. Vanilla models reach at most one block outside their block, so the range is never left by vanilla content; coordinates on the 1/16 model grid and on a power-of-two atlas are exact.
+- Depends on: nothing.
 
 #### FacingSort
 - Path: `src/main/java/com/aryston/aervium/core/mesh/FacingSort.java`
@@ -284,12 +301,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### OptimizationModule
 - Path: `src/main/java/com/aryston/aervium/core/module/OptimizationModule.java`
-- Role: Optimizations that are switched on or off before the game starts, with their key in `config/aervium-modules.properties` and whether they touch the renderer (off when Sodium or Iris is installed).
+- Role: Optimizations that are switched on or off before the game starts, with their key in `config/aervium-modules.properties`, their default and whether they touch the renderer (off when Sodium or Iris is installed).
 - Depends on: nothing.
 
 #### ModuleSettings
 - Path: `src/main/java/com/aryston/aervium/core/module/ModuleSettings.java`
-- Role: Reads `key=true|false` lines (unknown lines are ignored, every module defaults to on) and writes every module back so players see all switches.
+- Role: Reads `key=true|false` lines (unknown lines are ignored, a missing line takes the module default) and writes every module back so players see all switches.
 - Depends on: `OptimizationModule`.
 
 ### `com.aryston.aervium.core.collection`
@@ -617,6 +634,22 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Notes: In single player the shared background pool also generates, loads and saves chunks for the integrated server, so chunk builds waited behind world generation while flying; vanilla still picks the nearest section first.
 - Depends on: `JobSystem`, `JobLoadMeter`.
 
+#### CompactTerrainFormat
+- Path: `src/main/java/com/aryston/aervium/client/chunk/CompactTerrainFormat.java`
+- Role: The 16-byte compact terrain vertex format (`PositionLight` RGBA16_UINT, `Color` RGBA8_UNORM, `PackedUV0` RG16_UINT), the shader define contract `AERVIUM_COMPACT_VERTICES=1`, the vanilla pipelines that get it (solid and cutout terrain, direct and multi-draw) and `apply`, which gives a pipeline builder the format, the define and the vertex shader `aervium:terrain/compact`.
+- Notes: Module `compactVertices`. Loaded inside the static setup of `RenderPipelines`, so it touches no chunk class (lesson L-087). Translucent terrain keeps the block format, because vanilla sorts translucent quads from their float positions.
+- Depends on: nothing of this mod.
+
+#### CompactMeshUpload, CompactMeshHolder
+- Path: `src/main/java/com/aryston/aervium/client/chunk/CompactMeshUpload.java`, `src/main/java/com/aryston/aervium/client/chunk/CompactMeshHolder.java`
+- Role: `buildFormat` keeps chunk builds in the vanilla block format (so face sorting and NeoForge geometry renderers see vanilla data); `uploadView` encodes a compact layer's mesh once (`CompactMeshHolder` marks the `MeshData`, because vanilla retries the upload while the staging buffer is full) and hands the upload a view of 16 bytes per vertex. Warns once per session when a mesh had vertices outside the compact range.
+- Depends on: `CompactTerrainFormat`, `CompactVertexEncoder`.
+
+#### CompactWireframe
+- Path: `src/main/java/com/aryston/aervium/client/chunk/CompactWireframe.java`
+- Role: Compact copies of the vanilla wireframe debug pipelines, used for the opaque layer group so the wireframe view still reads compact meshes.
+- Depends on: `CompactTerrainFormat`.
+
 #### SectionLayers
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionLayers.java`
 - Role: One shared `ChunkSectionLayer.values()` array.
@@ -626,9 +659,15 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### TerrainOcclusion
 - Path: `src/main/java/com/aryston/aervium/client/culling/TerrainOcclusion.java`
-- Role: Occlusion culling for terrain and the camera raster that entity culling shares. `prepareCamera` runs once per frame before entities are extracted and never waits: it takes the camera pass the worker finished (`OcclusionPipeline`), stamps every section that pass hid with the pass generation (`CameraOcclusionHolder`), uses the result this frame when the eye is still within its reach and it is at most 6 frames old, and then copies the visible sections (origin, occluder boxes, fully faded in) into the free frame and submits it. The reach is 0.125 blocks plus three times the distance the eye moved since the last frame, at most 4 blocks; test boxes grow by it, and a result is dropped once the eye leaves it. The camera raster uses a projection 25 % wider than the screen and treats boxes reaching past its edge as visible, so turning the camera cannot reveal a section the pass hid. `cullsCameraSections` and `hiddenFromCamera` let `SectionDrawLists` skip hidden sections; sections not in the pass are never hidden. The frame counter advances at `RenderFrameEvent.Post`, because vanilla extracts a frame before `RenderFrameEvent.Pre` fires. `beginTerrainPass` marks a `prepareChunkRenders` call as the camera pass when its matrix equals the camera's view rotation (vanilla and Helion both pass a copy of it; Helion's shadow cascades pass the light view). `filterShadowCasters` removes casters the light cannot reach, one orthographic pass per shadow cascade in light space (up to 8 cascades). Each cascade has its own `OcclusionPipeline` on the `Aervium Shadow Culling` worker: the render thread only hashes the cascade (light direction, section list, every mesh, fade state), copies a changed cascade into the free frame and submits it, and applies a finished result only while that hash still matches, so a result is exactly the one the render thread used to compute and nothing visible is dropped. While the cascade changes every frame (walking, flying) no result matches and every caster stays.
+- Role: Occlusion culling for terrain and the camera raster that entity culling shares. `prepareCamera` runs once per frame before entities are extracted and never waits: it takes the camera pass the worker finished (`OcclusionPipeline`), stamps every section that pass hid with the pass generation (`CameraOcclusionHolder`), uses the result this frame unless it is both more than 6 frames and more than 60 ms old (so high frame rates do not age results out early) and while the eye is still within its reach (or widens it to the eye, up to 8 blocks, with `Frame.widen` instead of drawing every section), and then copies the visible sections (origin, occluder boxes, fully faded in) into the free frame and submits it. The reach is 0.125 blocks plus three times the distance the eye moved since the last frame, at most 4 blocks; test boxes grow by it. The camera raster uses a projection 25 % wider than the screen and treats boxes reaching past its edge as visible, so turning the camera cannot reveal a section the pass hid. `cullsCameraSections` and `hiddenFromCamera` let `SectionDrawLists` skip hidden sections; sections not in the pass are never hidden. The frame counter advances at `RenderFrameEvent.Post`, because vanilla extracts a frame before `RenderFrameEvent.Pre` fires. `beginTerrainPass` marks a `prepareChunkRenders` call as the camera pass when its matrix equals the camera's view rotation (vanilla and Helion both pass a copy of it; Helion's shadow cascades pass the light view). `filterShadowCasters` removes casters the light cannot reach, one orthographic pass per shadow cascade in light space (up to 8 cascades). Each cascade is a `ShadowCascadeCulling` on the `Aervium Shadow Culling` worker, matched by section position so results stay usable while the camera moves.
 - Notes: Sections still fading in never occlude. The camera pass runs on the single `Aervium Culling` worker; the render thread part (copies, stamps, cascade hashes) shows as `Occlusion culling` in the overlay, the worker time as `worker` in the culling line. F6 and `occlusionCulling` in the client config switch it at runtime; switching it off drops the result in flight.
-- Depends on: `OcclusionPipeline`, `OcclusionPass`, `DepthRaster`, `ClipMatrix`, `CullingStatistics`, `JobSystem`, `CameraOcclusionHolder`, `OccluderHolder`, `CompiledSectionMeshVisibilityAccessor`.
+- Depends on: `OcclusionPipeline`, `OcclusionPass`, `DepthRaster`, `ClipMatrix`, `CullingStatistics`, `JobSystem`, `CameraOcclusionHolder`, `OccluderHolder`, `CompiledSectionMeshVisibilityAccessor`, `ShadowCascadeCulling`, `CameraResult`.
+
+#### ShadowCascadeCulling
+- Path: `src/main/java/com/aryston/aervium/client/culling/ShadowCascadeCulling.java`
+- Role: Occlusion culling of one Helion shadow cascade on the `Aervium Shadow Culling` worker. Per frame it hashes the light direction and the cascade (section, occluder boxes, fade state) and submits a changed cascade; a finished result is matched to the current list by section position (`Long2IntOpenHashMap`), not by list order. While the light direction is unchanged, a caster the result hid is dropped unless it changed itself or an occluder that left the list or changed covers one of its raster tiles, so results stay usable while the camera moves and the cascade gains and loses sections at its edges.
+- Notes: Removing a caster is lossless because the shadow map keeps only the nearest depth and the occluders in front of it are still drawn. New sections are never hidden.
+- Depends on: `OcclusionPipeline`, `TerrainOcclusion`.
 
 #### EntityOcclusion
 - Path: `src/main/java/com/aryston/aervium/client/culling/EntityOcclusion.java`
@@ -931,6 +970,31 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Pseudo mixin on Helion's `VanillaShadowCasterSource.collectSections`; filters the returned per-cascade caster lists with `HelionShadowCasters`.
 - Notes: Module `occlusionCulling`. Optional (`require = 0`): without Helion nothing is applied. Lossless: a caster the light cannot see is behind other casters in the same cascade, which already write a nearer depth into that shadow map.
 
+#### RenderPipelineBuilderCompactMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/RenderPipelineBuilderCompactMixin.java`
+- Role: At `RenderPipeline.Builder.build`, gives the vanilla solid and cutout terrain pipelines the compact vertex format, define and vertex shader (`CompactTerrainFormat.apply`).
+- Notes: Module `compactVertices`. No API: the chunk buffers take their vertex size from `ChunkSectionLayer.pipeline(false)`, a static vanilla pipeline built in the static setup of `RenderPipelines`; NeoForge pipeline modifiers only swap pipelines at draw time, after the buffers were sized. Helion's geometry pipelines inherit the change through `toBuilder()`.
+
+#### SectionCompilerCompactMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/SectionCompilerCompactMixin.java`
+- Role: In `SectionCompiler.getOrBeginLayer`, builds compact layers in the vanilla block format (`CompactMeshUpload.buildFormat`), because the vertex consumers only write the block format.
+- Notes: Module `compactVertices`. No API for the builder format of a chunk layer.
+
+#### CompileTaskCompactMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/CompileTaskCompactMixin.java`
+- Role: Wraps the upload of each layer in `SectionRenderDispatcher.RenderSection.CompileTask.doTask` and hands it the compact view of the mesh (`CompactMeshUpload.uploadView`).
+- Notes: Module `compactVertices`. Runs after `CompiledSectionMesh` was created, so face culling has sorted the float positions already. No API between the mesh build and the upload.
+
+#### MeshDataCompactMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/MeshDataCompactMixin.java`
+- Role: Adds `CompactMeshHolder` to `MeshData`: whether its vertices were encoded already.
+- Notes: Module `compactVertices`.
+
+#### ChunkSectionsToRenderCompactMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ChunkSectionsToRenderCompactMixin.java`
+- Role: In `ChunkSectionsToRender.renderGroup`, replaces the wireframe debug pipelines of the opaque group with `CompactWireframe`.
+- Notes: Module `compactVertices`. The override pipelines are chosen inside `renderGroup` with no hook.
+
 #### DataLayerStorageMapMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/DataLayerStorageMapMixin.java`
 - Role: Follows every write of a light storage map (`setLayer`, `copyDataLayer`, `removeLayer`) in a `ShardedLongMapBuilder` and implements `LightSnapshotSource`; the builder starts at the first copy, and a map that already is a snapshot returns itself.
@@ -957,8 +1021,10 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/culling/OpaqueMaskTest.java` | Empty and sparse sections give no boxes, a solid section is one box, a cave pocket splits into a few boxes with the exact volume, boxes only ever cover opaque blocks. |
 | `src/test/java/com/aryston/aervium/core/culling/VoxelRayTest.java` | Rays through open air, blocked by an opaque block, start block ignored, diagonal rays visit every crossed block, box entry parameter. |
 | `src/test/java/com/aryston/aervium/core/mesh/FacingSortTest.java` | Quads are grouped by facing with their bytes intact and slanted quads first; the winding of Minecraft's up face counts as up; groups behind the eye by more than the margin are skipped and both sides stay when the eye is between the planes. |
-| `src/test/java/com/aryston/aervium/core/culling/OcclusionPipelineTest.java` | A camera pass arrives one frame later and `begin` never blocks while one is in flight; `clear` drops the result in flight; `covers` accepts only eyes within the reach; the worker result equals the same `OcclusionPass` run directly. |
-| `src/test/java/com/aryston/aervium/core/culling/CullingStatisticsTest.java` | The shadow caster share for the benchmark log sums every cascade of a frame and every frame since the last take, and resets when taken. |
+| `src/test/java/com/aryston/aervium/core/culling/OcclusionPipelineTest.java` | A camera pass arrives one frame later and `begin` never blocks while one is in flight; `clear` drops the result in flight; `covers` accepts only eyes within the reach; the worker result equals the same `OcclusionPass` run directly; widening reaches farther eyes and only reveals sections; a changed occluder in front reveals the section behind it while a far one does not; only the same boxes and fade state count as unchanged. |
+| `src/test/java/com/aryston/aervium/core/culling/TileMaskTest.java` | Ranges touching a marked tile, marking everything, clearing. |
+| `src/test/java/com/aryston/aervium/core/mesh/CompactVertexEncoderTest.java` | Positions, color and texture coordinates on the model grid decode back exactly; block and sky light packing; positions outside the range are clamped and counted; off-grid texture edges round toward the inside of the quad; the far atlas edge stays in range. |
+| `src/test/java/com/aryston/aervium/core/culling/CullingStatisticsTest.java` | The shadow caster share for the benchmark log sums every cascade of a frame and every frame since the last take, and resets when taken; camera result counts per frame since the last take. |
 | `src/test/java/com/aryston/aervium/core/culling/OcclusionPassTest.java` | A solid wall of sections hides the sections behind it and none of its own; sections that may not occlude hide nothing; `depthFromW` keeps depth order. |
 | `src/test/java/com/aryston/aervium/core/collection/ShardedLongMapTest.java` | Snapshot equals the source, published snapshots never change, random writes against a plain map, read-only behavior. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcAdviceTest.java` | Collector recognition from bean names, advice for G1 and for a small heap. |
@@ -977,7 +1043,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/cache/ShaderCacheKeyTest.java` | Direct and transitive includes (with a cycle), stable keys for reordered defines, a new key for every change that affects the binary (defines, flags, device switches, include content). |
 | `src/test/java/com/aryston/aervium/core/cache/CacheFilesTest.java` | Disk cache round trip without leftover temporary files, existing entries kept, eight concurrent writers and readers of one key, SPIR-V validation, pipeline cache header checks, cache counters. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameRatePolicyTest.java` | Active, background and paused limits, never above a lower vanilla limit, disabled policy. |
-| `src/test/java/com/aryston/aervium/core/module/ModuleSettingsTest.java` | Modules default to on, switched-off and unknown lines, every module written back. |
+| `src/test/java/com/aryston/aervium/core/module/ModuleSettingsTest.java` | Modules default to their own default (on, `compactVertices` off), switched-off and unknown lines, every module written back. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkCommandsTest.java` | Crowd size and distinct positions, build order of the redstone platform, every fill within the vanilla volume limit, frozen time and weather. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/SceneMeasurementTest.java` | Only frames after the scene start count, peaks of heap and VRAM, frames lost from a full ring. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkReportTest.java` | Comparison percentages, JSON round trip, newest report by start time, missing folder, text report content. |
@@ -988,13 +1054,14 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client. |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`). |
 
 ## Asset Folders
 
 | Folder | Contents |
 |---|---|
 | `src/main/resources/assets/aervium/lang/` | `en_us.json` and `tr_tr.json`: key binding and config texts. |
+| `src/main/resources/assets/aervium/shaders/terrain/` | `compact.vsh`: the vanilla `core/terrain` vertex shader reading the compact vertex format (module `compactVertices`); the fragment shader stays vanilla. |
 
 ## Build Files
 

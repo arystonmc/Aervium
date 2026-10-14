@@ -25,6 +25,8 @@
     "ThreadedLevelLightEngineTimingMixin"
   ],
   "client": [
+    "ChunkSectionsToRenderCompactMixin",
+    "CompileTaskCompactMixin",
     "CompiledSectionMeshFacingMixin",
     "CompiledSectionMeshMixin",
     "CompiledSectionMeshVisibilityAccessor",
@@ -34,6 +36,7 @@
     "LevelRendererMeshWorkersMixin",
     "LevelRendererOcclusionMixin",
     "LevelRendererSectionSliceMixin",
+    "MeshDataCompactMixin",
     "UberGpuBufferMixin",
     "FramerateLimitTrackerMixin",
     "ModelBlockRendererLeafCullingMixin",
@@ -43,9 +46,11 @@
     "ParticleAccessor",
     "PipelineCacheMixin",
     "QuadParticleGroupOcclusionMixin",
+    "RenderPipelineBuilderCompactMixin",
     "RenderSectionMixin",
     "RenderSectionOcclusionMixin",
     "SectionRenderDispatcherTimingMixin",
+    "SectionCompilerCompactMixin",
     "RenderSystemMixin",
     "VisGraphMixin",
     "VisibilitySetMixin",
