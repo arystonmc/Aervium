@@ -118,6 +118,23 @@ Hoppers waiting for items stop searching for entities that are not there.
 - Module `hopperSearch`
 - Since: 0.1
 
+### Parallel World Generation
+New chunks get their trees, ores and plants on several threads at once.
+
+- Vanilla builds the terrain of new chunks in parallel but places every feature (trees, ores, flowers, structure pieces) one chunk after another on a single thread, which limits how fast new land appears while flying or exploring
+- Aervium places features of chunks that cannot touch each other at the same time; chunks whose feature areas overlap still wait for each other, just as vanilla lets a feature write only into the 3 x 3 chunks around its own
+- Measured on Can's PC with a dedicated server: 625 new chunks in 4.8 s instead of 6.3 s, 2401 chunks in 11.1 s instead of 15.3 s (27 % faster); the terrain is identical to vanilla; where the features of two neighbouring chunks overlap, which one lands first varies from run to run, as it already does in vanilla
+- Module `parallelFeatures`
+- Since: 0.1
+
+### Faster Packet Compression
+Servers compress what they send to players about twice as fast.
+
+- On servers and LAN worlds, packets larger than the compression threshold are compressed with zlib level 4 instead of vanilla's level 6; players with or without Aervium connect as before
+- Measured on Can's PC with 1024 real chunks (45 MB): 834 ms to 399 ms (2.1 times faster) for 4.4 % more bytes; singleplayer worlds never compress, so nothing changes there
+- Module `networkCompression`
+- Since: 0.1
+
 ### Occlusion Culling
 Skips terrain you cannot see because solid blocks are in the way.
 
@@ -175,6 +192,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`) with `true` or `false`; changes apply at the next start; `compactVertices` starts off, every other module on
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`) with `true` or `false`; changes apply at the next start; `compactVertices` starts off, every other module on
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

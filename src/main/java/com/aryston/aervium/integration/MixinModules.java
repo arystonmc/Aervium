@@ -61,7 +61,9 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("SectionCompilerCompactMixin", OptimizationModule.COMPACT_VERTICES),
         Map.entry("CompileTaskCompactMixin", OptimizationModule.COMPACT_VERTICES),
         Map.entry("MeshDataCompactMixin", OptimizationModule.COMPACT_VERTICES),
-        Map.entry("ChunkSectionsToRenderCompactMixin", OptimizationModule.COMPACT_VERTICES)
+        Map.entry("ChunkSectionsToRenderCompactMixin", OptimizationModule.COMPACT_VERTICES),
+        Map.entry("CompressionEncoderLevelMixin", OptimizationModule.NETWORK_COMPRESSION),
+        Map.entry("ChunkStatusTasksFeaturesMixin", OptimizationModule.PARALLEL_FEATURES)
     );
 
     private static final String HELION_MOD_ID = "helion";

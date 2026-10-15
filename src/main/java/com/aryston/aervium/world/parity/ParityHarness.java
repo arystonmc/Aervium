@@ -4,6 +4,7 @@ import com.aryston.aervium.Aervium;
 import com.aryston.aervium.core.parity.StateHash;
 import com.aryston.aervium.mixin.LevelRandomAccessor;
 import com.aryston.aervium.world.light.ServerLightTimings;
+import com.aryston.aervium.world.network.CompressionCheck;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -65,6 +66,7 @@ public final class ParityHarness {
         rules.set(GameRules.ADVANCE_TIME, false, server);
         rules.set(GameRules.ADVANCE_WEATHER, false, server);
         rules.set(GameRules.SPAWN_MOBS, false, server);
+        CompressionCheck.run();
         forEachChunk((chunkX, chunkZ) -> level.setChunkForced(chunkX, chunkZ, true));
         int forceRadius = Integer.getInteger(FORCE_RADIUS_PROPERTY, 0);
         for (int chunkX = -forceRadius; chunkX <= forceRadius; chunkX++) {

@@ -27,6 +27,8 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Faster point of interest searches (villager beds, job sites) | `ColumnIndexedLongMap`, `PoiColumns`, `PoiAudit`, `SectionStoragePoiIndexMixin`, `SectionStorageAccessor`, `PoiManagerColumnSearchMixin` |
 | Entity collision search skip (sections without boats, shulkers, happy ghasts) | `CollidableEntities`, `CollisionAudit`, `EntitySectionCollidableMixin`, `PersistentEntitySectionManagerAccessor`, `ServerLevelEntityCollisionsMixin` |
 | Idle hopper entity search skip (sections without items or item-holding entities) | `HopperEntities`, `HopperAudit`, `SectionCounts`, `EntitySectionHopperMixin`, `ServerLevelEntityManagerAccessor`, `EntityCapabilityAccessor`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin` |
+| Faster packet compression on servers (level 4 instead of 6) | `PacketCompression`, `CompressionCheck`, `CompressionEncoderLevelMixin` |
+| Parallel feature generation (trees, ores, plants on several threads) | `ParallelFeatures`, `RegionLocks`, `JobSystem`, `ChunkStatusTasksFeaturesMixin` |
 | Crash report entry (modules on, Aervium code in the crash) | `CrashSummary`, `CrashReportSection`, `CrashReportMixin`, `MixinModules` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
 | Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
@@ -327,6 +329,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 #### JobSystem
 - Path: `src/main/java/com/aryston/aervium/core/job/JobSystem.java`
 - Role: Work-stealing worker pool (`ForkJoinPool` in async mode) with named daemon threads, below normal priority unless a priority is given; `defaultWorkers` leaves two cores to the game threads and caps at eight. `service()` is an `ExecutorService` view whose jobs are counted and timed (`timedJobs`, `busyNanos`).
+- Depends on: nothing.
+
+#### RegionLocks
+- Path: `src/main/java/com/aryston/aervium/core/job/RegionLocks.java`
+- Role: Square regions of grid cells that threads hold exclusively: `acquire` waits until no cell of the region is held by another holder and takes them all at once (so two holders never deadlock), `release` frees them and wakes the waiters.
 - Depends on: nothing.
 
 #### JobLoadMeter
@@ -865,6 +872,16 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Adds the "Aervium" entry from `CrashReportSection` to the system report once per crash report, at the start of `getDetails`.
 - Notes: Not tied to a module.
 
+#### ParallelFeatures
+- Path: `src/main/java/com/aryston/aervium/world/worldgen/ParallelFeatures.java`
+- Role: Runs the feature step of a chunk (trees, ores, plants, structure pieces) on the `Aervium Worldgen` job system instead of vanilla's single `worldgen` executor. Each step holds the 3 x 3 chunks around its chunk in `RegionLocks`, the radius vanilla lets a feature step write (`blockStateWriteRadius(1)`), so two steps that could touch the same chunk never run at once.
+- Depends on: `JobSystem`, `RegionLocks`.
+
+#### ChunkStatusTasksFeaturesMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ChunkStatusTasksFeaturesMixin.java`
+- Role: Wraps `ChunkStatusTasks.generateFeatures` (`@WrapMethod`) and returns the future of `ParallelFeatures.place`; the vanilla body runs unchanged on the worker.
+- Notes: Module `parallelFeatures`. The step is a static method of the generation pyramid and has no event.
+
 #### ChunkStatusTasksTerrainMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/ChunkStatusTasksTerrainMixin.java`
 - Role: While `WorldgenCheck` records, chains `WorldgenCheck.terrainBuilt` onto the future `ChunkStatusTasks.buildTerrain` returns.
@@ -939,6 +956,16 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/mixin/HopperBlockEntityItemSearchMixin.java`, `src/main/java/com/aryston/aervium/mixin/HopperEntityContainerSearchMixin.java`
 - Role: At the head of `HopperBlockEntity.getItemsAtAndAbove` and NeoForge `VanillaInventoryCodeHooks.getEntityContainerOrHandler`, return an empty result when the section counts show nothing to find; with the audit on they let vanilla run and check its result at return.
 - Notes: Module `hopperSearch`.
+
+#### PacketCompression, CompressionCheck
+- Path: `src/main/java/com/aryston/aervium/world/network/PacketCompression.java`, `src/main/java/com/aryston/aervium/world/network/CompressionCheck.java`
+- Role: `PacketCompression` creates the deflater of a connection at level 4. `CompressionCheck` runs at the start of the parity run: it sends a 128 KB packet through a real `CompressionEncoder` and `CompressionDecoder` (with the module's mixin applied when it is on) and logs whether the bytes came back identical and the compressed size.
+- Depends on: nothing.
+
+#### CompressionEncoderLevelMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/CompressionEncoderLevelMixin.java`
+- Role: Replaces the `new Deflater()` (level 6) in the `CompressionEncoder` constructor with `PacketCompression.newDeflater()`. Only network bytes change: the client inflates any level, and the decompressed packets are the same.
+- Notes: Module `networkCompression`. Vanilla offers no way to choose the compression level.
 
 #### EntityCapabilityAccessor
 - Path: `src/main/java/com/aryston/aervium/mixin/EntityCapabilityAccessor.java`
@@ -1038,6 +1065,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/budget/SystemTimingsTest.java` | Smoothing, peaks reset on sampling, over budget flags. |
 | `src/test/java/com/aryston/aervium/core/job/JobSystemTest.java` | Worker count rule, every job runs on named workers, no jobs after closing. |
 | `src/test/java/com/aryston/aervium/core/job/JobLoadMeterTest.java` | Timed service counts jobs and busy time, jobs per second and busy share, empty interval, no jobs after closing. |
+| `src/test/java/com/aryston/aervium/core/job/RegionLocksTest.java` | Separate regions are held together, an overlapping region waits for the release, and eight threads taking random overlapping regions never hold the same cell at once. |
 | `src/test/java/com/aryston/aervium/core/job/MainThreadQueueTest.java` | Order, time budget, at least one task per drain. |
 | `src/test/java/com/aryston/aervium/debug/route/CameraPathTest.java` | Lines move along their yaw; orbits keep their radius and height, look at the center and close after one turn. |
 | `src/test/java/com/aryston/aervium/core/cache/ShaderCacheKeyTest.java` | Direct and transitive includes (with a cycle), stable keys for reordered defines, a new key for every change that affects the binary (defines, flags, device switches, include content). |
@@ -1047,6 +1075,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkCommandsTest.java` | Crowd size and distinct positions, build order of the redstone platform, every fill within the vanilla volume limit, frozen time and weather. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/SceneMeasurementTest.java` | Only frames after the scene start count, peaks of heap and VRAM, frames lost from a full ring. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkReportTest.java` | Comparison percentages, JSON round trip, newest report by start time, missing folder, text report content. |
+| `src/test/java/com/aryston/aervium/world/network/PacketCompressionTest.java` | Packets compressed at the faster level inflate to the same bytes and stay within 10 % of the vanilla size. |
 
 ## Source Files
 
@@ -1054,7 +1083,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`). |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksFeaturesMixin`, `ChunkStatusTasksTerrainMixin`, `CompressionEncoderLevelMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`). |
 
 ## Asset Folders
 

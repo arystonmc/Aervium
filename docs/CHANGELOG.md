@@ -7,6 +7,8 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
+- New chunks get their trees, ores and plants on several threads, so new land appears about a quarter faster
+- Servers compress packets twice as fast for a few percent more network traffic
 - Optional compact chunk vertices: terrain takes 16 instead of 28 bytes per vertex, for less video memory and faster drawing (off by default)
 - Occlusion culling, including the check for Helion shadows, runs on background threads instead of the main thread
 - Block faces turned away from the camera are no longer sent to the graphics card

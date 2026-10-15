@@ -5,7 +5,9 @@
   "plugin": "com.aryston.aervium.integration.MixinModules",
   "mixins": [
     "BlockDataLayerStorageMapMixin",
+    "ChunkStatusTasksFeaturesMixin",
     "ChunkStatusTasksTerrainMixin",
+    "CompressionEncoderLevelMixin",
     "CrashReportMixin",
     "DataLayerStorageMapMixin",
     "EntityCapabilityAccessor",

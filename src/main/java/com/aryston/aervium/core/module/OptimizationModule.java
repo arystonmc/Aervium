@@ -13,7 +13,9 @@ public enum OptimizationModule {
     POI_SEARCH("poiSearch", false),
     ENTITY_COLLISIONS("entityCollisions", false),
     HOPPER_SEARCH("hopperSearch", false),
-    COMPACT_VERTICES("compactVertices", true, false);
+    COMPACT_VERTICES("compactVertices", true, false),
+    NETWORK_COMPRESSION("networkCompression", false),
+    PARALLEL_FEATURES("parallelFeatures", false);
 
     private final String key;
     private final boolean renderer;
