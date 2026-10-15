@@ -18,6 +18,8 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
 
 public final class SectionDrawLists {
     private static final int INDICES_PER_QUAD = 6;
+    private static final int ORDERED_GROUP_CAPACITY = 16;
+    private static final int DRAWS_PER_SECTION = 2;
 
     private SectionDrawLists() {
     }
@@ -50,7 +52,7 @@ public final class SectionDrawLists {
                 continue;
             }
             SectionDrawRecordHolder holder = (SectionDrawRecordHolder) section;
-            int meshVersion = holder.aervium$meshVersion();
+            int meshVersion = ((MeshVersionHolder) section).aervium$meshVersion();
             SectionDrawRecord record = holder.aervium$drawRecord();
             if (record == null || !record.isFor(meshVersion)) {
                 SectionMesh mesh = section.getSectionMesh();
@@ -79,7 +81,8 @@ public final class SectionDrawLists {
                 ChunkSectionLayer layer = SectionLayers.ALL[packed[offset + SectionDrawRecord.LAYER]];
                 int groupHash = packed[offset + SectionDrawRecord.GROUP_HASH];
                 LevelRenderer.ChunkDrawGroup drawGroup = null;
-                if (layer.translucent() && respectTranslucentOrder) {
+                boolean ordered = layer.translucent() && respectTranslucentOrder;
+                if (ordered) {
                     if (groupHash == lastTransparentGroupHash) {
                         drawGroup = drawGroups.get(layer).getLast();
                     }
@@ -91,7 +94,7 @@ public final class SectionDrawLists {
                     LayerDraw draw = record.draws[slot];
                     GpuBuffer indexBuffer = draw.indexBuffer();
                     drawGroup = new LevelRenderer.ChunkDrawGroup(
-                        draw.vertexBuffer().slice(), indexBuffer != null ? indexBuffer.slice() : null, draw.indexType(), new ArrayList<>()
+                        draw.vertexBuffer().slice(), indexBuffer != null ? indexBuffer.slice() : null, draw.indexType(), new ArrayList<>(ordered ? ORDERED_GROUP_CAPACITY : size * DRAWS_PER_SECTION)
                     );
                     drawGroupCache.put(groupHash, drawGroup);
                     drawGroups.get(layer).add(drawGroup);

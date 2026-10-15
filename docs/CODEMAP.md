@@ -711,7 +711,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### CameraOcclusionHolder
 - Path: `src/main/java/com/aryston/aervium/client/culling/CameraOcclusionHolder.java`
-- Role: Interface `RenderSectionOcclusionMixin` adds to `SectionRenderDispatcher.RenderSection`: the generation of the last camera pass that hid the section.
+- Role: Interface `RenderSectionOcclusionMixin` adds to `SectionRenderDispatcher.RenderSection`: the generation of the last camera pass that hid the section, and its occluder boxes cached for a mesh version (`TerrainOcclusion.occluders(section)` reads mesh and visibility set only when the version changed).
 - Depends on: nothing.
 
 ### `com.aryston.aervium.client.pipeline`
@@ -815,12 +815,17 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### RenderSectionMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/RenderSectionMixin.java`
-- Role: Implements `SectionDrawRecordHolder` on `SectionRenderDispatcher.RenderSection` and gives the section a new mesh version from `SectionDrawRecord.nextMeshVersion` right after `setSectionMesh` and `reset` swap its mesh, so the draw list checks a field of the section instead of reading the mesh through its `AtomicReference`. Versions are unique, so a lost write between two threads still never matches an older record.
+- Role: Implements `SectionDrawRecordHolder` on `SectionRenderDispatcher.RenderSection`.
 - Notes: Module `sectionSliceCache`.
+
+#### RenderSectionMeshVersionMixin, MeshVersionHolder
+- Path: `src/main/java/com/aryston/aervium/mixin/RenderSectionMeshVersionMixin.java`, `src/main/java/com/aryston/aervium/client/chunk/MeshVersionHolder.java`
+- Role: Gives each section a new mesh version from `SectionDrawRecord.nextMeshVersion` right after `setSectionMesh` and `reset` swap its mesh, so the draw list and the occlusion snapshots check a field of the section instead of reading the mesh through its `AtomicReference` every frame. Versions are unique, so a lost write between two threads never matches an older cached value, and a reader that reads the version before the mesh never keeps a stale mesh.
+- Notes: Belongs to no module and always applies, because draw records (`sectionSliceCache`) and cached occluders (`occlusionCulling`) both depend on it.
 
 #### RenderSectionOcclusionMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/RenderSectionOcclusionMixin.java`
-- Role: Implements `CameraOcclusionHolder` on `SectionRenderDispatcher.RenderSection` with one int field.
+- Role: Implements `CameraOcclusionHolder` on `SectionRenderDispatcher.RenderSection`: the generation that hid the section and the section's occluder boxes cached for one mesh version.
 - Notes: Module `occlusionCulling`.
 
 #### CompiledSectionMeshMixin
@@ -1095,7 +1100,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CompressionEncoderLevelMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `ChunkStatusTasksFeaturesMixin` on dedicated servers only (module `parallelFeatures`); `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorBlockEntitiesMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionBlockEntityMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`). |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CompressionEncoderLevelMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `ChunkStatusTasksFeaturesMixin` on dedicated servers only (module `parallelFeatures`); `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorBlockEntitiesMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionBlockEntityMixin`, `RenderSectionMeshVersionMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`). |
 
 ## Asset Folders
 

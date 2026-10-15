@@ -53,6 +53,7 @@
     "QuadParticleGroupOcclusionMixin",
     "RenderPipelineBuilderCompactMixin",
     "RenderSectionBlockEntityMixin",
+    "RenderSectionMeshVersionMixin",
     "RenderSectionMixin",
     "RenderSectionOcclusionMixin",
     "SectionRenderDispatcherTimingMixin",

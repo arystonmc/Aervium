@@ -81,7 +81,7 @@ final class ShadowCascadeCulling {
         long hash = mix(light, size);
         for (int position = 0; position < size; position++) {
             SectionRenderDispatcher.RenderSection section = sections.get(position);
-            OccluderBoxes boxes = TerrainOcclusion.occluders(section.getSectionMesh());
+            OccluderBoxes boxes = TerrainOcclusion.occluders(section);
             boolean occluder = section.getVisibility(now, fadeDuration) >= TerrainOcclusion.FULLY_FADED_IN;
             long node = section.getSectionNode();
             hash = mix(mix(mix(hash, node), System.identityHashCode(boxes)), occluder ? 1 : 0);

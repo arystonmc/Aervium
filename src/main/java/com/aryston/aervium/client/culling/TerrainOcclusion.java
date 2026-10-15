@@ -11,6 +11,7 @@ import com.aryston.aervium.core.culling.OccluderBoxes;
 import com.aryston.aervium.core.culling.OcclusionPass;
 import com.aryston.aervium.core.culling.OcclusionPipeline;
 import com.aryston.aervium.core.job.JobSystem;
+import com.aryston.aervium.client.chunk.MeshVersionHolder;
 import com.aryston.aervium.mixin.CompiledSectionMeshVisibilityAccessor;
 import java.util.List;
 import net.minecraft.client.renderer.chunk.CompiledSectionMesh;
@@ -236,7 +237,7 @@ public final class TerrainOcclusion {
                 origin.getX(),
                 origin.getY(),
                 origin.getZ(),
-                occluders(section.getSectionMesh()),
+                occluders(section),
                 section.getVisibility(now, sectionFadeDuration) >= FULLY_FADED_IN
             );
         }
@@ -296,7 +297,7 @@ public final class TerrainOcclusion {
                 origin.getX(),
                 origin.getY(),
                 origin.getZ(),
-                occluders(section.getSectionMesh()),
+                occluders(section),
                 section.getVisibility(now, fadeDuration) >= FULLY_FADED_IN
             );
         }
@@ -316,7 +317,19 @@ public final class TerrainOcclusion {
         return cascades;
     }
 
-    static OccluderBoxes occluders(SectionMesh mesh) {
+    static OccluderBoxes occluders(SectionRenderDispatcher.RenderSection section) {
+        int meshVersion = ((MeshVersionHolder) section).aervium$meshVersion();
+        CameraOcclusionHolder holder = (CameraOcclusionHolder) section;
+        OccluderBoxes cached = holder.aervium$occludersFor(meshVersion);
+        if (cached != null) {
+            return cached;
+        }
+        OccluderBoxes boxes = occluders(section.getSectionMesh());
+        holder.aervium$cacheOccluders(boxes, meshVersion);
+        return boxes;
+    }
+
+    private static OccluderBoxes occluders(SectionMesh mesh) {
         if (mesh instanceof CompiledSectionMesh compiled) {
             return ((OccluderHolder) ((CompiledSectionMeshVisibilityAccessor) compiled).aervium$visibilitySet()).aervium$occluders();
         }
