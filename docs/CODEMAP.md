@@ -296,7 +296,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### FaceRanges
 - Path: `src/main/java/com/aryston/aervium/core/mesh/FaceRanges.java`
-- Role: The first quad of each facing group of one layer mesh and its plane bound. `visibleBuckets` gives the groups that can face an eye at a section-relative position: a group is skipped only when the eye is at least half a block behind every plane in it (the margin covers view bobbing, which moves the real eye slightly).
+- Role: The first quad of each facing group of one layer mesh and its plane bound. Stored as one packed `int[]` (`PACKED_INTS`: first quads, then the planes as float bits); `pack` copies it into a draw record and the static methods read it there. `visibleBuckets` gives the groups that can face an eye at a section-relative position: a group is skipped only when the eye is at least half a block behind every plane in it (the margin covers view bobbing, which moves the real eye slightly).
 - Depends on: nothing.
 
 ### `com.aryston.aervium.core.module`
@@ -598,8 +598,8 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### SectionDrawRecord, LayerDraw
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawRecord.java`, `src/main/java/com/aryston/aervium/client/chunk/LayerDraw.java`
-- Role: Everything `extractSectionDrawGroups` computes for one section mesh, prepared once: per drawable layer the buffers, index type, group hash, index count, first index, base vertex and the layer's `FaceRanges` when face culling sorted it, in layer order (up to three slots).
-- Notes: Valid while its mesh is the section's mesh and no allocation of that mesh was freed; `CompiledSectionMeshMixin` invalidates it together with the cached slices. A mesh's draws never change while it is shown (they are filled in its constructor and cleared only when it is released).
+- Role: Everything `extractSectionDrawGroups` computes for one section mesh, prepared once. The numbers the draw list reads every frame (layer, group hash, index count, first index, base vertex, flags and the packed `FaceRanges` of each drawable layer, up to three slots in layer order) and the section origin sit in one `int[]` and three fields, so a frame reads two objects per section instead of up to ten; the `LayerDraw` objects with the buffers are only read when a draw group is created.
+- Notes: Valid while the section's mesh version (`RenderSectionMixin`) is the one it was built for and no allocation of that mesh was freed; `CompiledSectionMeshMixin` invalidates it together with the cached slices. A mesh's draws never change while it is shown (they are filled in its constructor and cleared only when it is released).
 
 #### SectionDrawRecordHolder
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawRecordHolder.java`
@@ -804,7 +804,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### RenderSectionMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/RenderSectionMixin.java`
-- Role: Implements `SectionDrawRecordHolder` on `SectionRenderDispatcher.RenderSection`.
+- Role: Implements `SectionDrawRecordHolder` on `SectionRenderDispatcher.RenderSection` and gives the section a new mesh version from `SectionDrawRecord.nextMeshVersion` right after `setSectionMesh` and `reset` swap its mesh, so the draw list checks a field of the section instead of reading the mesh through its `AtomicReference`. Versions are unique, so a lost write between two threads still never matches an older record.
 - Notes: Module `sectionSliceCache`.
 
 #### RenderSectionOcclusionMixin
@@ -1048,6 +1048,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/culling/OpaqueMaskTest.java` | Empty and sparse sections give no boxes, a solid section is one box, a cave pocket splits into a few boxes with the exact volume, boxes only ever cover opaque blocks. |
 | `src/test/java/com/aryston/aervium/core/culling/VoxelRayTest.java` | Rays through open air, blocked by an opaque block, start block ignored, diagonal rays visit every crossed block, box entry parameter. |
 | `src/test/java/com/aryston/aervium/core/mesh/FacingSortTest.java` | Quads are grouped by facing with their bytes intact and slanted quads first; the winding of Minecraft's up face counts as up; groups behind the eye by more than the margin are skipped and both sides stay when the eye is between the planes. |
+| `src/test/java/com/aryston/aervium/core/mesh/FaceRangesTest.java` | Packed face ranges at an offset give the same first quads, quad counts and visible groups as the object for eyes on every side; each side of the eye shows only the faces turned to it. |
 | `src/test/java/com/aryston/aervium/core/culling/OcclusionPipelineTest.java` | A camera pass arrives one frame later and `begin` never blocks while one is in flight; `clear` drops the result in flight; `covers` accepts only eyes within the reach; the worker result equals the same `OcclusionPass` run directly; widening reaches farther eyes and only reveals sections; a changed occluder in front reveals the section behind it while a far one does not; only the same boxes and fade state count as unchanged. |
 | `src/test/java/com/aryston/aervium/core/culling/TileMaskTest.java` | Ranges touching a marked tile, marking everything, clearing. |
 | `src/test/java/com/aryston/aervium/core/mesh/CompactVertexEncoderTest.java` | Positions, color and texture coordinates on the model grid decode back exactly; block and sky light packing; positions outside the range are clamped and counted; off-grid texture edges round toward the inside of the quad; the far atlas edge stays in range. |

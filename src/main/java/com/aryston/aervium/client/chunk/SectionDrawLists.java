@@ -15,7 +15,6 @@ import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.chunk.SectionMesh;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-import net.minecraft.core.BlockPos;
 
 public final class SectionDrawLists {
     private static final int INDICES_PER_QUAD = 6;
@@ -50,11 +49,12 @@ public final class SectionDrawLists {
             if (occlusion && TerrainOcclusion.hiddenFromCamera(section)) {
                 continue;
             }
-            SectionMesh mesh = section.getSectionMesh();
             SectionDrawRecordHolder holder = (SectionDrawRecordHolder) section;
+            int meshVersion = holder.aervium$meshVersion();
             SectionDrawRecord record = holder.aervium$drawRecord();
-            if (record == null || !record.isFor(mesh)) {
-                record = SectionDrawRecord.build(mesh, dispatcher);
+            if (record == null || !record.isFor(meshVersion)) {
+                SectionMesh mesh = section.getSectionMesh();
+                record = SectionDrawRecord.build(mesh, meshVersion, section.getRenderOrigin(), dispatcher);
                 holder.aervium$setDrawRecord(record);
                 if (mesh instanceof SectionSliceHolder slices) {
                     slices.aervium$trackRecord(record);
@@ -63,19 +63,21 @@ public final class SectionDrawLists {
             if (record.count == 0) {
                 continue;
             }
-            BlockPos renderOffset = section.getRenderOrigin();
             int sectionInfoDataIndex = sectionInfos.size();
             sectionInfos.add(new DynamicGpuData.ChunkSectionInfo(
-                renderOffset.getX(), renderOffset.getY(), renderOffset.getZ(), section.getVisibility(now, fadeDuration)
+                record.originX, record.originY, record.originZ, section.getVisibility(now, fadeDuration)
             ));
 
+            int[] packed = record.packed;
             for (int slot = 0; slot < record.count; slot++) {
-                LayerDraw draw = record.slot(slot);
-                if (!draw.customIndexBuffer() && draw.indexCount() > largestIndexCount) {
-                    largestIndexCount = draw.indexCount();
+                int offset = slot * SectionDrawRecord.STRIDE;
+                int indexCount = packed[offset + SectionDrawRecord.INDEX_COUNT];
+                int flags = packed[offset + SectionDrawRecord.FLAGS];
+                if ((flags & SectionDrawRecord.CUSTOM_INDEX_BUFFER) == 0 && indexCount > largestIndexCount) {
+                    largestIndexCount = indexCount;
                 }
-                ChunkSectionLayer layer = draw.layer();
-                int groupHash = draw.groupHash();
+                ChunkSectionLayer layer = SectionLayers.ALL[packed[offset + SectionDrawRecord.LAYER]];
+                int groupHash = packed[offset + SectionDrawRecord.GROUP_HASH];
                 LevelRenderer.ChunkDrawGroup drawGroup = null;
                 if (layer.translucent() && respectTranslucentOrder) {
                     if (groupHash == lastTransparentGroupHash) {
@@ -86,6 +88,7 @@ public final class SectionDrawLists {
                     drawGroup = drawGroupCache.getOrDefault(groupHash, null);
                 }
                 if (drawGroup == null) {
+                    LayerDraw draw = record.draws[slot];
                     GpuBuffer indexBuffer = draw.indexBuffer();
                     drawGroup = new LevelRenderer.ChunkDrawGroup(
                         draw.vertexBuffer().slice(), indexBuffer != null ? indexBuffer.slice() : null, draw.indexType(), new ArrayList<>()
@@ -93,17 +96,21 @@ public final class SectionDrawLists {
                     drawGroupCache.put(groupHash, drawGroup);
                     drawGroups.get(layer).add(drawGroup);
                 }
-                FaceRanges faces = draw.faces();
-                int visible = faces == null || faceCamera == null ? FaceRanges.ALL : faces.visibleBuckets(
-                    faceCamera.pos.x - renderOffset.getX(), faceCamera.pos.y - renderOffset.getY(), faceCamera.pos.z - renderOffset.getZ()
+                boolean hasFaces = (flags & SectionDrawRecord.HAS_FACES) != 0;
+                int faces = offset + SectionDrawRecord.FACES;
+                int visible = !hasFaces || faceCamera == null ? FaceRanges.ALL : FaceRanges.visibleBuckets(
+                    packed, faces, faceCamera.pos.x - record.originX, faceCamera.pos.y - record.originY, faceCamera.pos.z - record.originZ
                 );
-                if (faces != null && faceCamera != null) {
-                    faceQuads += draw.indexCount() / INDICES_PER_QUAD;
+                if (hasFaces && faceCamera != null) {
+                    faceQuads += indexCount / INDICES_PER_QUAD;
                 }
+                int firstIndex = packed[offset + SectionDrawRecord.FIRST_INDEX];
+                int baseVertex = packed[offset + SectionDrawRecord.BASE_VERTEX];
                 if (visible == FaceRanges.ALL) {
-                    drawGroup.draws().add(new DynamicGpuData.IndexedDraw(draw.indexCount(), 1, draw.firstIndex(), draw.baseVertex(), sectionInfoDataIndex));
+                    drawGroup.draws().add(new DynamicGpuData.IndexedDraw(indexCount, 1, firstIndex, baseVertex, sectionInfoDataIndex));
                 } else {
-                    faceSkipped += draw.indexCount() / INDICES_PER_QUAD - addFacingDraws(drawGroup.draws(), draw, faces, visible, sectionInfoDataIndex);
+                    faceSkipped += indexCount / INDICES_PER_QUAD
+                        - addFacingDraws(drawGroup.draws(), packed, faces, firstIndex, baseVertex, visible, sectionInfoDataIndex);
                 }
             }
         }
@@ -113,11 +120,13 @@ public final class SectionDrawLists {
         return largestIndexCount;
     }
 
-    private static int addFacingDraws(List<DynamicGpuData.IndexedDraw> draws, LayerDraw draw, FaceRanges faces, int visible, int sectionInfoDataIndex) {
+    private static int addFacingDraws(
+        List<DynamicGpuData.IndexedDraw> draws, int[] packed, int faces, int firstIndex, int baseVertex, int visible, int sectionInfoDataIndex
+    ) {
         int runStart = -1;
         int drawn = 0;
         for (int bucket = 0; bucket <= FaceRanges.BUCKETS; bucket++) {
-            boolean include = bucket < FaceRanges.BUCKETS && ((visible >> bucket & 1) != 0 || faces.quadCount(bucket) == 0);
+            boolean include = bucket < FaceRanges.BUCKETS && ((visible >> bucket & 1) != 0 || FaceRanges.quadCount(packed, faces, bucket) == 0);
             if (include) {
                 if (runStart < 0) {
                     runStart = bucket;
@@ -125,12 +134,12 @@ public final class SectionDrawLists {
                 continue;
             }
             if (runStart >= 0) {
-                int firstQuad = faces.firstQuad(runStart);
-                int quads = faces.firstQuad(bucket) - firstQuad;
+                int firstQuad = FaceRanges.firstQuad(packed, faces, runStart);
+                int quads = FaceRanges.firstQuad(packed, faces, bucket) - firstQuad;
                 if (quads > 0) {
                     drawn += quads;
                     draws.add(new DynamicGpuData.IndexedDraw(
-                        quads * INDICES_PER_QUAD, 1, draw.firstIndex() + firstQuad * INDICES_PER_QUAD, draw.baseVertex(), sectionInfoDataIndex
+                        quads * INDICES_PER_QUAD, 1, firstIndex + firstQuad * INDICES_PER_QUAD, baseVertex, sectionInfoDataIndex
                     ));
                 }
                 runStart = -1;

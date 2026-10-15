@@ -4,32 +4,65 @@ import com.aryston.aervium.core.mesh.FaceRanges;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.pipeline.IndexType;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.chunk.SectionMesh;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
-import org.jspecify.annotations.Nullable;
+import net.minecraft.core.BlockPos;
 
 public final class SectionDrawRecord {
     public static final int SLOTS = 3;
+    static final int LAYER = 0;
+    static final int GROUP_HASH = 1;
+    static final int INDEX_COUNT = 2;
+    static final int FIRST_INDEX = 3;
+    static final int BASE_VERTEX = 4;
+    static final int FLAGS = 5;
+    static final int FACES = 6;
+    static final int STRIDE = FACES + FaceRanges.PACKED_INTS;
+    static final int CUSTOM_INDEX_BUFFER = 1;
+    static final int HAS_FACES = 2;
     private static final int HASH_SEED = 173;
     private static final int HASH_FACTOR = 31;
+    private static final AtomicInteger MESH_VERSIONS = new AtomicInteger();
 
-    final SectionMesh mesh;
+    final int meshVersion;
+    final int originX;
+    final int originY;
+    final int originZ;
     final int count;
-    final @Nullable LayerDraw slot0;
-    final @Nullable LayerDraw slot1;
-    final @Nullable LayerDraw slot2;
+    final int[] packed;
+    final LayerDraw[] draws;
     private boolean valid = true;
 
-    private SectionDrawRecord(SectionMesh mesh, LayerDraw[] draws, int count) {
-        this.mesh = mesh;
+    private SectionDrawRecord(int meshVersion, BlockPos origin, LayerDraw[] draws, int count) {
+        this.meshVersion = meshVersion;
+        this.originX = origin.getX();
+        this.originY = origin.getY();
+        this.originZ = origin.getZ();
         this.count = count;
-        this.slot0 = draws[0];
-        this.slot1 = draws[1];
-        this.slot2 = draws[2];
+        this.draws = draws;
+        this.packed = new int[count * STRIDE];
+        for (int slot = 0; slot < count; slot++) {
+            pack(draws[slot], slot * STRIDE);
+        }
     }
 
-    static SectionDrawRecord build(SectionMesh mesh, SectionRenderDispatcher dispatcher) {
+    private void pack(LayerDraw draw, int offset) {
+        packed[offset + LAYER] = draw.layer().ordinal();
+        packed[offset + GROUP_HASH] = draw.groupHash();
+        packed[offset + INDEX_COUNT] = draw.indexCount();
+        packed[offset + FIRST_INDEX] = draw.firstIndex();
+        packed[offset + BASE_VERTEX] = draw.baseVertex();
+        int flags = draw.customIndexBuffer() ? CUSTOM_INDEX_BUFFER : 0;
+        if (draw.faces() != null) {
+            flags |= HAS_FACES;
+            draw.faces().pack(packed, offset + FACES);
+        }
+        packed[offset + FLAGS] = flags;
+    }
+
+    static SectionDrawRecord build(SectionMesh mesh, int meshVersion, BlockPos origin, SectionRenderDispatcher dispatcher) {
         LayerDraw[] draws = new LayerDraw[SLOTS];
         int count = 0;
         for (ChunkSectionLayer layer : SectionLayers.ALL) {
@@ -57,22 +90,18 @@ public final class SectionDrawRecord {
                 layer, vertexBuffer, indexBuffer, indexType, groupHash, draw.indexCount(), firstIndex, baseVertex, draw.hasCustomIndexBuffer(), faces
             );
         }
-        return new SectionDrawRecord(mesh, draws, count);
+        return new SectionDrawRecord(meshVersion, origin, draws, count);
     }
 
-    public boolean isFor(SectionMesh current) {
-        return valid && mesh == current;
+    public static int nextMeshVersion() {
+        return MESH_VERSIONS.incrementAndGet();
+    }
+
+    public boolean isFor(int currentMeshVersion) {
+        return valid && meshVersion == currentMeshVersion;
     }
 
     public void invalidate() {
         valid = false;
-    }
-
-    @Nullable LayerDraw slot(int index) {
-        return switch (index) {
-            case 0 -> slot0;
-            case 1 -> slot1;
-            default -> slot2;
-        };
     }
 }

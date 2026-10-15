@@ -6,4 +6,6 @@ public interface SectionDrawRecordHolder {
     @Nullable SectionDrawRecord aervium$drawRecord();
 
     void aervium$setDrawRecord(SectionDrawRecord record);
+
+    int aervium$meshVersion();
 }
