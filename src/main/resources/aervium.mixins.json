@@ -5,7 +5,6 @@
   "plugin": "com.aryston.aervium.integration.MixinModules",
   "mixins": [
     "BlockDataLayerStorageMapMixin",
-    "ChunkStatusTasksFeaturesMixin",
     "ChunkStatusTasksTerrainMixin",
     "CompressionEncoderLevelMixin",
     "CrashReportMixin",
@@ -25,6 +24,9 @@
     "ServerLevelEntityManagerAccessor",
     "SkyDataLayerStorageMapMixin",
     "ThreadedLevelLightEngineTimingMixin"
+  ],
+  "server": [
+    "ChunkStatusTasksFeaturesMixin"
   ],
   "client": [
     "ChunkSectionsToRenderCompactMixin",

@@ -119,10 +119,11 @@ Hoppers waiting for items stop searching for entities that are not there.
 - Since: 0.1
 
 ### Parallel World Generation
-New chunks get their trees, ores and plants on several threads at once.
+Dedicated servers give new chunks their trees, ores and plants on several threads at once.
 
 - Vanilla builds the terrain of new chunks in parallel but places every feature (trees, ores, flowers, structure pieces) one chunk after another on a single thread, which limits how fast new land appears while flying or exploring
 - Aervium places features of chunks that cannot touch each other at the same time; chunks whose feature areas overlap still wait for each other, just as vanilla lets a feature write only into the 3 x 3 chunks around its own
+- Only on dedicated servers: in singleplayer the extra threads took processor time from drawing, and the elytra flight of the benchmark fell from 124 to 102 to 109 FPS (1% low 52 to 55 down to 38 to 41), so singleplayer keeps vanilla's order
 - Measured on Can's PC with a dedicated server: 625 new chunks in 4.8 s instead of 6.3 s, 2401 chunks in 11.1 s instead of 15.3 s (27 % faster); the terrain is identical to vanilla; where the features of two neighbouring chunks overlap, which one lands first varies from run to run, as it already does in vanilla
 - Module `parallelFeatures`
 - Since: 0.1
@@ -152,11 +153,12 @@ Sends only the block faces that can face you to the graphics card.
 - Faces on the far side of every chunk are left out before they reach the graphics card (about a third to a half of all solid faces); the picture stays exactly the same
 - Since: 0.1
 
-### Compact Chunk Vertices (Optional)
+### Compact Chunk Vertices
 Stores terrain in a smaller format so the graphics card has less to read.
 
 - Solid and cutout terrain uses 16 instead of 28 bytes per vertex: about a quarter to a third less video memory at render distance 32 and less work for every pass that draws terrain, including Helion's shadows; the picture stays the same (in Helion's visual test the terrain matched pixel for pixel)
-- Off by default while its effect on the lows is measured; turn on `compactVertices` in `config/aervium-modules.properties` and restart
+- Measured on Can's PC with Helion: 5 % higher average frame rate, slightly higher 1% and 0.1% lows, 20 to 32 % less video memory
+- On by default; stays off by itself with a Helion version that cannot read the format (Helion 0.1), so terrain never breaks; turn it off with `compactVertices=false` in `config/aervium-modules.properties`
 - Since: 0.1
 
 ### Leaf Culling (Optional)
@@ -192,6 +194,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`) with `true` or `false`; changes apply at the next start; `compactVertices` starts off, every other module on
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`) with `true` or `false`; changes apply at the next start; every module starts on
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

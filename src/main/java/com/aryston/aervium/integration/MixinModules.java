@@ -68,6 +68,7 @@ public final class MixinModules implements IMixinConfigPlugin {
 
     private static final String HELION_MOD_ID = "helion";
     private static final Set<String> HELION_MIXINS = Set.of("HelionShadowCastersMixin");
+    private static final String HELION_COMPACT_SUPPORT = "com/aryston/helion/integration/vanilla/CompactTerrainVertices.class";
 
     private static final Map<String, List<AppliedMixin>> APPLIED = new ConcurrentHashMap<>();
     private static volatile Map<String, Boolean> activeModules = Map.of();
@@ -75,12 +76,17 @@ public final class MixinModules implements IMixinConfigPlugin {
     private ModuleSettings settings;
     private boolean rendererReplaced;
     private boolean helionLoaded;
+    private boolean helionWithoutCompactVertices;
 
     @Override
     public void onLoad(String mixinPackage) {
         settings = readSettings(FMLPaths.CONFIGDIR.get().resolve(SETTINGS_FILE));
         rendererReplaced = CompatibilityGuard.REPLACED_RENDERERS.stream().anyMatch(MixinModules::loaded);
         helionLoaded = loaded(HELION_MOD_ID);
+        helionWithoutCompactVertices = helionLoaded && !helionReadsCompactVertices();
+        if (helionWithoutCompactVertices && settings.isEnabled(OptimizationModule.COMPACT_VERTICES)) {
+            Aervium.LOGGER.info("Aervium keeps compactVertices off: the installed Helion cannot read compact chunk vertices");
+        }
         Map<String, Boolean> active = new LinkedHashMap<>();
         for (OptimizationModule module : OptimizationModule.values()) {
             active.put(module.key(), isActive(module));
@@ -98,7 +104,8 @@ public final class MixinModules implements IMixinConfigPlugin {
     }
 
     private boolean isActive(OptimizationModule module) {
-        return settings.isEnabled(module) && !(module.renderer() && rendererReplaced);
+        return settings.isEnabled(module) && !(module.renderer() && rendererReplaced)
+            && !(module == OptimizationModule.COMPACT_VERTICES && helionWithoutCompactVertices);
     }
 
     @Override
@@ -165,6 +172,10 @@ public final class MixinModules implements IMixinConfigPlugin {
 
     private static boolean loaded(String modId) {
         return FMLLoader.getCurrent().getLoadingModList().getModFileById(modId) != null;
+    }
+
+    private static boolean helionReadsCompactVertices() {
+        return FMLLoader.getCurrent().getLoadingModList().getModFileById(HELION_MOD_ID).getFile().getContents().containsFile(HELION_COMPACT_SUPPORT);
     }
 
     private static ModuleSettings readSettings(Path file) {
