@@ -39,6 +39,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 
 ### Changed
 - The chunk draw list reads half as much scattered memory per section, which leaves the main thread more time per frame
+- Finding the chests, signs and beds to draw no longer looks into every visible chunk section
 - Occlusion culling keeps working through slow frames instead of drawing every chunk for a few frames, for steadier frame times when flying
 - With Helion, the shadow check keeps its last result while you move instead of starting over every frame
 - The benchmark summons the village crowd before the first scene and logs the longest frame of every scene start

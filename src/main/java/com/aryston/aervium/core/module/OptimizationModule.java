@@ -15,7 +15,8 @@ public enum OptimizationModule {
     HOPPER_SEARCH("hopperSearch", false),
     COMPACT_VERTICES("compactVertices", true),
     NETWORK_COMPRESSION("networkCompression", false),
-    PARALLEL_FEATURES("parallelFeatures", false);
+    PARALLEL_FEATURES("parallelFeatures", false),
+    BLOCK_ENTITY_SECTIONS("blockEntitySections", true);
 
     private final String key;
     private final boolean renderer;
