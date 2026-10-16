@@ -45,6 +45,7 @@ final class OverlayLines {
         if (!passiveRendererMods.isEmpty()) {
             lines.add(new Line("Optimizations off: " + String.join(", ", passiveRendererMods) + " installed", WARNING));
         }
+        lines.add(new Line(AerviumKeys.TOGGLE_OVERLAY.getTranslatedKeyMessage().getString() + " hides this overlay, " + AerviumKeys.TOGGLE_CULLING.getTranslatedKeyMessage().getString() + " switches occlusion culling", MUTED));
         return lines;
     }
 

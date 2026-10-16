@@ -25,7 +25,7 @@ See exactly how smooth your game runs, not just how fast.
 - A live frame time graph draws every frame as a bar: green within your target frame rate, yellow when slower, red for spikes that take twice as long
 - The graph is drawn as one piece, so showing the overlay no longer costs a noticeable part of the frame
 - Shows the server tick time (MSPT) of your single player world with the number of ticks over 50 ms, garbage collector pauses, RAM and video memory, and how long each part of the game takes per frame
-- Press F7 to show or hide it; the target frame rate is set in the Aervium settings (Mods, Aervium, Config)
+- Press F7 to show or hide it; its last line names the keys that hide it and switch occlusion culling, and changes when you bind them to other keys in Controls; the target frame rate is set in the Aervium settings (Mods, Aervium, Config)
 - Since: 0.1
 
 ### Built-in Benchmark
