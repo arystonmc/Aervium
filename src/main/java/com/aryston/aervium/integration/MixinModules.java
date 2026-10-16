@@ -69,7 +69,10 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("LevelRendererDirectDrawMixin", OptimizationModule.DIRECT_DRAWS),
         Map.entry("SectionDirtyStateMirrorMixin", OptimizationModule.DIRTY_SECTIONS),
         Map.entry("SectionUpdateTrackerMirrorMixin", OptimizationModule.DIRTY_SECTIONS),
-        Map.entry("LevelExtractorDirtySectionsMixin", OptimizationModule.DIRTY_SECTIONS)
+        Map.entry("LevelExtractorDirtySectionsMixin", OptimizationModule.DIRTY_SECTIONS),
+        Map.entry("VulkanFeatureSetsMixin", OptimizationModule.GPU_CULLING),
+        Map.entry("VulkanConstStorageMixin", OptimizationModule.GPU_CULLING),
+        Map.entry("ChunkSectionsToRenderIndirectCountMixin", OptimizationModule.GPU_CULLING)
     );
 
     private static final String HELION_MOD_ID = "helion";

@@ -4,6 +4,8 @@ import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import java.util.ArrayList;
 import java.util.List;
+import com.aryston.aervium.client.gpu.GpuCulling;
+import com.aryston.aervium.client.gpu.GpuDrawList;
 import net.minecraft.client.renderer.DynamicGpuData;
 import net.minecraft.client.renderer.MappableRingBuffer;
 import net.minecraft.util.Mth;
@@ -23,14 +25,15 @@ final class DrawCommandRing {
     GpuBufferSlice[] write(List<List<DynamicGpuData.IndexedDraw>> lists) {
         int total = 0;
         for (List<DynamicGpuData.IndexedDraw> draws : lists) {
-            total += draws.size() * PackedDraws.BYTES_PER_DRAW;
+            total += cpuBytes(draws);
         }
         MappableRingBuffer current = reserve(total);
         GpuBuffer buffer = current.currentBuffer();
         GpuBufferSlice[] slices = new GpuBufferSlice[lists.size()];
         if (total == 0) {
             for (int index = 0; index < slices.length; index++) {
-                slices[index] = buffer.slice(next, 0);
+                List<DynamicGpuData.IndexedDraw> draws = lists.get(index);
+                slices[index] = draws instanceof GpuDrawList gpu ? GpuCulling.commands(gpu) : buffer.slice(next, 0);
             }
             return slices;
         }
@@ -39,6 +42,10 @@ final class DrawCommandRing {
             long address = MemoryUtil.memAddress(view.data());
             for (int index = 0; index < slices.length; index++) {
                 List<DynamicGpuData.IndexedDraw> draws = lists.get(index);
+                if (draws instanceof GpuDrawList gpu) {
+                    slices[index] = GpuCulling.commands(gpu);
+                    continue;
+                }
                 int bytes = draws.size() * PackedDraws.BYTES_PER_DRAW;
                 PackedDraws.write(draws, address + offset - next);
                 slices[index] = buffer.slice(offset, bytes);
@@ -47,6 +54,10 @@ final class DrawCommandRing {
         }
         next = offset;
         return slices;
+    }
+
+    private static int cpuBytes(List<DynamicGpuData.IndexedDraw> draws) {
+        return draws instanceof GpuDrawList ? 0 : draws.size() * PackedDraws.BYTES_PER_DRAW;
     }
 
     void endFrame() {

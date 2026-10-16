@@ -84,6 +84,7 @@ Prepares the list of chunks to draw with much less work every frame.
 - Remembers where each chunk's geometry sits on the GPU instead of searching for it again in every pass, which matters most with Helion's shadows; in the benchmark with Helion at render distance 32 the 1% low rose from 36 to 51 FPS and caves from 58 to 78 FPS
 - Writes the draw commands straight into GPU memory instead of creating thousands of small objects every frame (`directDraws`); without Helion the benchmark average rose by 6 to 9 % and the 1% low by 10 to 16 %
 - Checks which chunks need rebuilding from a compact list instead of looking up every visible chunk every frame (`dirtySections`); in caves, where thousands of chunks are visible but hidden behind stone, the average rose by 7 % and the lows by 11 to 14 %
+- On graphics cards that support it, the graphics card itself builds the list of solid and leafy terrain to draw and skips faces turned away from you (`gpuCulling`); the main thread only names the chunks that occlusion culling kept, and the work on the card takes about 0.02 ms per frame; without Helion the lows rose by 4 to 5 %, with Helion it changes nothing; other cards keep the CPU path
 - Since: 0.1
 
 ### Dedicated Chunk Builders
@@ -198,6 +199,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`) with `true` or `false`; changes apply at the next start; every module starts on
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`, `gpuCulling`) with `true` or `false`; changes apply at the next start; every module starts on
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

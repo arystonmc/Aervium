@@ -3,6 +3,7 @@ package com.aryston.aervium.client.chunk;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import com.aryston.aervium.client.gpu.GpuCulling;
 import com.aryston.aervium.client.culling.TerrainOcclusion;
 import com.aryston.aervium.core.culling.CullingStatistics;
 import com.aryston.aervium.core.mesh.FaceRanges;
@@ -44,11 +45,17 @@ public final class SectionDrawLists {
         int size = visibleSections.size();
         boolean occlusion = TerrainOcclusion.cullsCameraSections();
         CameraRenderState faceCamera = FaceCulling.cameraPass();
+        CameraRenderState camera = DirectDraws.cameraPass();
+        boolean gpu = packedSections && camera != null && GpuCulling.beginPass(size, camera.pos, faceCamera != null);
         long faceQuads = 0L;
         long faceSkipped = 0L;
         for (int index = 0; index < size; index++) {
             SectionRenderDispatcher.RenderSection section = (SectionRenderDispatcher.RenderSection) sections[index];
             if (occlusion && TerrainOcclusion.hiddenFromCamera(section)) {
+                continue;
+            }
+            int cpuSlots = gpu ? GpuSections.cpuSlots(section, dispatcher, now, fadeDuration) : GpuSections.CPU_ALL;
+            if (cpuSlots == GpuSections.CPU_NONE) {
                 continue;
             }
             int[] packed = currentDraws(section, dispatcher);
@@ -66,12 +73,15 @@ public final class SectionDrawLists {
 
             for (int slot = 0; slot < count; slot++) {
                 int offset = SectionDrawRecord.slotOffset(slot);
+                ChunkSectionLayer layer = SectionLayers.ALL[packed[offset + SectionDrawRecord.LAYER]];
+                if (cpuSlots == GpuSections.CPU_TRANSLUCENT && !layer.translucent()) {
+                    continue;
+                }
                 int indexCount = packed[offset + SectionDrawRecord.INDEX_COUNT];
                 int flags = packed[offset + SectionDrawRecord.FLAGS];
                 if ((flags & SectionDrawRecord.CUSTOM_INDEX_BUFFER) == 0 && indexCount > largestIndexCount) {
                     largestIndexCount = indexCount;
                 }
-                ChunkSectionLayer layer = SectionLayers.ALL[packed[offset + SectionDrawRecord.LAYER]];
                 int groupHash = packed[offset + SectionDrawRecord.GROUP_HASH];
                 LevelRenderer.ChunkDrawGroup drawGroup = null;
                 if (layer.translucent() && respectTranslucentOrder) {
@@ -110,13 +120,16 @@ public final class SectionDrawLists {
                 }
             }
         }
+        if (gpu) {
+            return Math.max(largestIndexCount, GpuCulling.finishPass(drawGroups));
+        }
         if (faceCamera != null) {
             CullingStatistics.SHARED.faces(faceQuads, faceSkipped);
         }
         return largestIndexCount;
     }
 
-    private static int[] currentDraws(SectionRenderDispatcher.RenderSection section, SectionRenderDispatcher dispatcher) {
+    static int[] currentDraws(SectionRenderDispatcher.RenderSection section, SectionRenderDispatcher dispatcher) {
         SectionDrawRecordHolder holder = (SectionDrawRecordHolder) section;
         int meshVersion = ((MeshVersionHolder) section).aervium$meshVersion();
         int[] packed = holder.aervium$packedDraws();

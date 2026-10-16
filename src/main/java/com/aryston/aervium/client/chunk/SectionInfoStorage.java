@@ -1,5 +1,7 @@
 package com.aryston.aervium.client.chunk;
 
+import com.aryston.aervium.client.gpu.GpuBufferUsage;
+import com.aryston.aervium.client.gpu.GpuCulling;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
@@ -13,7 +15,9 @@ import org.lwjgl.system.MemoryUtil;
 final class SectionInfoStorage {
     private static final String LABEL = "Aervium chunk sections";
     private static final int INITIAL_SECTIONS = 16384;
-    private static final int USAGE = GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST;
+    private static final int ALIGNMENT = 256;
+    private static final int SECTIONS_PER_ALIGNMENT = ALIGNMENT / PackedSectionInfos.BYTES_PER_SECTION;
+    private static final int USAGE = GpuBuffer.USAGE_VERTEX | GpuBuffer.USAGE_COPY_DST | GpuBufferUsage.STORAGE;
 
     private final List<GpuBuffer> retired = new ArrayList<>();
     private @Nullable GpuBuffer buffer;
@@ -21,16 +25,23 @@ final class SectionInfoStorage {
     private int capacity;
     private int next;
 
-    GpuBufferSlice write(PackedSectionInfos sections) {
-        int bytes = sections.count() * PackedSectionInfos.BYTES_PER_SECTION;
+    GpuBufferSlice write(PackedSectionInfos sections, int gpuSections) {
+        int cpuSections = gpuSections == 0 ? sections.count() : Mth.roundToward(sections.count(), SECTIONS_PER_ALIGNMENT);
+        int bytes = (cpuSections + gpuSections) * PackedSectionInfos.BYTES_PER_SECTION;
         if (bytes == 0) {
             return new GpuBufferSlice(null, 0L, 0L);
         }
         reserve(bytes);
-        sections.write(MemoryUtil.memAddress0(staging) + next);
+        int cpuBytes = sections.count() * PackedSectionInfos.BYTES_PER_SECTION;
+        if (cpuBytes > 0) {
+            sections.write(MemoryUtil.memAddress0(staging) + next);
+            RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.slice(next, cpuBytes), staging.slice(next, cpuBytes));
+        }
+        if (gpuSections > 0) {
+            GpuCulling.dispatch(buffer, next + (long) cpuSections * PackedSectionInfos.BYTES_PER_SECTION, cpuSections);
+        }
         GpuBufferSlice slice = buffer.slice(next, bytes);
-        RenderSystem.getDevice().createCommandEncoder().writeToBuffer(slice, staging.slice(next, bytes));
-        next += bytes;
+        next = Mth.roundToward(next + bytes, ALIGNMENT);
         return slice;
     }
 

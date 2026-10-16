@@ -41,6 +41,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Face culling (skip terrain faces turned away from the camera) | `FacingSort`, `FaceRanges`, `FaceCulling`, `FaceRangesHolder`, `CompiledSectionMeshFacingMixin`, `LevelRendererFaceCullingMixin`, `SectionDrawLists` |
 | Compact terrain vertices (16 instead of 28 bytes, off with a Helion that cannot read them) | `CompactVertexEncoder`, `CompactTerrainFormat`, `CompactMeshUpload`, `CompactWireframe`, `RenderPipelineBuilderCompactMixin`, `SectionCompilerCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `ChunkSectionsToRenderCompactMixin`, `shaders/terrain/compact.vsh` |
 | Dirty section scan (clean sections answered from an array) | `DirtySectionMirror`, `DirtySectionIndex`, `SectionDirtyStateMirrorMixin`, `SectionUpdateTrackerMirrorMixin`, `LevelExtractorDirtySectionsMixin` |
+| GPU culling (advanced terrain path: the GPU builds the solid and cutout draw lists) | `GpuCulling`, `GpuSections`, `GpuSectionTable`, `GpuSectionEntry`, `TerrainGroups`, `GpuDrawList`, `CullPipeline`, `VulkanAccess`, `IndirectCountFeature`, `GpuBufferUsage`, `ChunkSectionsToRenderIndirectCountMixin`, `VulkanFeatureSetsMixin`, `VulkanConstStorageMixin`, `shaders/culling/terrain_draws.csh` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -634,6 +635,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: `PackedSectionInfos` holds the origin and fade of every drawn section of a pass as four ints. `SectionInfoStorage` uploads them like vanilla's instanced section buffer (one device buffer, a staging copy per pass, `writeToBuffer`). `DrawCommandRing` writes the indirect commands into a mapped ring of three buffers like vanilla's command buffer. Both grow by doubling, keep a buffer they replaced until the frame ends and start over at `FlipFrameEvent`.
 - Depends on: `PackedDraws`.
 
+#### GpuSections
+- Path: `src/main/java/com/aryston/aervium/client/chunk/GpuSections.java`
+- Role: The per-section step of the GPU path inside `SectionDrawLists`: uploads a section's solid and cutout slots to the GPU section table when its mesh version or the table epoch changed, lists the section as visible, and tells the draw list which slots stay on the CPU (none, the translucent ones, or all of them when a slot does not fit the table).
+- Depends on: `GpuCulling`, `GpuSectionEntry`, `SectionDrawRecord`, `SectionDrawRecordHolder`, `SectionDrawLists`.
+
 #### DirtySectionMirror, DirtySectionIndex
 - Path: `src/main/java/com/aryston/aervium/client/chunk/DirtySectionMirror.java`, `src/main/java/com/aryston/aervium/client/chunk/DirtySectionIndex.java`
 - Role: Interfaces the `dirtySections` mixins add to `SectionUpdateTracker.SectionDirtyState` (attach the shared dirty array and the storage index) and to `SectionUpdateTracker` (whether a section node may be dirty, by its storage index).
@@ -740,6 +746,29 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Interface `RenderSectionOcclusionMixin` adds to `SectionRenderDispatcher.RenderSection`: the generation of the last camera pass that hid the section, and its occluder boxes cached for a mesh version (`TerrainOcclusion.occluders(section)` reads mesh and visibility set only when the version changed).
 - Depends on: nothing.
 
+### `com.aryston.aervium.client.gpu`
+
+#### GpuCulling
+- Path: `src/main/java/com/aryston/aervium/client/gpu/GpuCulling.java`
+- Role: The advanced terrain path of module `gpuCulling`. In the camera pass the CPU only lists the visible sections that occlusion culling kept (section index and fade) in a mapped ring; the GPU section table holds each section's solid and cutout draws; a compute shader (`shaders/culling/terrain_draws.csh`) applies face culling against the camera, writes the section instance data and appends the draw commands of each draw group with an atomic counter, and the terrain layers draw them with `vkCmdDrawIndexedIndirectCount` (`ChunkSectionsToRenderIndirectCountMixin`). Translucent layers, Helion's shadow cascades and every other pass keep the CPU draw list. Sets itself up on first use (Vulkan device, `drawIndirectCount` enabled through `IndirectCountFeature`, compiled pipeline) and otherwise stays off with one log line, so devices without the feature keep the CPU path (the baseline path).
+- Notes: One GPU pass per frame. The dispatch is recorded into the frame's command buffer when the section infos are written, between full memory barriers (`VulkanCommandEncoder.memoryBarrier`), after the table uploads and a fill of the draw counts. A group gets room for four draws per visible section (face runs), so no draw can be lost.
+- Depends on: `GpuSectionTable`, `GpuSectionEntry`, `TerrainGroups`, `CullPipeline`, `GpuDrawList`, `VulkanAccess`, `GpuBufferUsage`, `FrontendRenderPassAccessor`, `VulkanRenderPassAccessor`, `MixinModules`.
+
+#### GpuSectionTable, GpuSectionEntry
+- Path: `src/main/java/com/aryston/aervium/client/gpu/GpuSectionTable.java`, `src/main/java/com/aryston/aervium/client/gpu/GpuSectionEntry.java`
+- Role: The device buffer with one 36-int entry per render section index (origin, slot count, and per solid or cutout slot: draw group, index count, first index, base vertex, face flag, the eight face run boundaries as 16-bit pairs and the seven face planes). Entries that changed are written into a mapped staging ring during the draw list and copied in one `vkCmdCopyBuffer` before the dispatch, so frames in flight never see a half-updated entry. A larger table starts a new epoch, which marks every section stale.
+- Depends on: `VulkanAccess`, `GpuBufferUsage`.
+
+#### TerrainGroups, GpuDrawList
+- Path: `src/main/java/com/aryston/aervium/client/gpu/TerrainGroups.java`, `src/main/java/com/aryston/aervium/client/gpu/GpuDrawList.java`
+- Role: `TerrainGroups` gives every (layer, vertex buffer, index buffer, index type) a small id that the table stores, drops groups whose buffers were closed and ranks the live ones for the frame. `GpuDrawList` is the draw list vanilla sees for such a group: its size is the group's command capacity and its commands come from the GPU.
+- Depends on: nothing.
+
+#### CullPipeline, VulkanAccess, IndirectCountFeature, GpuBufferUsage
+- Path: `src/main/java/com/aryston/aervium/client/gpu/CullPipeline.java`, `src/main/java/com/aryston/aervium/client/gpu/VulkanAccess.java`, `src/main/java/com/aryston/aervium/client/gpu/IndirectCountFeature.java`, `src/main/java/com/aryston/aervium/client/gpu/GpuBufferUsage.java`
+- Role: `CullPipeline` compiles the compute shader with shaderc and creates the push-descriptor set layout, pipeline layout and compute pipeline, and records one dispatch. `VulkanAccess` reaches the Vulkan device, its enabled features, the frame's command buffer and buffer handles. `IndirectCountFeature` is the optional device feature set `VulkanFeatureSetsMixin` adds. `GpuBufferUsage.STORAGE` is an extra buffer usage bit that `VulkanConstStorageMixin` maps to Vulkan storage buffer usage.
+- Depends on: `FrontendGpuDeviceAccessor`, `VulkanDeviceAccessor`, `VulkanCommandEncoderAccessor`.
+
 ### `com.aryston.aervium.client.pipeline`
 
 #### ShaderCaches
@@ -838,6 +867,21 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/mixin/SectionDirtyStateMirrorMixin.java`, `src/main/java/com/aryston/aervium/mixin/SectionUpdateTrackerMirrorMixin.java`, `src/main/java/com/aryston/aervium/mixin/LevelExtractorDirtySectionsMixin.java`
 - Role: Every frame vanilla `LevelExtractor.extract` asks the `SectionUpdateTracker` for the dirty state of every visible section, two scattered objects per section (the storage node and the state). The tracker mixin gives each state its storage index and one shared `boolean[]` when the tracker is created (`DirtySectionMirror`), the state mixin copies `isDirty` into that array after `setDirty`, `setNotDirty` and `setSectionNode`, and the extractor mixin answers clean sections from the array (`DirtySectionIndex`) without touching their state; dirty or unknown sections take the vanilla lookup.
 - Notes: Module `dirtySections`, renderer module. In the cave scene the lookup was 17 % of the render thread (thousands of visible sections behind cave walls). The tracker iterates its storage with `forEach`, because the storage's own iterator skips the last value.
+
+#### ChunkSectionsToRenderIndirectCountMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ChunkSectionsToRenderIndirectCountMixin.java`
+- Role: Sends every indirect terrain draw of `ChunkSectionsToRender.DrawIndirect.render` through `GpuCulling.drawIndexedIndirect`, which draws GPU-built groups with `vkCmdDrawIndexedIndirectCount` and passes every other draw on unchanged.
+- Notes: Module `gpuCulling`. Renderpearl has no counted indirect draw.
+
+#### VulkanFeatureSetsMixin, VulkanConstStorageMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/VulkanFeatureSetsMixin.java`, `src/main/java/com/aryston/aervium/mixin/VulkanConstStorageMixin.java`
+- Role: Adds `IndirectCountFeature` to the optional device feature sets, so the device enables `drawIndirectCount` where the GPU supports it, and maps `GpuBufferUsage.STORAGE` to Vulkan storage buffer usage.
+- Notes: Module `gpuCulling`. Renderpearl enables only the features vanilla uses and has no storage buffer usage.
+
+#### VulkanDeviceAccessor, VulkanCommandEncoderAccessor, VulkanRenderPassAccessor, FrontendRenderPassAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/VulkanDeviceAccessor.java`, `src/main/java/com/aryston/aervium/mixin/VulkanCommandEncoderAccessor.java`, `src/main/java/com/aryston/aervium/mixin/VulkanRenderPassAccessor.java`, `src/main/java/com/aryston/aervium/mixin/FrontendRenderPassAccessor.java`
+- Role: Read the enabled device features, the encoder's current command buffer outside render passes, a Vulkan render pass's command buffer and descriptor push, and the backend behind a frontend render pass.
+- Notes: Applied always; only `GpuCulling` uses them, and only after its module check.
 
 #### LevelRendererDirectDrawMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererDirectDrawMixin.java`

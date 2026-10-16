@@ -9,6 +9,7 @@ import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.chunk.SectionMesh;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.core.BlockPos;
+import org.jspecify.annotations.Nullable;
 
 public final class SectionDrawRecord {
     public static final int SLOTS = 3;
@@ -37,6 +38,7 @@ public final class SectionDrawRecord {
 
     final int[] packed;
     final LayerDraw[] draws;
+    private @Nullable SectionDrawRecordHolder owner;
 
     private SectionDrawRecord(int meshVersion, BlockPos origin, LayerDraw[] draws, int count) {
         this.draws = draws;
@@ -109,11 +111,18 @@ public final class SectionDrawRecord {
         return MESH_VERSIONS.incrementAndGet();
     }
 
+    public void attach(SectionDrawRecordHolder holder) {
+        owner = holder;
+    }
+
     public int[] packedDraws() {
         return packed;
     }
 
     public void invalidate() {
         packed[VALID] = FALSE;
+        if (owner != null) {
+            owner.aervium$forgetGpuState();
+        }
     }
 }

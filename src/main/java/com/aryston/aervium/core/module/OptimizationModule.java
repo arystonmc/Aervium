@@ -18,7 +18,8 @@ public enum OptimizationModule {
     PARALLEL_FEATURES("parallelFeatures", false),
     BLOCK_ENTITY_SECTIONS("blockEntitySections", true),
     DIRECT_DRAWS("directDraws", true),
-    DIRTY_SECTIONS("dirtySections", true);
+    DIRTY_SECTIONS("dirtySections", true),
+    GPU_CULLING("gpuCulling", true);
 
     private final String key;
     private final boolean renderer;

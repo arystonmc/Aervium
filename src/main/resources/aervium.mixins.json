@@ -30,6 +30,7 @@
   ],
   "client": [
     "ChunkSectionsToRenderCompactMixin",
+    "ChunkSectionsToRenderIndirectCountMixin",
     "CompileTaskCompactMixin",
     "CompiledSectionMeshFacingMixin",
     "CompiledSectionMeshMixin",
@@ -48,6 +49,7 @@
     "FramerateLimitTrackerMixin",
     "ModelBlockRendererLeafCullingMixin",
     "FrontendGpuDeviceAccessor",
+    "FrontendRenderPassAccessor",
     "GlslCompilerMixin",
     "PipelineCacheAccessor",
     "ParticleAccessor",
@@ -65,6 +67,11 @@
     "RenderSystemMixin",
     "VisGraphMixin",
     "VisibilitySetMixin",
+    "VulkanCommandEncoderAccessor",
+    "VulkanConstStorageMixin",
+    "VulkanDeviceAccessor",
+    "VulkanFeatureSetsMixin",
+    "VulkanRenderPassAccessor",
     "VulkanRenderPipelineMixin"
   ],
   "injectors": {

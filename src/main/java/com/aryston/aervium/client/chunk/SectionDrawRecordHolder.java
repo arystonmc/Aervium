@@ -8,4 +8,14 @@ public interface SectionDrawRecordHolder {
     int @Nullable [] aervium$packedDraws();
 
     void aervium$setDrawRecord(SectionDrawRecord record);
+
+    int aervium$gpuVersion();
+
+    int aervium$gpuEpoch();
+
+    int aervium$gpuFlags();
+
+    void aervium$setGpuState(int meshVersion, int epoch, int flags);
+
+    void aervium$forgetGpuState();
 }
