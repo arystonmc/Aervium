@@ -1,5 +1,6 @@
 package com.aryston.aervium.client.chunk;
 
+import com.aryston.aervium.core.mesh.FaceRanges;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.pipeline.IndexType;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
@@ -14,6 +15,7 @@ record LayerDraw(
     int indexCount,
     int firstIndex,
     int baseVertex,
-    boolean customIndexBuffer
+    boolean customIndexBuffer,
+    @Nullable FaceRanges faces
 ) {
 }

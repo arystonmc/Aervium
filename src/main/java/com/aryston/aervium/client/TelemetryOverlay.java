@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.neoforged.neoforge.client.gui.GuiLayer;
+import org.joml.Matrix3x2f;
 
 final class TelemetryOverlay implements GuiLayer {
     private static final int GRAPH_WIDTH = 240;
@@ -92,11 +93,14 @@ final class TelemetryOverlay implements GuiLayer {
         long frameBudget = budget.frameNanos();
         int count = telemetry.frameTimes().copyLatest(graph, GRAPH_WIDTH);
         int firstX = left + GRAPH_WIDTH - count;
+        int[] bars = new int[count * FrameGraphRenderState.INTS_PER_BAR];
         for (int i = 0; i < count; i++) {
             long nanos = graph[i];
-            int barHeight = Math.max(1, scaled(nanos));
-            graphics.fill(firstX + i, bottom - barHeight, firstX + i + 1, bottom, barColor(nanos, frameBudget));
+            FrameGraphRenderState.putBar(bars, i, firstX + i, bottom - Math.max(1, scaled(nanos)), bottom, barColor(nanos, frameBudget));
         }
+        graphics.submitGuiElementRenderState(FrameGraphRenderState.of(
+            new Matrix3x2f(graphics.pose()), bars, count, left, top, GRAPH_WIDTH, GRAPH_HEIGHT, graphics.peekScissorStack()
+        ));
         int budgetY = bottom - scaled(frameBudget);
         graphics.fill(left, budgetY, left + GRAPH_WIDTH, budgetY + 1, BUDGET_LINE);
     }

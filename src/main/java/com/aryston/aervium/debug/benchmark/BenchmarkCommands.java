@@ -33,8 +33,9 @@ public final class BenchmarkCommands {
 
     public static List<String> villageCrowd(BlockPoint center, IntBinaryOperator surfaceY) {
         List<String> commands = new ArrayList<>();
-        int firstX = center.x() - (CROWD_COLUMNS - 1) * CROWD_SPACING / 2;
-        int firstZ = center.z() - (CROWD_ROWS - 1) * CROWD_SPACING / 2;
+        BlockPoint first = crowdFirst(center);
+        int firstX = first.x();
+        int firstZ = first.z();
         for (int column = 0; column < CROWD_COLUMNS; column++) {
             for (int row = 0; row < CROWD_ROWS; row++) {
                 int x = firstX + column * CROWD_SPACING;
@@ -47,6 +48,20 @@ public final class BenchmarkCommands {
 
     public static int crowdSize() {
         return CROWD_COLUMNS * CROWD_ROWS;
+    }
+
+    public static BlockPoint crowdFirst(BlockPoint center) {
+        return center.offset(-(CROWD_COLUMNS - 1) * CROWD_SPACING / 2, 0, -(CROWD_ROWS - 1) * CROWD_SPACING / 2);
+    }
+
+    public static BlockPoint crowdLast(BlockPoint center) {
+        return crowdFirst(center).offset((CROWD_COLUMNS - 1) * CROWD_SPACING, 0, (CROWD_ROWS - 1) * CROWD_SPACING);
+    }
+
+    public static String forceLoadCrowd(BlockPoint center, boolean load) {
+        BlockPoint first = crowdFirst(center);
+        BlockPoint last = crowdLast(center);
+        return "forceload " + (load ? "add " : "remove ") + first.x() + " " + first.z() + " " + last.x() + " " + last.z();
     }
 
     public static List<String> redstoneBuild(BlockPoint origin) {

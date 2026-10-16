@@ -1,6 +1,9 @@
 {
   "key.category.aervium.aervium": "Aervium",
   "key.aervium.overlay": "Performans Panelini Aç/Kapat",
+  "key.aervium.culling": "Görünmezlik Ayıklamayı Aç/Kapat",
+  "aervium.culling.on": "Aervium görünmezlik ayıklama: açık",
+  "aervium.culling.off": "Aervium görünmezlik ayıklama: kapalı",
   "aervium.configuration.title": "Aervium Ayarları",
   "aervium.configuration.section.aervium.client.toml": "İstemci Ayarları",
   "aervium.configuration.section.aervium.client.toml.title": "Aervium İstemci Ayarları",
@@ -13,5 +16,12 @@
   "aervium.configuration.unfocusedFps": "Arka Plan Kare Hızı",
   "aervium.configuration.unfocusedFps.tooltip": "Başka bir pencere odaktayken kare hızı sınırı.",
   "aervium.configuration.pausedFps": "Duraklatma Kare Hızı",
-  "aervium.configuration.pausedFps.tooltip": "Tek oyunculu oyun duraklatıldığında kare hızı sınırı."
+  "aervium.configuration.pausedFps.tooltip": "Tek oyunculu oyun duraklatıldığında kare hızı sınırı.",
+  "aervium.configuration.occlusionCulling": "Görünmezlik Ayıklama",
+  "aervium.configuration.occlusionCulling.tooltip": "Katı blokların arkasında kalan araziyi (taşın arkasındaki mağaralar gibi) ve güneşin göremediği gölge vericileri çizmez. Görüntü aynı kalır. Oyunda F6 ile açıp kapatıp karşılaştırabilirsin.",
+  "aervium.configuration.leafCulling": "Yaprak Ayıklama",
+  "aervium.configuration.leafCulling.tooltip": "Ağacın içinde iki ya da daha fazla yaprak derinde kalan yaprak yüzlerini çizmez. Ormanlar daha hızlı çizilir ama ağaçlar yaprak aralarından biraz daha seyrek görünür; bu yüzden varsayılanı kapalıdır. Sadece ayrıntılı yapraklarda işe yarar; değiştirince chunk'lar yeniden hazırlanır.",
+  "aervium.hardware.title": "Aervium bu PC'ye göre ayarlandı",
+  "aervium.hardware.low": "Bu donanım için hafif ayarlar: görüş ve simülasyon mesafesi kısaltıldı, yaprak ayıklama açıldı.",
+  "aervium.hardware.medium": "Bu donanım için hafif ayarlar: görüş ve simülasyon mesafesi sınırlandı."
 }

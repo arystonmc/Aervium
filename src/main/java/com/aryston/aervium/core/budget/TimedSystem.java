@@ -5,7 +5,10 @@ public enum TimedSystem {
     CLIENT_TICK("Client tick", BudgetKind.FRAME, 0.25),
     SERVER_TICK("Server tick", BudgetKind.TICK, 1.0),
     OVERLAY("Overlay", BudgetKind.FRAME, 0.02),
-    TELEMETRY("Telemetry", BudgetKind.FRAME, 0.1);
+    TELEMETRY("Telemetry", BudgetKind.FRAME, 0.1),
+    CULLING("Occlusion culling", BudgetKind.FRAME, 0.1),
+    CHUNK_UPLOAD("Chunk uploads", BudgetKind.FRAME, 0.05),
+    CHUNK_LOCK_WAIT("Wait for chunk builders", BudgetKind.FRAME, 0.02);
 
     private final String label;
     private final BudgetKind kind;

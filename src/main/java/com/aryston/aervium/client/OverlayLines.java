@@ -1,5 +1,10 @@
 package com.aryston.aervium.client;
 
+import com.aryston.aervium.client.chunk.MeshWorkers;
+import com.aryston.aervium.client.culling.HelionShadowCasters;
+import com.aryston.aervium.client.culling.TerrainOcclusion;
+import com.aryston.aervium.core.culling.CullingStatistics;
+import com.aryston.aervium.core.job.JobLoadMeter.JobLoad;
 import com.aryston.aervium.core.telemetry.ByteSizes;
 import com.aryston.aervium.core.telemetry.FrameTimeSummary;
 import com.aryston.aervium.core.telemetry.GcPauseTotals;
@@ -9,6 +14,8 @@ import com.aryston.aervium.core.telemetry.TickSummary;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 
 final class OverlayLines {
     static final int TEXT = 0xFFFFFFFF;
@@ -17,6 +24,7 @@ final class OverlayLines {
     static final int ALERT = 0xFFFF5C5C;
 
     private static final double MEGABYTES_PER_GIGABYTE = 1024.0;
+    private static final double NANOS_PER_MILLI = 1.0E6;
 
     private OverlayLines() {
     }
@@ -29,6 +37,10 @@ final class OverlayLines {
         lines.add(snapshot.serverTicks().map(OverlayLines::tickLine).orElse(new Line("MSPT: no local server", MUTED)));
         lines.add(gcLine(snapshot.gcPauses()));
         lines.add(new Line(memoryText(snapshot), MUTED));
+        lines.add(cullingLine(CullingStatistics.SHARED));
+        if (MeshWorkers.active()) {
+            lines.add(meshLine(MeshWorkers.overlayLoad(System.nanoTime())));
+        }
         snapshot.timings().forEach(timing -> lines.add(timingLine(timing)));
         if (!passiveRendererMods.isEmpty()) {
             lines.add(new Line("Optimizations off: " + String.join(", ", passiveRendererMods) + " installed", WARNING));
@@ -43,6 +55,29 @@ final class OverlayLines {
 
     private static Line gcLine(GcPauseTotals pauses) {
         return new Line(format("GC pauses %d  total %.0f ms  longest %.1f ms", pauses.pauses(), pauses.totalMs(), pauses.longestMs()), MUTED);
+    }
+
+    private static Line cullingLine(CullingStatistics culling) {
+        if (!TerrainOcclusion.enabled()) {
+            return new Line("Culling off (F6)", WARNING);
+        }
+        String camera = format("Culling camera %d of %d hidden (%d%%)", culling.cameraHidden(), culling.cameraSections(),
+            CullingStatistics.percent(culling.cameraHidden(), culling.cameraSections()));
+        camera += format("  worker %.2f ms", culling.cameraJobNanos() / NANOS_PER_MILLI);
+        camera += format("  entities %d of %d", culling.entitiesHidden(), culling.entitiesTested());
+        camera += format("  particles %d of %d", culling.particlesHidden(), culling.particlesTested());
+        if (!HelionShadowCasters.active()) {
+            return new Line(camera, MUTED);
+        }
+        return new Line(camera + format("  shadows %d of %d (%d%%)", culling.shadowHidden(), culling.shadowCasters(),
+            CullingStatistics.percent(culling.shadowHidden(), culling.shadowCasters())), MUTED);
+    }
+
+    private static Line meshLine(JobLoad load) {
+        SectionRenderDispatcher dispatcher = Minecraft.getInstance().levelRenderer.sectionRenderDispatcher();
+        int queued = dispatcher == null ? 0 : dispatcher.getCompileQueueSize();
+        return new Line(format("Chunk builds %.0f/s  mesh workers %d  busy %.0f%%  queued %d",
+            load.jobsPerSecond(), MeshWorkers.workers(), load.busyShare() * 100.0, queued), MUTED);
     }
 
     private static String memoryText(TelemetrySnapshot snapshot) {

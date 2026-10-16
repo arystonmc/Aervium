@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class ModuleSettingsTest {
     @Test
-    void everyModuleIsOnByDefault() {
+    void everyModuleStartsOn() {
         ModuleSettings settings = ModuleSettings.parse(List.of());
         Arrays.stream(OptimizationModule.values()).forEach(module -> assertTrue(settings.isEnabled(module)));
     }

@@ -1,34 +1,82 @@
 package com.aryston.aervium.client.chunk;
 
+import com.aryston.aervium.core.mesh.FaceRanges;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.pipeline.IndexType;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
 import net.minecraft.client.renderer.chunk.SectionMesh;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
+import net.minecraft.core.BlockPos;
 import org.jspecify.annotations.Nullable;
 
 public final class SectionDrawRecord {
     public static final int SLOTS = 3;
+    static final int MESH_VERSION = 0;
+    static final int VALID = 1;
+    static final int ORIGIN_X = 2;
+    static final int ORIGIN_Y = 3;
+    static final int ORIGIN_Z = 4;
+    static final int COUNT = 5;
+    static final int HEADER = 6;
+    static final int LAYER = 0;
+    static final int GROUP_HASH = 1;
+    static final int INDEX_COUNT = 2;
+    static final int FIRST_INDEX = 3;
+    static final int BASE_VERTEX = 4;
+    static final int FLAGS = 5;
+    static final int FACES = 6;
+    static final int STRIDE = FACES + FaceRanges.PACKED_INTS;
+    static final int CUSTOM_INDEX_BUFFER = 1;
+    static final int HAS_FACES = 2;
+    private static final int TRUE = 1;
+    private static final int FALSE = 0;
     private static final int HASH_SEED = 173;
     private static final int HASH_FACTOR = 31;
+    private static final AtomicInteger MESH_VERSIONS = new AtomicInteger();
 
-    final SectionMesh mesh;
-    final int count;
-    final @Nullable LayerDraw slot0;
-    final @Nullable LayerDraw slot1;
-    final @Nullable LayerDraw slot2;
-    private boolean valid = true;
+    final int[] packed;
+    final LayerDraw[] draws;
+    private @Nullable SectionDrawRecordHolder owner;
 
-    private SectionDrawRecord(SectionMesh mesh, LayerDraw[] draws, int count) {
-        this.mesh = mesh;
-        this.count = count;
-        this.slot0 = draws[0];
-        this.slot1 = draws[1];
-        this.slot2 = draws[2];
+    private SectionDrawRecord(int meshVersion, BlockPos origin, LayerDraw[] draws, int count) {
+        this.draws = draws;
+        this.packed = new int[HEADER + count * STRIDE];
+        packed[MESH_VERSION] = meshVersion;
+        packed[VALID] = TRUE;
+        packed[ORIGIN_X] = origin.getX();
+        packed[ORIGIN_Y] = origin.getY();
+        packed[ORIGIN_Z] = origin.getZ();
+        packed[COUNT] = count;
+        for (int slot = 0; slot < count; slot++) {
+            pack(draws[slot], slotOffset(slot));
+        }
     }
 
-    static SectionDrawRecord build(SectionMesh mesh, SectionRenderDispatcher dispatcher) {
+    static int slotOffset(int slot) {
+        return HEADER + slot * STRIDE;
+    }
+
+    static boolean current(int[] packed, int meshVersion) {
+        return packed[VALID] == TRUE && packed[MESH_VERSION] == meshVersion;
+    }
+
+    private void pack(LayerDraw draw, int offset) {
+        packed[offset + LAYER] = draw.layer().ordinal();
+        packed[offset + GROUP_HASH] = draw.groupHash();
+        packed[offset + INDEX_COUNT] = draw.indexCount();
+        packed[offset + FIRST_INDEX] = draw.firstIndex();
+        packed[offset + BASE_VERTEX] = draw.baseVertex();
+        int flags = draw.customIndexBuffer() ? CUSTOM_INDEX_BUFFER : 0;
+        if (draw.faces() != null) {
+            flags |= HAS_FACES;
+            draw.faces().pack(packed, offset + FACES);
+        }
+        packed[offset + FLAGS] = flags;
+    }
+
+    static SectionDrawRecord build(SectionMesh mesh, int meshVersion, BlockPos origin, SectionRenderDispatcher dispatcher) {
         LayerDraw[] draws = new LayerDraw[SLOTS];
         int count = 0;
         for (ChunkSectionLayer layer : SectionLayers.ALL) {
@@ -51,26 +99,30 @@ public final class SectionDrawRecord {
                 firstIndex = (int) (slice.indexBufferOffset() / indexType.bytes);
             }
             int baseVertex = (int) (slice.vertexBufferOffset() / vertexFormat.getVertexSize());
+            FaceRanges faces = mesh instanceof FaceRangesHolder holder ? holder.aervium$faceRanges(layer.ordinal()) : null;
             draws[count++] = new LayerDraw(
-                layer, vertexBuffer, indexBuffer, indexType, groupHash, draw.indexCount(), firstIndex, baseVertex, draw.hasCustomIndexBuffer()
+                layer, vertexBuffer, indexBuffer, indexType, groupHash, draw.indexCount(), firstIndex, baseVertex, draw.hasCustomIndexBuffer(), faces
             );
         }
-        return new SectionDrawRecord(mesh, draws, count);
+        return new SectionDrawRecord(meshVersion, origin, draws, count);
     }
 
-    public boolean isFor(SectionMesh current) {
-        return valid && mesh == current;
+    public static int nextMeshVersion() {
+        return MESH_VERSIONS.incrementAndGet();
+    }
+
+    public void attach(SectionDrawRecordHolder holder) {
+        owner = holder;
+    }
+
+    public int[] packedDraws() {
+        return packed;
     }
 
     public void invalidate() {
-        valid = false;
-    }
-
-    @Nullable LayerDraw slot(int index) {
-        return switch (index) {
-            case 0 -> slot0;
-            case 1 -> slot1;
-            default -> slot2;
-        };
+        packed[VALID] = FALSE;
+        if (owner != null) {
+            owner.aervium$forgetGpuState();
+        }
     }
 }

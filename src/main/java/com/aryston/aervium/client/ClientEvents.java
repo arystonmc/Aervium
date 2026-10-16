@@ -2,6 +2,9 @@ package com.aryston.aervium.client;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.client.benchmark.BenchmarkDriver;
+import com.aryston.aervium.client.chunk.DirectDraws;
+import com.aryston.aervium.client.chunk.LeafCulling;
+import com.aryston.aervium.client.culling.TerrainOcclusion;
 import com.aryston.aervium.client.pipeline.PipelineWarmup;
 import com.aryston.aervium.client.pipeline.ShaderCaches;
 import com.aryston.aervium.config.AerviumConfig;
@@ -13,6 +16,7 @@ import com.aryston.aervium.integration.CompatibilityGuard;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.event.config.ModConfigEvent;
@@ -20,6 +24,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.FlipFrameEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -57,6 +62,7 @@ final class ClientEvents {
         modBus.addListener(ClientEvents::onRegisterGuiLayers);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onFrameStart);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onFrameEnd);
+        NeoForge.EVENT_BUS.addListener(ClientEvents::onFlipFrame);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onClientTickStart);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onClientTickEnd);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onLoggingIn);
@@ -87,6 +93,8 @@ final class ClientEvents {
     private static void applyConfig() {
         OVERLAY.setVisible(AerviumConfig.OVERLAY_VISIBLE.getAsBoolean());
         OVERLAY.setBudget(AerviumConfig.frameBudget());
+        TerrainOcclusion.setEnabled(AerviumConfig.OCCLUSION_CULLING.getAsBoolean());
+        LeafCulling.setEnabled(AerviumConfig.LEAF_CULLING.getAsBoolean());
         if (PASSIVE_RENDERER_MODS.isEmpty()) {
             FrameRateGovernor.apply(AerviumConfig.frameRatePolicy());
         }
@@ -104,6 +112,11 @@ final class ClientEvents {
     private static void onFrameEnd(RenderFrameEvent.Post event) {
         SystemTimings.SHARED.end(TimedSystem.FRAME, frameStart);
         TELEMETRY.frameFinished();
+        TerrainOcclusion.frameFinished();
+    }
+
+    private static void onFlipFrame(FlipFrameEvent event) {
+        DirectDraws.endFrame();
     }
 
     private static void onClientTickStart(ClientTickEvent.Pre event) {
@@ -117,9 +130,13 @@ final class ClientEvents {
             startupReported = true;
             ShaderCaches.reportStartup();
             reportGarbageCollector();
+            HardwareSetup.onGameLoaded(minecraft, BENCHMARK.isPresent());
         }
         while (AerviumKeys.TOGGLE_OVERLAY.consumeClick()) {
             toggleOverlay();
+        }
+        while (AerviumKeys.TOGGLE_CULLING.consumeClick()) {
+            toggleCulling(minecraft);
         }
         if (OVERLAY.isVisible()) {
             TELEMETRY.clientTick(OVERLAY.budget(), snapshot -> OVERLAY.publish(snapshot, PASSIVE_RENDERER_MODS));
@@ -138,6 +155,16 @@ final class ClientEvents {
         OVERLAY.setVisible(visible);
         AerviumConfig.OVERLAY_VISIBLE.set(visible);
         AerviumConfig.OVERLAY_VISIBLE.save();
+    }
+
+    private static void toggleCulling(Minecraft minecraft) {
+        boolean enabled = !TerrainOcclusion.enabled();
+        TerrainOcclusion.setEnabled(enabled);
+        AerviumConfig.OCCLUSION_CULLING.set(enabled);
+        AerviumConfig.OCCLUSION_CULLING.save();
+        if (minecraft.player != null) {
+            minecraft.player.sendOverlayMessage(Component.translatable(enabled ? "aervium.culling.on" : "aervium.culling.off"));
+        }
     }
 
     private static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
