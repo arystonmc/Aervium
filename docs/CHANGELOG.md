@@ -7,46 +7,22 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
-- Dedicated servers give new chunks their trees, ores and plants on several threads, so new land appears about a quarter faster
-- Servers compress packets twice as fast for a few percent more network traffic
-- Compact chunk vertices: terrain takes 16 instead of 28 bytes per vertex, for less video memory and faster drawing (off by itself with Helion 0.1)
-- Occlusion culling, including the check for Helion shadows, runs on background threads instead of the main thread
-- Block faces turned away from the camera are no longer sent to the graphics card
-- Idle hoppers skip searching for items and minecarts when none are near (same results as vanilla)
-- Moving mobs skip the search for entities they could bump into when none are near (same results as vanilla)
-- Villagers find beds and job sites with far less server work (same results as vanilla)
-- On first launch Aervium sorts the PC into low, medium or high and lightens settings on weak machines
-- Crash reports name the Aervium module whose code was in the crash and how to test without it
-- Initial mod setup for Minecraft 26.3 on NeoForge
-- Performance overlay with frame rate, 1% and 0.1% lows, a frame time graph, server tick time, garbage collector pauses and memory use (F7)
-- Built-in benchmark that flies a fixed route through a fixed-seed world and writes a JSON and a readable report
-- Optimizations stay off when Sodium or Iris is installed
-- Shader and pipeline caches that make later game starts faster
-- Built-in item pipelines compile while the game loads instead of causing a hitch in game
-- Dynamic frame rate in the background and while paused
-- Lighter chunk section locks: about 33 MB less memory at render distance 16 and faster server ticks
-- Light updates copy only the changed parts of the light map: less garbage and lower memory peaks
-- Faster chunk draw lists: much higher lows with Helion's shadows and in caves
-- The log suggests Java settings for smoother frames, and benchmark reports record the garbage collector
-- Every optimization can be switched off in `config/aervium-modules.properties`
-- Occlusion culling: terrain hidden behind solid blocks, like caves behind stone, is no longer drawn (F6 to compare)
+- Occlusion culling: terrain, mobs, chests, signs and particles hidden behind solid blocks are no longer drawn; the tests run on background threads (F6 to compare)
 - With Helion, chunks the sun cannot see are left out of the shadow maps; shadows look the same
-- Mobs, items, chests, signs and other entities hidden behind solid blocks are no longer drawn
-- Particles hidden behind solid blocks are no longer drawn
-- Chunks are prepared on Aervium's own threads, no longer waiting behind world generation in single player
+- Graphics cards that support it build their own terrain draw list and skip block faces turned away from the camera; other cards keep a fast CPU path
+- Faster chunk drawing: draw commands go straight into GPU memory, chunks that need rebuilding are found from a compact list, and crossing a chunk border updates only the columns that move
+- Compact chunk vertices: terrain takes 16 instead of 28 bytes per vertex, for less video memory and faster drawing (off by itself with Helion 0.1)
+- Chunks are prepared on Aervium's own threads instead of waiting behind world generation in single player
+- Shader and pipeline caches make later starts faster, and built-in item pipelines compile while the game loads instead of causing a hitch in game
+- Lighter chunk section locks and light updates that copy only the changed parts: less memory and fewer garbage collector pauses
+- Villagers, moving mobs and idle hoppers search with far less server work, with the same results as vanilla
+- Dedicated servers place trees, ores and plants of new chunks on several threads, so new land appears about a quarter faster
+- Servers compress packets twice as fast for a few percent more network traffic
+- Dynamic frame rate in the background and while paused
 - Optional leaf culling for faster forests (off by default)
-- The overlay and benchmark show chunk upload time and how long the game waits for the chunk builders
-
-### Changed
-- When you cross a chunk border, only the chunk columns that move are updated instead of the whole view area, and light snapshots copy less: higher lows, above all when flying
-- Graphics cards that support it build the solid and leafy terrain draw list themselves: 4 to 5 % higher lows without Helion
-- Chunk draw commands are written straight into GPU memory without creating objects every frame: 6 to 9 % higher average and 10 to 16 % higher 1% low without Helion
-- Finding chunks that need rebuilding no longer looks up every visible chunk every frame, which speeds up caves the most
-- Occlusion culling stretches a late result without extra work on the main thread, for steadier frames when flying through caves
-- The overlay draws its frame graph as one piece and costs much less frame time
-- The chunk draw list reads half as much scattered memory per section, which leaves the main thread more time per frame
-- Finding the chests, signs and beds to draw no longer looks into every visible chunk section
-- Occlusion culling keeps working through slow frames instead of drawing every chunk for a few frames, for steadier frame times when flying
-- With Helion, the shadow check keeps its last result while you move instead of starting over every frame
-- The benchmark summons the village crowd before the first scene and logs the longest frame of every scene start
-
+- On first launch Aervium sorts the PC into low, medium or high and lightens settings on weak machines
+- Performance overlay with frame rate, 1% and 0.1% lows, a frame time graph, server tick time, garbage collector pauses, memory use and chunk build statistics (F7)
+- Built-in benchmark that flies a fixed route through a fixed-seed world and writes a JSON and a readable report
+- The log suggests Java settings for smoother frames
+- Crash reports name the Aervium module whose code was in the crash and how to test without it
+- Every optimization can be switched off in `config/aervium-modules.properties`, and all render optimizations stay off when Sodium or Iris is installed

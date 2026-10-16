@@ -4,7 +4,7 @@ What the latest version of Aervium can do. Written for players and ready to reus
 
 ## Summary
 
-Aervium makes Minecraft run smoother on the Vulkan renderer: steadier frame times, fewer stutters and a server that keeps 20 ticks per second, while redstone, farms and mobs behave exactly as in vanilla. This first version brings the measuring tools every later optimization is judged with.
+Aervium makes Minecraft run smoother on the Vulkan renderer: steadier frame times, fewer stutters and a server that keeps 20 ticks per second, while redstone, farms and mobs behave exactly as in vanilla. It skips terrain, mobs and particles hidden behind blocks, lets the graphics card build its own terrain draw list, caches shaders so games start faster without hitches, speeds up villagers, mobs, hoppers and world generation on the server, and measures all of it with a built-in overlay and benchmark. Every optimization can be switched off on its own.
 
 ## At a Glance
 
@@ -14,7 +14,7 @@ Aervium makes Minecraft run smoother on the Vulkan renderer: steadier frame time
 | Minecraft | 26.3 |
 | Loader | NeoForge |
 | Side | Client and server, each optional |
-| Status | In development |
+| Status | Ready for 0.1, not released yet |
 
 ## Features
 
