@@ -32,15 +32,18 @@ See exactly how smooth your game runs, not just how fast.
 A repeatable test run so changes can be measured instead of guessed.
 
 - Creates a fresh world from a fixed seed and flies the camera along a fixed route: walking over the surface, elytra-speed flight over new terrain, a village with a crowd of villagers, a flight through caves and a running redstone build
-- Measures every scene for 30 seconds after 10 seconds of settling: frame rate, 1% and 0.1% lows, frame time deviation, server tick time distribution, garbage collector pauses, peak RAM and video memory
+- Measures every scene for 30 seconds after 10 seconds of settling: frame rate, 1% and 0.1% lows, frame time deviation, median, p99 and p99.9 frame time, frames over 33 and 50 ms, server tick time distribution, garbage collector pauses, peak RAM and video memory
 - Writes `aervium/benchmarks/benchmark-<date>.json` and a readable `.txt` report into the game folder and compares the result with the previous run
 - Start it with the JVM argument `-Daervium.benchmark=true`; add `-Daervium.benchmark.quit=true` to close the game when it is done
+- Every run gives Minecraft all the power: no frame limit and no vsync while it runs (your settings come back afterwards); `-Daervium.benchmark.renderDistance=N` and `-Daervium.benchmark.simulationDistance=N` set the distances for the run, and `-Daervium.modules=off` turns every Aervium optimization off for that start, to measure vanilla without editing `aervium-modules.properties`
 - Since: 0.1
 
 ### Compatibility Guard
 Aervium never fights another renderer.
 
-- When Sodium or Iris is installed, Aervium keeps its optimizations off; the overlay and the benchmark still work, so you can compare
+- Aervium and Sodium are both performance mods for the same parts of the game, so Aervium refuses to start next to Sodium and the loading screen says why, in English or Turkish after the game language; remove one of the two
+- Only the built-in benchmark (`-Daervium.benchmark=true`) starts next to Sodium, with every Aervium optimization off, so Sodium can be measured on the same route
+- When Iris is installed, Aervium keeps its optimizations off; the overlay and the benchmark still work
 - Since: 0.1
 
 ### Faster Starts with Shader and Pipeline Caches
@@ -202,5 +205,5 @@ When the game crashes, the crash report says whether Aervium was involved.
 Every optimization can be turned off.
 
 - `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`, `gpuCulling`, `sectionGridMoves`) with `true` or `false`; changes apply at the next start; every module starts on
-- Render optimizations stay off by themselves when Sodium or Iris is installed
+- Render optimizations stay off by themselves when Iris is installed, or next to Sodium in the benchmark
 - Since: 0.1

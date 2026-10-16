@@ -40,6 +40,9 @@ public final class BenchmarkText {
         line(text, "");
         report.scenes().forEach(scene -> line(text, "%-12s peak VRAM %.0f MB, %d GC pauses (longest %.1f ms), %d frames dropped from the record",
             scene.scene(), scene.peakVramMb(), scene.gcPauses().pauses(), scene.gcPauses().longestMs(), scene.droppedFrames()));
+        line(text, "");
+        report.scenes().forEach(scene -> line(text, "%-12s median frame %.2f ms, p99 %.2f ms, p99.9 %.2f ms, %d frames over 33 ms, %d over 50 ms",
+            scene.scene(), scene.frames().medianMs(), scene.frames().p99Ms(), scene.frames().p999Ms(), scene.frames().framesOver33Ms(), scene.frames().framesOver50Ms()));
         comparison.ifPresent(delta -> comparisonSection(text, delta));
         return text.toString();
     }

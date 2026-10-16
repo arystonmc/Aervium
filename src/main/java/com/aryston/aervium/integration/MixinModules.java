@@ -25,6 +25,8 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 public final class MixinModules implements IMixinConfigPlugin {
     private static final String SETTINGS_FILE = "aervium-modules.properties";
+    private static final String ALL_MODULES_PROPERTY = "aervium.modules";
+    private static final String ALL_OFF = "off";
     private static final char PACKAGE_SEPARATOR = '.';
     private static final Map<String, OptimizationModule> MIXIN_MODULES = Map.ofEntries(
         Map.entry("GlslCompilerMixin", OptimizationModule.SHADER_CACHE),
@@ -84,6 +86,7 @@ public final class MixinModules implements IMixinConfigPlugin {
     private static volatile Map<String, Boolean> activeModules = Map.of();
 
     private ModuleSettings settings;
+    private boolean allOff;
     private boolean rendererReplaced;
     private boolean helionLoaded;
     private boolean helionWithoutCompactVertices;
@@ -91,6 +94,10 @@ public final class MixinModules implements IMixinConfigPlugin {
     @Override
     public void onLoad(String mixinPackage) {
         settings = readSettings(FMLPaths.CONFIGDIR.get().resolve(SETTINGS_FILE));
+        allOff = ALL_OFF.equals(System.getProperty(ALL_MODULES_PROPERTY));
+        if (allOff) {
+            Aervium.LOGGER.info("Aervium keeps every module off for this start (-D{}={})", ALL_MODULES_PROPERTY, ALL_OFF);
+        }
         rendererReplaced = CompatibilityGuard.REPLACED_RENDERERS.stream().anyMatch(MixinModules::loaded);
         helionLoaded = loaded(HELION_MOD_ID);
         helionWithoutCompactVertices = helionLoaded && !helionReadsCompactVertices();
@@ -114,7 +121,7 @@ public final class MixinModules implements IMixinConfigPlugin {
     }
 
     private boolean isActive(OptimizationModule module) {
-        return settings.isEnabled(module) && !(module.renderer() && rendererReplaced)
+        return !allOff && settings.isEnabled(module) && !(module.renderer() && rendererReplaced)
             && !(module == OptimizationModule.COMPACT_VERTICES && helionWithoutCompactVertices);
     }
 

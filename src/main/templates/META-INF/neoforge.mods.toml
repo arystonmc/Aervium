@@ -34,14 +34,6 @@ file="META-INF/accesstransformer.cfg"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
-    modId="sodium"
-    type="discouraged"
-    reason="Sodium replaces the renderer that Aervium optimizes. Aervium keeps its optimizations off while Sodium is installed."
-    versionRange="*"
-    ordering="NONE"
-    side="CLIENT"
-
-[[dependencies.${mod_id}]]
     modId="iris"
     type="discouraged"
     reason="Iris replaces the render pipeline that Aervium optimizes. Aervium keeps its optimizations off while Iris is installed."

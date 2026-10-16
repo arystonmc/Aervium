@@ -69,6 +69,7 @@ public final class BenchmarkDriver {
     private BenchmarkAnchors anchors;
     private String startedAt;
     private boolean pauseOnLostFocus;
+    private final BenchmarkOptions options = new BenchmarkOptions();
     private boolean focusOverridden;
     private int sceneIndex;
     private int tick;
@@ -117,6 +118,7 @@ public final class BenchmarkDriver {
         if (!minecraft.isGameLoadFinished() || minecraft.level != null || minecraft.gui.screen() == null) {
             return;
         }
+        options.apply(minecraft.options);
         try {
             BenchmarkWorld.createFresh(minecraft, minecraft.gui.screen());
             Aervium.LOGGER.info("Aervium benchmark: creating a fresh world with seed {}", BenchmarkWorld.SEED);
@@ -346,6 +348,7 @@ public final class BenchmarkDriver {
 
     private void end(Minecraft minecraft) {
         stage = Stage.FINISHED;
+        options.restore(minecraft.options);
         FrameRateGovernor.suspend(false);
         if (focusOverridden) {
             minecraft.options.pauseOnLostFocus = pauseOnLostFocus;

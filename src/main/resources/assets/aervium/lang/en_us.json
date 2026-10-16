@@ -1,4 +1,5 @@
 {
+  "aervium.loading.sodium": "Aervium and Sodium are both performance mods that replace the same parts of the game, so they cannot run together. Remove one of them and start the game again. Aervium only starts next to Sodium for its own benchmark (-Daervium.benchmark=true).",
   "key.category.aervium.aervium": "Aervium",
   "key.aervium.overlay": "Toggle Performance Overlay",
   "key.aervium.culling": "Toggle Occlusion Culling",

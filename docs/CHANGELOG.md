@@ -7,6 +7,8 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
+- The benchmark runs with no frame limit and no vsync, can set render and simulation distance, can turn every optimization off for vanilla runs, and counts frames over 33 and 50 ms
+- Aervium refuses to start next to Sodium and explains why on the loading screen; only its benchmark still runs next to Sodium to compare the two
 - Occlusion culling: terrain, mobs, chests, signs and particles hidden behind solid blocks are no longer drawn; the tests run on background threads and rest where they would hide little (F6 to compare)
 - With Helion, chunks the sun cannot see are left out of the shadow maps; shadows look the same
 - Graphics cards that support it build their own terrain draw list and skip block faces turned away from the camera; other cards keep a fast CPU path
@@ -25,4 +27,4 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Built-in benchmark that flies a fixed route through a fixed-seed world and writes a JSON and a readable report
 - The log suggests Java settings for smoother frames
 - Crash reports name the Aervium module whose code was in the crash and how to test without it
-- Every optimization can be switched off in `config/aervium-modules.properties`, and all render optimizations stay off when Sodium or Iris is installed
+- Every optimization can be switched off in `config/aervium-modules.properties`, and all render optimizations stay off when Iris is installed

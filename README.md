@@ -33,7 +33,7 @@ It replaces a stack of separate performance mods with built-in modules that can 
 - 🔋 **Dynamic frame rate:** Lower frame rates in the background and while paused.
 - 📈 **Performance overlay (F7):** Frame rate with 1% and 0.1% lows, a live frame time graph, server tick time, garbage collector pauses, RAM and video memory.
 - 🧪 **Built-in benchmark:** A repeatable flight through a fixed world (walk, elytra, village crowd, caves, redstone) that writes a readable report and compares it with the last run.
-- 🧩 **Plays well with others:** With Sodium or Iris installed, Aervium keeps every optimization off and only measures.
+- 🧩 **One performance mod at a time:** Aervium replaces Sodium, so it refuses to start next to it with a clear message (except in its own benchmark, to measure Sodium). With Iris installed it keeps every optimization off and only measures.
 
 See the [Aervium Feature Guide](docs/FEATURES.md) for every module and its measured effect.
 

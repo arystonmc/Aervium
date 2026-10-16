@@ -1,4 +1,5 @@
 {
+  "aervium.loading.sodium": "Aervium ve Sodium oyunun aynı parçalarını değiştiren iki performans modudur, bu yüzden birlikte çalışamazlar. Birini kaldırıp oyunu yeniden başlatın. Aervium, Sodium ile yalnızca kendi benchmark modunda başlar (-Daervium.benchmark=true).",
   "key.category.aervium.aervium": "Aervium",
   "key.aervium.overlay": "Performans Panelini Aç/Kapat",
   "key.aervium.culling": "Görünmezlik Ayıklamayı Aç/Kapat",

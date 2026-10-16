@@ -19,6 +19,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Benchmark route and scenes | `BenchmarkRoute`, `BenchmarkScene`, `LinePath`, `OrbitPath` |
 | Benchmark world, commands and camera | `BenchmarkWorld`, `BenchmarkCommands`, `BenchmarkCamera` |
 | Benchmark flow and report | `BenchmarkDriver`, `SceneMeasurement`, `BenchmarkReport`, `BenchmarkText`, `BenchmarkFiles`, `BenchmarkComparison` |
+| Refusing to load next to Sodium (loading error in the game language) | `SodiumClash`, `LoadingText`, `Aervium` |
 | Shader and pipeline caches, startup report | `ShaderCaches`, `SpirvCache`, `VulkanPipelineCache`, `ShaderCacheKey`, `DiskCache` |
 | Pipelines compiled in the middle of a frame | `PipelineWarmup`, `PipelineCacheMixin` |
 | Dynamic frame rate | `FrameRatePolicy`, `FrameRateGovernor`, `FramerateLimitTrackerMixin` |
@@ -94,7 +95,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### FrameTimeSummary
 - Path: `src/main/java/com/aryston/aervium/core/telemetry/FrameTimeSummary.java`
-- Role: Frame time statistics for players: average FPS, 1% low (FPS at the 99th percentile frame time), 0.1% low (99.9th percentile), average, standard deviation, median, p99, p99.9 and maximum in milliseconds.
+- Role: Frame time statistics for players: average FPS, 1% low (FPS at the 99th percentile frame time), 0.1% low (99.9th percentile), average, standard deviation, median, p99, p99.9 frames over 33 and 50 ms (counted before the samples are sorted), and maximum in milliseconds.
 - Depends on: `SampleStatistics`, `Durations`.
 
 #### TickSummary
@@ -528,14 +529,19 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Interface `DataLayerStorageMapMixin` adds to the light storage maps: `aervium$snapshot()` returns the map for a new visible copy.
 - Depends on: nothing.
 
+#### SodiumClash, LoadingText
+- Path: `src/main/java/com/aryston/aervium/integration/SodiumClash.java`, `src/main/java/com/aryston/aervium/integration/LoadingText.java`
+- Role: `SodiumClash` runs first in the mod constructor and throws a NeoForge `ModLoadingException` with one error issue when Sodium is loaded, unless `-Daervium.benchmark=true` is set. `LoadingText` resolves the message from the mod's own language file for the language in `options.txt` (falling back to English), because the loading screen only knows FML's own translations, and doubles apostrophes for the message format.
+- Depends on: nothing inside the mod.
+
 #### CompatibilityGuard
 - Path: `src/main/java/com/aryston/aervium/integration/CompatibilityGuard.java`
-- Role: Lists installed renderer mods (Sodium, Iris) that turn Aervium's optimizations off; `REPLACED_RENDERERS` is shared with `MixinModules`.
+- Role: Lists installed renderer mods (Sodium, which only loads next to Aervium in the benchmark, and Iris) that turn Aervium's optimizations off; `REPLACED_RENDERERS` is shared with `MixinModules`.
 - Depends on: nothing inside the mod.
 
 #### MixinModules
 - Path: `src/main/java/com/aryston/aervium/integration/MixinModules.java`
-- Role: Mixin config plugin: reads and rewrites `config/aervium-modules.properties` before any mixin applies, skips the mixins of switched-off modules, skips renderer modules when Sodium or Iris is in the mod list, keeps `compactVertices` off when Helion is installed without its `CompactTerrainVertices` class (Helion 0.1) and skips mixins into Helion classes when Helion is not installed.
+- Role: Mixin config plugin: reads and rewrites `config/aervium-modules.properties` before any mixin applies, skips the mixins of switched-off modules, skips renderer modules when Sodium or Iris is in the mod list, keeps `compactVertices` off when Helion is installed without its `CompactTerrainVertices` class (Helion 0.1) and skips mixins into Helion classes when Helion is not installed. `-Daervium.modules=off` keeps every module off for that start without touching the file.
 - Depends on: `ModuleSettings`, `OptimizationModule`, `CompatibilityGuard`.
 - Notes: Runs before mods are constructed, so it reads the mod list through `FMLLoader.getCurrent().getLoadingModList()`. Also keeps, for the crash report, the active state of every module (`activeModules`), the module of each mixin (`moduleOf`) and which Aervium mixins were applied to each class with their method names (`mixinsDeclaring`, filled in `postApply`).
 
@@ -799,6 +805,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Depends on: `PipelineCacheAccessor`, `JobSystem`, `MainThreadQueue`.
 
 ### `com.aryston.aervium.client.benchmark`
+
+#### BenchmarkOptions
+- Path: `src/main/java/com/aryston/aervium/client/benchmark/BenchmarkOptions.java`
+- Role: Before the benchmark world is created, remembers the frame limit, vsync, render and simulation distance, sets an unlimited frame rate (`Options.UNLIMITED_FRAMERATE_CUTOFF`), vsync off and the distances from `-Daervium.benchmark.renderDistance` and `.simulationDistance` (current values when absent), and restores all four when the benchmark ends.
+- Depends on: nothing inside the mod.
 
 #### BenchmarkDriver
 - Path: `src/main/java/com/aryston/aervium/client/benchmark/BenchmarkDriver.java`
@@ -1148,7 +1159,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/LanguageFilesTest.java` | Every language file has the same keys and every config entry has a `.tooltip` translation (lesson L-011). |
 | `src/test/java/com/aryston/aervium/core/telemetry/SampleRingTest.java` | Order, overwriting the oldest samples, copies into existing arrays, marks, clearing, invalid capacity. |
 | `src/test/java/com/aryston/aervium/core/telemetry/SampleStatisticsTest.java` | Nearest-rank percentiles, mean, population standard deviation, sorting only the counted prefix, empty samples. |
-| `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeSummaryTest.java` | Steady frames give equal average and lows; spikes lower the 1% and 0.1% lows and the average as computed by hand. |
+| `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeSummaryTest.java` | Steady frames give equal average and lows; spikes lower the 1% and 0.1% lows and the average as computed by hand. Frames over 33 and 50 ms are counted at the exact thresholds. |
 | `src/test/java/com/aryston/aervium/core/telemetry/TickSummaryTest.java` | Histogram buckets and their edges, ticks over 50 ms and their share, median. |
 | `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeRecorderTest.java` | Frame times are the gaps between frame starts; a reset drops the gap. |
 | `src/test/java/com/aryston/aervium/core/culling/DepthRasterTest.java` | Walls hide boxes behind them but never boxes in front, partly covered boxes, gaps, a section never hides itself, near plane clipping, boxes behind the camera, orthographic light space, and 200 random scenes checked against ray casting: nothing visible is ever hidden. |

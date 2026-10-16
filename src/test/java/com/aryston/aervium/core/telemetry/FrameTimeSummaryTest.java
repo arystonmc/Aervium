@@ -44,4 +44,12 @@ class FrameTimeSummaryTest {
         assertEquals(0.0, FrameTimeSummary.of(new long[0], 0).averageFps());
         assertEquals(0, FrameTimeSummary.of(new long[0], 0).frames());
     }
+
+    @Test
+    void countsFramesOverTheStutterThresholds() {
+        long[] frames = {10_000_000L, 33_000_000L, 33_000_001L, 50_000_000L, 50_000_001L, 120_000_000L};
+        FrameTimeSummary summary = FrameTimeSummary.of(frames, frames.length);
+        assertEquals(4, summary.framesOver33Ms());
+        assertEquals(2, summary.framesOver50Ms());
+    }
 }
