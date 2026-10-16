@@ -19,7 +19,8 @@ public enum OptimizationModule {
     BLOCK_ENTITY_SECTIONS("blockEntitySections", true),
     DIRECT_DRAWS("directDraws", true),
     DIRTY_SECTIONS("dirtySections", true),
-    GPU_CULLING("gpuCulling", true);
+    GPU_CULLING("gpuCulling", true),
+    SECTION_GRID_MOVES("sectionGridMoves", true);
 
     private final String key;
     private final boolean renderer;

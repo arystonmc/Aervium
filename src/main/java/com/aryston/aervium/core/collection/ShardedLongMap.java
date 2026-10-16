@@ -7,7 +7,7 @@ import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.ObjectCollection;
 
 public final class ShardedLongMap<V> extends Long2ObjectOpenHashMap<V> {
-    static final int SHARD_BITS = 7;
+    static final int SHARD_BITS = 10;
     static final int SHARDS = 1 << SHARD_BITS;
     private static final String READ_ONLY = "Aervium snapshot maps are read only";
 

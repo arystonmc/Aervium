@@ -65,6 +65,7 @@
     "SectionDirtyStateMirrorMixin",
     "SectionUpdateTrackerMirrorMixin",
     "RenderSystemMixin",
+    "RotatingSectionStorageEdgeMixin",
     "VisGraphMixin",
     "VisibilitySetMixin",
     "VulkanCommandEncoderAccessor",

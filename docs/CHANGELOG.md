@@ -38,6 +38,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - The overlay and benchmark show chunk upload time and how long the game waits for the chunk builders
 
 ### Changed
+- When you cross a chunk border, only the chunk columns that move are updated instead of the whole view area, and light snapshots copy less: higher lows, above all when flying
 - Graphics cards that support it build the solid and leafy terrain draw list themselves: 4 to 5 % higher lows without Helion
 - Chunk draw commands are written straight into GPU memory without creating objects every frame: 6 to 9 % higher average and 10 to 16 % higher 1% low without Helion
 - Finding chunks that need rebuilding no longer looks up every visible chunk every frame, which speeds up caves the most

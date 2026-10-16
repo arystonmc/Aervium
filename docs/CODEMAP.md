@@ -42,6 +42,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Compact terrain vertices (16 instead of 28 bytes, off with a Helion that cannot read them) | `CompactVertexEncoder`, `CompactTerrainFormat`, `CompactMeshUpload`, `CompactWireframe`, `RenderPipelineBuilderCompactMixin`, `SectionCompilerCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `ChunkSectionsToRenderCompactMixin`, `shaders/terrain/compact.vsh` |
 | Dirty section scan (clean sections answered from an array) | `DirtySectionMirror`, `DirtySectionIndex`, `SectionDirtyStateMirrorMixin`, `SectionUpdateTrackerMirrorMixin`, `LevelExtractorDirtySectionsMixin` |
 | GPU culling (advanced terrain path: the GPU builds the solid and cutout draw lists) | `GpuCulling`, `GpuSections`, `GpuSectionTable`, `GpuSectionEntry`, `TerrainGroups`, `GpuDrawList`, `CullPipeline`, `VulkanAccess`, `IndirectCountFeature`, `GpuBufferUsage`, `ChunkSectionsToRenderIndirectCountMixin`, `VulkanFeatureSetsMixin`, `VulkanConstStorageMixin`, `shaders/culling/terrain_draws.csh` |
+| Section grid moves (only the edge columns when the camera enters another chunk) | `RotatingSectionStorageEdgeMixin` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -318,12 +319,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### ShardedLongMap
 - Path: `src/main/java/com/aryston/aervium/core/collection/ShardedLongMap.java`
-- Role: Read-only `Long2ObjectOpenHashMap` view over 128 immutable shards (by mixed key hash); answers `get`, `getOrDefault`, `containsKey`, `size` and `isEmpty`, throws on writes and iteration, `clone()` returns itself.
+- Role: Read-only `Long2ObjectOpenHashMap` view over 1024 immutable shards (by mixed key hash); answers `get`, `getOrDefault`, `containsKey`, `size` and `isEmpty`, throws on writes and iteration, `clone()` returns itself.
 - Depends on: nothing (fastutil).
 
 #### ShardedLongMapBuilder
 - Path: `src/main/java/com/aryston/aervium/core/collection/ShardedLongMapBuilder.java`
-- Role: Keeps a mutable mirror of a map in 128 shards and publishes `ShardedLongMap` snapshots that copy only the shards written since the last snapshot; unchanged shards are shared between snapshots.
+- Role: Keeps a mutable mirror of a map in 1024 shards and publishes `ShardedLongMap` snapshots that copy only the shards written since the last snapshot; unchanged shards are shared between snapshots. 1024 shards instead of 128 (2026-10-16): when chunks arrive, a snapshot copies about an eighth as many entries, which showed in the slowest frames of the elytra flight.
 - Members: `copyOf(Long2ObjectMap)`, `put(long, V)`, `remove(long)`, `publish()`.
 - Depends on: `ShardedLongMap`.
 
@@ -862,6 +863,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererSectionSliceMixin.java`
 - Role: Replaces `LevelRenderer.extractSectionDrawGroups` with `SectionDrawLists` (under the dispatcher lock, as vanilla) when the game has at most three section layers; the redirects below remain for the vanilla path. In that path it answers `getRenderSectionSlice` from the slice cached in the mesh and asks vanilla only on a miss, and replaces the `ChunkSectionLayer.values()` copy for every section with `SectionLayers.ALL`.
 - Notes: Module `sectionSliceCache`, renderer module. Vanilla looks up two `HashMap` entries per section and layer in every pass (the camera and each of Helion's shadow cascades) and allocates a new slice record each time; with Helion at render distance 32 that lookup was about 27 % of the render thread. Turning the module on raised the benchmark 1% low from 36.1 to 50.9 FPS and the cave scene from 58 to 78 FPS average (ZGC, Helion and Arkea, 2026-10-12).
+
+#### RotatingSectionStorageEdgeMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/RotatingSectionStorageEdgeMixin.java`
+- Role: When the camera enters another chunk column, vanilla `RotatingSectionStorage.repositionCenter` walks every node of the view area and of the section update tracker (about 100,000 each at render distance 32) to find the few that moved. The mixin compares only the grid columns: a column's sections move only when its x or z coordinate wraps, so it touches the columns at the leading and trailing edges and leaves the rest alone. The first placement and jumps of a whole grid width or more take the vanilla path.
+- Notes: Module `sectionGridMoves`, renderer module. Needs the access transformer entry for `RotatingSectionStorage$Node`. In the slowest frames of the benchmark the vanilla walk was 5 % of the render thread against 0.4 % in normal frames; with this module and 1024 light snapshot shards the 1% low rose by 6 % and the elytra 1% low from 115 to 126 to 132 FPS (2026-10-16).
 
 #### SectionDirtyStateMirrorMixin, SectionUpdateTrackerMirrorMixin, LevelExtractorDirtySectionsMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/SectionDirtyStateMirrorMixin.java`, `src/main/java/com/aryston/aervium/mixin/SectionUpdateTrackerMirrorMixin.java`, `src/main/java/com/aryston/aervium/mixin/LevelExtractorDirtySectionsMixin.java`
