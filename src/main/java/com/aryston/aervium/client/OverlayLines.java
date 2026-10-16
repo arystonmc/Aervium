@@ -62,13 +62,18 @@ final class OverlayLines {
         if (!TerrainOcclusion.enabled()) {
             return new Line("Culling off (F6)", WARNING);
         }
-        String camera = format("Culling camera %d of %d hidden (%d%%)", culling.cameraHidden(), culling.cameraSections(),
-            CullingStatistics.percent(culling.cameraHidden(), culling.cameraSections()));
+        String camera = TerrainOcclusion.cameraPaused()
+            ? "Culling camera resting: under 15% hidden here"
+            : format("Culling camera %d of %d hidden (%d%%)", culling.cameraHidden(), culling.cameraSections(),
+                CullingStatistics.percent(culling.cameraHidden(), culling.cameraSections()));
         camera += format("  worker %.2f ms", culling.cameraJobNanos() / NANOS_PER_MILLI);
         camera += format("  entities %d of %d", culling.entitiesHidden(), culling.entitiesTested());
         camera += format("  particles %d of %d", culling.particlesHidden(), culling.particlesTested());
         if (!HelionShadowCasters.active()) {
             return new Line(camera, MUTED);
+        }
+        if (TerrainOcclusion.shadowsPaused()) {
+            return new Line(camera + "  shadows resting", MUTED);
         }
         return new Line(camera + format("  shadows %d of %d (%d%%)", culling.shadowHidden(), culling.shadowCasters(),
             CullingStatistics.percent(culling.shadowHidden(), culling.shadowCasters())), MUTED);

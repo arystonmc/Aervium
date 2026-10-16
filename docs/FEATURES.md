@@ -150,6 +150,7 @@ Skips terrain you cannot see because solid blocks are in the way.
 - The visibility tests for the camera and for Helion's shadows run on their own background threads, so they no longer cost frame time on the main thread
 - When a frame takes longer than usual and the camera moved past the last visibility result, that result is stretched to the new position instead of drawing every chunk for a few frames, so one slow frame no longer causes the next ones
 - Stretching a result costs the main thread no extra visibility tests: the background thread already measured how far each hidden chunk stays hidden
+- Where nothing is hidden, for example on flat land, culling rests and costs nothing; it checks again every second, so it starts working as soon as you enter a cave or walk behind a hill. The overlay shows when it rests
 - F6 turns it on and off in game to compare; the overlay (F7) shows how many chunks, entities and particles were skipped
 - Since: 0.1
 

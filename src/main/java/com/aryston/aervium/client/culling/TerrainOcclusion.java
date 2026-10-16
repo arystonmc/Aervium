@@ -6,6 +6,7 @@ import com.aryston.aervium.core.budget.TimedSystem;
 import com.aryston.aervium.core.culling.CameraResult;
 import com.aryston.aervium.core.culling.ClipMatrix;
 import com.aryston.aervium.core.culling.CullingStatistics;
+import com.aryston.aervium.core.culling.CullingYield;
 import com.aryston.aervium.core.culling.DepthRaster;
 import com.aryston.aervium.core.culling.OccluderBoxes;
 import com.aryston.aervium.core.culling.OcclusionPass;
@@ -46,6 +47,11 @@ public final class TerrainOcclusion {
     private static final long MAX_RESULT_AGE_NANOS = 60_000_000L;
     private static final float MAX_WIDENED_REACH = OcclusionPass.MAX_REVEAL_REACH;
     private static final int NOT_HIDDEN = 0;
+    private static final float USEFUL_HIDDEN_SHARE = 0.15F;
+    private static final int LOW_YIELD_RESULTS = 20;
+    private static final long YIELD_PAUSE_NANOS = 1_000_000_000L;
+    private static final CullingYield CAMERA_YIELD = new CullingYield(USEFUL_HIDDEN_SHARE, LOW_YIELD_RESULTS, YIELD_PAUSE_NANOS);
+    private static final CullingYield SHADOW_YIELD = new CullingYield(USEFUL_HIDDEN_SHARE, LOW_YIELD_RESULTS, YIELD_PAUSE_NANOS);
 
     private static final JobSystem JOBS = new JobSystem(
         "Aervium Culling",
@@ -79,8 +85,18 @@ public final class TerrainOcclusion {
         return enabled;
     }
 
+    public static boolean cameraPaused() {
+        return enabled && CAMERA_YIELD.paused(System.nanoTime());
+    }
+
+    public static boolean shadowsPaused() {
+        return enabled && SHADOW_YIELD.paused(System.nanoTime());
+    }
+
     public static void setEnabled(boolean value) {
         enabled = value;
+        CAMERA_YIELD.reset();
+        SHADOW_YIELD.reset();
         clearShadowResults();
         if (!value) {
             CullingStatistics.SHARED.camera(0, 0);
@@ -127,12 +143,23 @@ public final class TerrainOcclusion {
             return;
         }
         long start = SystemTimings.begin();
+        long nanos = System.nanoTime();
+        if (CAMERA_YIELD.paused(nanos)) {
+            SystemTimings.SHARED.end(TimedSystem.CULLING, start);
+            return;
+        }
         Vec3 eye = camera.pos;
         OcclusionPipeline.Frame finished = CAMERA.activateFinished();
         if (finished != null) {
-            markHidden(finished);
             CullingStatistics.SHARED.camera(finished.size(), finished.hidden());
             CullingStatistics.SHARED.cameraJob(finished.jobNanos());
+            if (CAMERA_YIELD.result(finished.size(), finished.hidden(), nanos)) {
+                CAMERA.clear();
+                previousEye = null;
+                SystemTimings.SHARED.end(TimedSystem.CULLING, start);
+                return;
+            }
+            markHidden(finished);
         }
         OcclusionPipeline.Frame active = CAMERA.active();
         float reach = reach(eye);
@@ -235,14 +262,26 @@ public final class TerrainOcclusion {
             return;
         }
         long start = SystemTimings.begin();
+        long nanos = System.nanoTime();
+        if (SHADOW_YIELD.paused(nanos)) {
+            SystemTimings.SHARED.end(TimedSystem.CULLING, start);
+            return;
+        }
         CullingStatistics.SHARED.beginShadows();
+        int tested = 0;
+        int hiddenTotal = 0;
         for (int cascade = 0; cascade < cascades.size(); cascade++) {
             List<SectionRenderDispatcher.RenderSection> sections = cascades.get(cascade);
             int before = sections.size();
             int hidden = cascade < MAX_SHADOW_CASCADES ? SHADOW_CASCADES[cascade].filter(sections, lightView, camera, frame, now, fadeDuration) : 0;
             CullingStatistics.SHARED.shadowCascade(before, hidden);
+            tested += before;
+            hiddenTotal += hidden;
         }
         CullingStatistics.SHARED.endShadows();
+        if (SHADOW_YIELD.result(tested, hiddenTotal, nanos)) {
+            clearShadowResults();
+        }
         SystemTimings.SHARED.end(TimedSystem.CULLING, start);
     }
 

@@ -7,7 +7,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
-- Occlusion culling: terrain, mobs, chests, signs and particles hidden behind solid blocks are no longer drawn; the tests run on background threads (F6 to compare)
+- Occlusion culling: terrain, mobs, chests, signs and particles hidden behind solid blocks are no longer drawn; the tests run on background threads and rest where they would hide little (F6 to compare)
 - With Helion, chunks the sun cannot see are left out of the shadow maps; shadows look the same
 - Graphics cards that support it build their own terrain draw list and skip block faces turned away from the camera; other cards keep a fast CPU path
 - Faster chunk drawing: draw commands go straight into GPU memory, chunks that need rebuilding are found from a compact list, and crossing a chunk border updates only the columns that move
