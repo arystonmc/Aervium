@@ -20,7 +20,9 @@ public enum OptimizationModule {
     DIRECT_DRAWS("directDraws", true),
     DIRTY_SECTIONS("dirtySections", true),
     GPU_CULLING("gpuCulling", true),
-    SECTION_GRID_MOVES("sectionGridMoves", true);
+    SECTION_GRID_MOVES("sectionGridMoves", true),
+    LOCK_FREE_SECTIONS("lockFreeSections", true),
+    SWAPCHAIN_IMAGES("swapchainImages", false);
 
     private final String key;
     private final boolean renderer;

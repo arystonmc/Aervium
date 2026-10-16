@@ -4,6 +4,7 @@ import com.aryston.aervium.Aervium;
 import com.aryston.aervium.client.benchmark.BenchmarkDriver;
 import com.aryston.aervium.client.chunk.DirectDraws;
 import com.aryston.aervium.client.chunk.LeafCulling;
+import com.aryston.aervium.client.gpu.GpuStageTimer;
 import com.aryston.aervium.client.culling.TerrainOcclusion;
 import com.aryston.aervium.client.pipeline.PipelineWarmup;
 import com.aryston.aervium.client.pipeline.ShaderCaches;
@@ -103,6 +104,9 @@ final class ClientEvents {
     private static void onFrameStart(RenderFrameEvent.Pre event) {
         long now = System.nanoTime();
         frameStart = now;
+        FrameTrace.frameStarted();
+        GpuStageTimer.frameStarted();
+        FrameTrace.renderStarted();
         TELEMETRY.frameStarted(now);
         if (BENCHMARK.isPresent()) {
             BENCHMARK.get().frameStarted(now);
@@ -110,20 +114,24 @@ final class ClientEvents {
     }
 
     private static void onFrameEnd(RenderFrameEvent.Post event) {
+        FrameTrace.renderFinished();
         SystemTimings.SHARED.end(TimedSystem.FRAME, frameStart);
         TELEMETRY.frameFinished();
         TerrainOcclusion.frameFinished();
     }
 
     private static void onFlipFrame(FlipFrameEvent event) {
+        FrameTrace.presented();
         DirectDraws.endFrame();
     }
 
     private static void onClientTickStart(ClientTickEvent.Pre event) {
+        FrameTrace.tickStarted();
         clientTickStart = SystemTimings.begin();
     }
 
     private static void onClientTickEnd(ClientTickEvent.Post event) {
+        FrameTrace.tickFinished();
         SystemTimings.SHARED.end(TimedSystem.CLIENT_TICK, clientTickStart);
         Minecraft minecraft = Minecraft.getInstance();
         if (!startupReported && minecraft.isGameLoadFinished()) {

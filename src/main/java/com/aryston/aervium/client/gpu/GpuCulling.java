@@ -1,6 +1,7 @@
 package com.aryston.aervium.client.gpu;
 
 import com.aryston.aervium.Aervium;
+import com.aryston.aervium.client.FrameTrace;
 import com.aryston.aervium.core.module.OptimizationModule;
 import com.aryston.aervium.integration.MixinModules;
 import com.aryston.aervium.mixin.FrontendRenderPassAccessor;
@@ -116,6 +117,7 @@ public final class GpuCulling {
 
     public static void upload(int section, GpuSectionEntry entry, int sharedIndexCount) {
         TABLE.put(section, entry.ints());
+        FrameTrace.gpuSectionWritten();
         largestIndexCount = Math.max(largestIndexCount, sharedIndexCount);
     }
 

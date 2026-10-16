@@ -9,7 +9,6 @@ public final class MeshWorkers {
     private static final JobSystem JOBS = new JobSystem(
         "Aervium Mesh",
         JobSystem.defaultWorkers(Runtime.getRuntime().availableProcessors()),
-        Thread.NORM_PRIORITY,
         (thread, failure) -> Aervium.LOGGER.error("Aervium chunk mesh worker {} failed", thread.getName(), failure)
     );
     private static final TracingExecutor EXECUTOR = new TracingExecutor(JOBS.service());

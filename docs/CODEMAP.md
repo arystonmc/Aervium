@@ -164,6 +164,16 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Bytes to megabytes.
 - Depends on: nothing.
 
+#### FrameTraceEvent
+- Path: `src/main/java/com/aryston/aervium/core/telemetry/FrameTraceEvent.java`
+- Role: JFR event `aervium.Frame` for one frame, from `RenderFrameEvent.Pre` to the next one: render, submit and present, client ticks, the parts of submitting (queue submit, waiting for an earlier frame on the GPU, resource destruction, image present and acquire), GPU times of an earlier frame (whole frame and rendering before the swapchain copy), chunk lock wait, uploads, culling, camera result, sections, GPU table writes, light updates, chunk packets, skipped uploads, buffer heaps created or destroyed and Vulkan memory allocations and releases with their time. Off unless a recording enables it, so normal play pays nothing.
+- Depends on: nothing.
+
+#### StageTimes
+- Path: `src/main/java/com/aryston/aervium/core/telemetry/StageTimes.java`
+- Role: Named stages (up to 128) with total and longest time over the measured frames; `take` returns the averages per frame and resets.
+- Depends on: nothing.
+
 ### `com.aryston.aervium.core.budget`
 
 #### TimedSystem
@@ -581,8 +591,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### TelemetryOverlay
 - Path: `src/main/java/com/aryston/aervium/client/TelemetryOverlay.java`
-- Role: GUI layer in the top right corner: text lines and a 240 frame time graph (0 to 50 ms) with the budget line; bars are green, yellow over budget and red over twice the budget. Reads frames into a preallocated array and submits all bars as one `FrameGraphRenderState`, because vanilla checks every new GUI element against the elements before it, which made 240 single bars cost about 7 % of the render thread.
+- Role: GUI layer in the top right corner: text lines and a 240 frame time graph (0 to 50 ms) with the budget line; bars are green, yellow over budget and red over twice the budget. Reads frames into a preallocated array and submits all bars as one `FrameGraphRenderState`, because vanilla checks every new GUI element against the elements before it, which made 240 single bars cost about 7 % of the render thread. The visual order of the text lines is built when a snapshot arrives, not every frame: the bidirectional reordering of the plain strings was about 5 % of the render thread with the overlay open.
 - Depends on: `ClientTelemetry`, `OverlayLines`, `FrameBudget`, `SystemTimings`, `FrameGraphRenderState`.
+
+#### FrameTrace
+- Path: `src/main/java/com/aryston/aervium/client/FrameTrace.java`
+- Role: Collects what happened in the current frame from the timing mixins and commits it as a `FrameTraceEvent` when the next frame starts; does nothing while the event is disabled.
+- Depends on: `FrameTraceEvent`, `CameraResult`.
 
 #### FrameGraphRenderState
 - Path: `src/main/java/com/aryston/aervium/client/FrameGraphRenderState.java`
@@ -687,8 +702,8 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### MeshWorkers
 - Path: `src/main/java/com/aryston/aervium/client/chunk/MeshWorkers.java`
-- Role: Owns the `Aervium Mesh` job system (two cores left to the game threads, at most eight workers, normal priority) and the `TracingExecutor` vanilla's chunk build dispatcher runs on instead of the shared background pool; gives meters for the overlay and the benchmark.
-- Notes: In single player the shared background pool also generates, loads and saves chunks for the integrated server, so chunk builds waited behind world generation while flying; vanilla still picks the nearest section first.
+- Role: Owns the `Aervium Mesh` job system (two cores left to the game threads, at most eight workers, one priority step below normal) and the `TracingExecutor` vanilla's chunk build dispatcher runs on instead of the shared background pool; gives meters for the overlay and the benchmark.
+- Notes: In single player the shared background pool also generates, loads and saves chunks for the integrated server, so chunk builds waited behind world generation while flying; vanilla still picks the nearest section first. At normal priority, eight workers waking together whenever the camera entered a new section kept the graphics driver and the window compositor off the processor, and the next frame waited 15 to 25 ms for a swapchain image; one step below normal took those waits underground from 22 to 28 per scene to 4 to 9 and raised the 0.1% low there from 100 to 128 to 192 to 203 FPS at the same build rate (2026-10-17).
 - Depends on: `JobSystem`, `JobLoadMeter`.
 
 #### CompactTerrainFormat
@@ -706,6 +721,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/client/chunk/CompactWireframe.java`
 - Role: Compact copies of the vanilla wireframe debug pipelines, used for the opaque layer group so the wireframe view still reads compact meshes.
 - Depends on: `CompactTerrainFormat`.
+
+#### SectionOwnership
+- Path: `src/main/java/com/aryston/aervium/client/chunk/SectionOwnership.java`
+- Role: Module `lockFreeSections`: the render thread owns the terrain buffer allocations. Meshes that mesh workers release (empty result, cancelled build) wait in a lock-free queue and the render thread releases them right before the next upload; the render thread takes the section dispatcher lock only for the upload, with `tryLock`, and waits for it only after four skipped frames in a row; workers that find the staging buffer full park for 0.2 ms instead of spinning.
+- Notes: Workers still stage a whole layer inside one hold of the lock, and an upload needs the same lock, so a mesh the render thread resets can never be published after the upload that clears its skip mark. On 2026-10-16 the longest lock wait of the render thread fell from 19.5 ms to 0 and the 1% low rose by 12 % at render distance 12.
+- Depends on: `RenderSectionAccessor`, `ChunkUploadTimings`, `FrameTrace`, `MixinModules`.
 
 #### SectionLayers
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionLayers.java`
@@ -780,6 +801,21 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/client/gpu/CullPipeline.java`, `src/main/java/com/aryston/aervium/client/gpu/VulkanAccess.java`, `src/main/java/com/aryston/aervium/client/gpu/IndirectCountFeature.java`, `src/main/java/com/aryston/aervium/client/gpu/GpuBufferUsage.java`
 - Role: `CullPipeline` compiles the compute shader with shaderc and creates the push-descriptor set layout, pipeline layout and compute pipeline, and records one dispatch. `VulkanAccess` reaches the Vulkan device, its enabled features, the frame's command buffer and buffer handles. `IndirectCountFeature` is the optional device feature set `VulkanFeatureSetsMixin` adds. `GpuBufferUsage.STORAGE` is an extra buffer usage bit that `VulkanConstStorageMixin` maps to Vulkan storage buffer usage.
 - Depends on: `FrontendGpuDeviceAccessor`, `VulkanDeviceAccessor`, `VulkanCommandEncoderAccessor`.
+
+#### GpuStageTimer, RenderPassTimingHolder
+- Path: `src/main/java/com/aryston/aervium/client/gpu/GpuStageTimer.java`, `src/main/java/com/aryston/aervium/client/gpu/RenderPassTimingHolder.java`
+- Role: GPU timestamps per named stage (frame graph passes, render passes, main pass segments, the whole frame and the rendering before the swapchain copy) in a timestamp query pool with four frames in flight; results are read without waiting when a slot comes round again and summed in `StageTimes`. Only on with `-Daervium.benchmark.gpuTimings=true`, so normal benchmark reports stay comparable. `RenderPassTimingHolder` lets a render pass carry its open timestamp pair until it closes.
+- Depends on: `StageTimes`, `FrameTrace`, `VulkanAccess`, `VulkanQueryPoolAccessor`.
+
+#### MainPassTimings
+- Path: `src/main/java/com/aryston/aervium/client/gpu/MainPassTimings.java`
+- Role: Splits the main pass into opaque terrain, solid entities and block entities, the classic translucent segments and improved transparency (whole and its terrain part) for `GpuStageTimer`.
+- Depends on: `GpuStageTimer`.
+
+#### SwapchainImages
+- Path: `src/main/java/com/aryston/aervium/client/gpu/SwapchainImages.java`
+- Role: Module `swapchainImages`: asks the swapchain for two more images than vanilla (within the surface's maximum). With vsync off the presentation engine holds images now and then for up to about 25 ms; with only three images the GPU then waits for an image before its swapchain copy, and the render thread waits for that frame. Extra images only add slack; frames are presented exactly as before.
+- Depends on: `Aervium`.
 
 ### `com.aryston.aervium.client.pipeline`
 
@@ -864,6 +900,31 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/mixin/RenderSystemMixin.java`
 - Role: Starts the `PipelineWarmup` when `RenderSystem.setCurrentPipelineCache` installs a new cache.
 - Notes: Module `pipelineWarmup`. No event fires after the shader manager applies its pipelines.
+
+#### FrameGraphBuilderTimingMixin, FrontendCommandEncoderTimingMixin, FrontendRenderPassTimingMixin, LevelRendererMainPassTimingMixin, VulkanQueryPoolAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/FrameGraphBuilderTimingMixin.java`, `src/main/java/com/aryston/aervium/mixin/FrontendCommandEncoderTimingMixin.java`, `src/main/java/com/aryston/aervium/mixin/FrontendRenderPassTimingMixin.java`, `src/main/java/com/aryston/aervium/mixin/LevelRendererMainPassTimingMixin.java`, `src/main/java/com/aryston/aervium/mixin/VulkanQueryPoolAccessor.java`
+- Role: Feed `GpuStageTimer`: a timestamp pair around every frame graph pass, around every render pass from `createRenderPass` to `close` (labeled by the pass), around the main pass segments (`executeSolid`, `executeClassicTransparency`, `executeOit` and its terrain part), and the end of the whole frame at `submit`. The accessor exposes the Vulkan query pool handle for reading results without waiting.
+- Notes: Measurement only, always on, idle unless GPU timings are enabled. Renderpearl offers timestamp queries but no per-pass hook.
+
+#### VulkanCommandEncoderTimingMixin, VulkanGpuSurfaceTimingMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/VulkanCommandEncoderTimingMixin.java`, `src/main/java/com/aryston/aervium/mixin/VulkanGpuSurfaceTimingMixin.java`
+- Role: Time the parts of `VulkanCommandEncoder.submit` (queue submit, waiting for the frame before the previous one, resource destruction) and of the swapchain (`acquireNextTexture`, `present`) for `FrameTrace`, and mark the start of the swapchain copy for `GpuStageTimer`.
+- Notes: Measurement only, always on. Found that the worst frames of the benchmark wait for the presentation engine, not for rendering (2026-10-17).
+
+#### VulkanMemoryTraceMixin, VulkanTransientMemoryTraceMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/VulkanMemoryTraceMixin.java`, `src/main/java/com/aryston/aervium/mixin/VulkanTransientMemoryTraceMixin.java`
+- Role: Count and time every Vulkan memory allocation and release (`vmaCreateBuffer`, `vmaCreateImage`, `vmaDestroyBuffer`, `vmaDestroyImage`) of buffers, textures and transient memory blocks for `FrameTrace`.
+- Notes: Measurement only, always on. The constructors of `VulkanGpuBuffer.Direct` and `VulkanGpuTexture` allocate before they call `super`, so the handlers there are static (lesson L-103 of the workspace). Showed that the presentation stalls of 2026-10-17 came with no allocations.
+
+#### VulkanGpuSurfaceImageCountMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/VulkanGpuSurfaceImageCountMixin.java`
+- Role: Passes the swapchain image count of `VulkanGpuSurface.configure` through `SwapchainImages`.
+- Notes: Module `swapchainImages`. Renderpearl fixes the count at three with no setting.
+
+#### ClientLevelLightTimingMixin, ClientPacketListenerChunkTimingMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ClientLevelLightTimingMixin.java`, `src/main/java/com/aryston/aervium/mixin/ClientPacketListenerChunkTimingMixin.java`
+- Role: Count client light updates polled and chunk packets handled per frame for `FrameTrace`.
+- Notes: Measurement only, always on.
 
 #### FramerateLimitTrackerMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/FramerateLimitTrackerMixin.java`
@@ -1009,6 +1070,16 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/mixin/ThreadedLevelLightEngineTimingMixin.java`
 - Role: Times every `ThreadedLevelLightEngine.runUpdate` batch, wall and CPU, for `ServerLightTimings`.
 - Notes: Not tied to a module; two clock reads per batch.
+
+#### SectionRenderDispatcherOwnershipMixin, CompileTaskOwnershipMixin, ResortTransparencyTaskOwnershipMixin, RenderSectionOwnershipMixin, RenderSectionAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/SectionRenderDispatcherOwnershipMixin.java`, `src/main/java/com/aryston/aervium/mixin/CompileTaskOwnershipMixin.java`, `src/main/java/com/aryston/aervium/mixin/ResortTransparencyTaskOwnershipMixin.java`, `src/main/java/com/aryston/aervium/mixin/RenderSectionOwnershipMixin.java`, `src/main/java/com/aryston/aervium/mixin/RenderSectionAccessor.java`
+- Role: Apply `SectionOwnership`: the dispatcher's `lock` on the render thread becomes a `tryLock` for the upload, the upload runs only while the lock is held and first releases the retired meshes, `dispose` releases them too; compile tasks on workers retire meshes instead of releasing them under the lock; both task kinds park instead of `Thread.onSpinWait` while the staging buffer is full; `RenderSection.reset` on the render thread skips the lock. The accessor exposes `releaseSectionMesh`.
+- Notes: Module `lockFreeSections` (accessor always). Vanilla shares one lock between eight mesh workers and the render thread for the draw list, every section reset on a chunk crossing and the upload; a worker preempted while holding it stalled the render thread for up to 26 ms. No API covers chunk section memory.
+
+#### UberGpuBufferHeapTraceMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/UberGpuBufferHeapTraceMixin.java`
+- Role: Counts terrain buffer heaps created and destroyed in `UberGpuBuffer.uploadStagedAllocations` for `FrameTrace`.
+- Notes: Measurement only, always on. Heaps are allocated inside the upload with no hook.
 
 #### SectionRenderDispatcherTimingMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/SectionRenderDispatcherTimingMixin.java`
@@ -1203,7 +1274,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CompressionEncoderLevelMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `ChunkStatusTasksFeaturesMixin` on dedicated servers only (module `parallelFeatures`); `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorBlockEntitiesMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionBlockEntityMixin`, `RenderSectionMeshVersionMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` and `VulkanRenderPipelineMixin` on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`). |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CompressionEncoderLevelMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `ChunkStatusTasksFeaturesMixin` on dedicated servers only (module `parallelFeatures`); `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorBlockEntitiesMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionBlockEntityMixin`, `RenderSectionMeshVersionMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` `VulkanRenderPipelineMixin`, the frame and GPU timing mixins (`ClientLevelLightTimingMixin`, `ClientPacketListenerChunkTimingMixin`, `FrameGraphBuilderTimingMixin`, `FrontendCommandEncoderTimingMixin`, `FrontendRenderPassTimingMixin`, `LevelRendererMainPassTimingMixin`, `UberGpuBufferHeapTraceMixin`, `VulkanCommandEncoderTimingMixin`, `VulkanGpuSurfaceTimingMixin`, `VulkanMemoryTraceMixin`, `VulkanTransientMemoryTraceMixin`, `VulkanQueryPoolAccessor`), the section ownership mixins (`CompileTaskOwnershipMixin`, `RenderSectionAccessor`, `RenderSectionOwnershipMixin`, `ResortTransparencyTaskOwnershipMixin`, `SectionRenderDispatcherOwnershipMixin`, module `lockFreeSections`) and `VulkanGpuSurfaceImageCountMixin` (module `swapchainImages`) on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`). |
 
 ## Asset Folders
 

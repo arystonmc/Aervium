@@ -9,6 +9,9 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.locale.Language;
+import net.minecraft.network.chat.FormattedText;
+import net.minecraft.util.FormattedCharSequence;
 import net.neoforged.neoforge.client.gui.GuiLayer;
 import org.joml.Matrix3x2f;
 
@@ -31,6 +34,7 @@ final class TelemetryOverlay implements GuiLayer {
     private final ClientTelemetry telemetry;
     private final long[] graph = new long[GRAPH_WIDTH];
     private List<OverlayLines.Line> lines = List.of(new OverlayLines.Line("Aervium  collecting...", OverlayLines.TEXT));
+    private List<FormattedCharSequence> visualLines = List.of();
     private int textWidth;
     private boolean visible;
     private FrameBudget budget;
@@ -59,6 +63,7 @@ final class TelemetryOverlay implements GuiLayer {
 
     void publish(TelemetrySnapshot snapshot, List<String> passiveRendererMods) {
         lines = OverlayLines.of(snapshot, passiveRendererMods);
+        visualLines = visualOrder(lines);
         Font font = Minecraft.getInstance().font;
         textWidth = lines.stream().mapToInt(line -> font.width(line.text())).max().orElse(0);
     }
@@ -81,10 +86,17 @@ final class TelemetryOverlay implements GuiLayer {
 
     private void drawLines(GuiGraphicsExtractor graphics, int x, int y) {
         Font font = Minecraft.getInstance().font;
-        for (int i = 0; i < lines.size(); i++) {
-            OverlayLines.Line line = lines.get(i);
-            graphics.text(font, line.text(), x, y + i * LINE_HEIGHT, line.color());
+        if (visualLines.size() != lines.size()) {
+            visualLines = visualOrder(lines);
         }
+        for (int i = 0; i < lines.size(); i++) {
+            graphics.text(font, visualLines.get(i), x, y + i * LINE_HEIGHT, lines.get(i).color());
+        }
+    }
+
+    private static List<FormattedCharSequence> visualOrder(List<OverlayLines.Line> lines) {
+        Language language = Language.getInstance();
+        return lines.stream().map(line -> language.getVisualOrder(FormattedText.of(line.text()))).toList();
     }
 
     private void drawGraph(GuiGraphicsExtractor graphics, int left, int top) {

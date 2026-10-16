@@ -4,6 +4,7 @@ import com.aryston.aervium.Aervium;
 import com.aryston.aervium.client.FrameRateGovernor;
 import com.aryston.aervium.client.chunk.ChunkUploadTimings;
 import com.aryston.aervium.client.chunk.MeshWorkers;
+import com.aryston.aervium.client.gpu.GpuStageTimer;
 import com.aryston.aervium.core.budget.StallMeter;
 import com.aryston.aervium.core.culling.CameraResultCounts;
 import com.aryston.aervium.core.culling.CullingStatistics;
@@ -15,6 +16,7 @@ import com.aryston.aervium.core.telemetry.FrameTimeRecorder;
 import com.aryston.aervium.core.telemetry.FrameTimeSummary;
 import com.aryston.aervium.core.telemetry.GcPauseRecorder;
 import com.aryston.aervium.core.telemetry.HeapUsage;
+import com.aryston.aervium.core.telemetry.StageTimes;
 import com.aryston.aervium.core.telemetry.TickSummary;
 import com.aryston.aervium.core.telemetry.VramUsage;
 import com.aryston.aervium.debug.benchmark.BenchmarkAnchors;
@@ -47,6 +49,7 @@ import net.minecraft.client.server.IntegratedServer;
 public final class BenchmarkDriver {
     private static final String PROPERTY = "aervium.benchmark";
     private static final String QUIT_PROPERTY = "aervium.benchmark.quit";
+    private static final String GPU_TIMINGS_PROPERTY = "aervium.benchmark.gpuTimings";
     private static final String REPORT_FOLDER = "aervium/benchmarks";
     private static final DateTimeFormatter STARTED_AT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final int FRAME_CAPACITY = 1 << 17;
@@ -58,6 +61,7 @@ public final class BenchmarkDriver {
     private final MainThreadQueue mainThread;
     private final Supplier<VramUsage> vramProbe;
     private final boolean quitWhenDone = Boolean.getBoolean(QUIT_PROPERTY);
+    private final boolean gpuTimings = Boolean.getBoolean(GPU_TIMINGS_PROPERTY);
     private final FrameTimeRecorder frames = new FrameTimeRecorder(FRAME_CAPACITY);
     private final BenchmarkCamera camera = new BenchmarkCamera();
     private final List<SceneResult> results = new ArrayList<>();
@@ -228,6 +232,8 @@ public final class BenchmarkDriver {
             queuedSamples = 0;
             ChunkUploadTimings.UPLOADS.take();
             ChunkUploadTimings.LOCK_WAITS.take();
+            GpuStageTimer.setEnabled(gpuTimings);
+            GpuStageTimer.take();
         }
         if (measurement != null) {
             sampleMemory();
@@ -274,6 +280,14 @@ public final class BenchmarkDriver {
         Aervium.LOGGER.info(String.format(Locale.ROOT, "Aervium benchmark: %s longest frame while settling %.1f ms", scene, Durations.millis(longest)));
     }
 
+    private void logGpuStages(String scene) {
+        if (!gpuTimings) {
+            return;
+        }
+        Aervium.LOGGER.info("Aervium benchmark: {} GPU ms per frame: {}", scene, StageTimes.describe(GpuStageTimer.take()));
+        GpuStageTimer.setEnabled(false);
+    }
+
     private static void logCameraResults(String scene) {
         CameraResultCounts counts = CullingStatistics.SHARED.takeCameraResults();
         Aervium.LOGGER.info("Aervium benchmark: {} camera culling result missing in {} of {} frames (none {}, too old {}, eye out of reach {}), widened in {}",
@@ -294,6 +308,7 @@ public final class BenchmarkDriver {
             CullingStatistics.SHARED.takeCameraHiddenPercent(), CullingStatistics.SHARED.takeShadowHiddenPercent(), CullingStatistics.SHARED.takeFaceSkippedPercent());
         logChunkBuilds(result.scene());
         logCameraResults(result.scene());
+        logGpuStages(result.scene());
         if (sceneIndex + 1 < BenchmarkScene.values().length) {
             startScene(minecraft, sceneIndex + 1);
             return;

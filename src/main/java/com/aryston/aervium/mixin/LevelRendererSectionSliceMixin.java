@@ -1,6 +1,7 @@
 package com.aryston.aervium.mixin;
 
 import com.aryston.aervium.client.chunk.SectionDrawLists;
+import com.aryston.aervium.client.chunk.SectionOwnership;
 import com.aryston.aervium.client.chunk.SectionLayers;
 import com.aryston.aervium.client.chunk.SectionSliceHolder;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
@@ -17,6 +18,7 @@ import net.minecraft.util.Util;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
@@ -46,20 +48,34 @@ abstract class LevelRendererSectionSliceMixin {
         if (dispatcher == null || !SectionDrawLists.supported()) {
             return;
         }
+        if (SectionOwnership.active()) {
+            callback.setReturnValue(aervium$extract(dispatcher, respectTranslucentOrder, sectionInfos, drawGroups));
+            return;
+        }
         dispatcher.lock();
         try {
-            callback.setReturnValue(SectionDrawLists.extract(
-                visibleSections,
-                dispatcher,
-                Util.toMillis(optionsRenderState.chunkSectionFadeInTime),
-                Util.getMillis(),
-                respectTranslucentOrder,
-                sectionInfos,
-                drawGroups
-            ));
+            callback.setReturnValue(aervium$extract(dispatcher, respectTranslucentOrder, sectionInfos, drawGroups));
         } finally {
             dispatcher.unlock();
         }
+    }
+
+    @Unique
+    private int aervium$extract(
+        SectionRenderDispatcher dispatcher,
+        boolean respectTranslucentOrder,
+        List<DynamicGpuData.ChunkSectionInfo> sectionInfos,
+        Map<ChunkSectionLayer, List<LevelRenderer.ChunkDrawGroup>> drawGroups
+    ) {
+        return SectionDrawLists.extract(
+            visibleSections,
+            dispatcher,
+            Util.toMillis(optionsRenderState.chunkSectionFadeInTime),
+            Util.getMillis(),
+            respectTranslucentOrder,
+            sectionInfos,
+            drawGroups
+        );
     }
 
     @Redirect(

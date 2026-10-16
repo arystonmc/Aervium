@@ -1,6 +1,7 @@
 package com.aryston.aervium.client.culling;
 
 import com.aryston.aervium.Aervium;
+import com.aryston.aervium.client.FrameTrace;
 import com.aryston.aervium.core.budget.SystemTimings;
 import com.aryston.aervium.core.budget.TimedSystem;
 import com.aryston.aervium.core.culling.CameraResult;
@@ -165,6 +166,7 @@ public final class TerrainOcclusion {
         float reach = reach(eye);
         CameraResult result = cameraResult(active, eye, reach);
         CullingStatistics.SHARED.cameraResult(result);
+        FrameTrace.cameraResult(result, sections.size(), active == null ? 0 : active.hidden());
         if (result == CameraResult.CURRENT || result == CameraResult.WIDENED) {
             current = active;
             currentEye = eye;
@@ -179,6 +181,7 @@ public final class TerrainOcclusion {
         }
         previousEye = eye;
         SystemTimings.SHARED.end(TimedSystem.CULLING, start);
+        FrameTrace.culled(System.nanoTime() - nanos);
     }
 
     public static boolean isVisibleToCamera(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {

@@ -1,5 +1,6 @@
 package com.aryston.aervium.client.chunk;
 
+import com.aryston.aervium.client.FrameTrace;
 import com.aryston.aervium.core.budget.StallMeter;
 import com.aryston.aervium.core.budget.SystemTimings;
 import com.aryston.aervium.core.budget.TimedSystem;
@@ -19,14 +20,18 @@ public final class ChunkUploadTimings {
 
     public static void uploadFinished() {
         if (uploadStart != 0) {
-            UPLOADS.record(System.nanoTime() - uploadStart);
+            long nanos = System.nanoTime() - uploadStart;
+            UPLOADS.record(nanos);
+            FrameTrace.chunkUploaded(nanos);
             SystemTimings.SHARED.end(TimedSystem.CHUNK_UPLOAD, uploadStart);
             uploadStart = 0;
         }
     }
 
     public static void lockWaited(long startNanos) {
-        LOCK_WAITS.record(System.nanoTime() - startNanos);
+        long nanos = System.nanoTime() - startNanos;
+        LOCK_WAITS.record(nanos);
+        FrameTrace.chunkLockWaited(nanos);
         SystemTimings.SHARED.end(TimedSystem.CHUNK_LOCK_WAIT, startNanos);
     }
 }

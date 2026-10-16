@@ -75,7 +75,12 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("VulkanFeatureSetsMixin", OptimizationModule.GPU_CULLING),
         Map.entry("VulkanConstStorageMixin", OptimizationModule.GPU_CULLING),
         Map.entry("ChunkSectionsToRenderIndirectCountMixin", OptimizationModule.GPU_CULLING),
-        Map.entry("RotatingSectionStorageEdgeMixin", OptimizationModule.SECTION_GRID_MOVES)
+        Map.entry("RotatingSectionStorageEdgeMixin", OptimizationModule.SECTION_GRID_MOVES),
+        Map.entry("SectionRenderDispatcherOwnershipMixin", OptimizationModule.LOCK_FREE_SECTIONS),
+        Map.entry("CompileTaskOwnershipMixin", OptimizationModule.LOCK_FREE_SECTIONS),
+        Map.entry("ResortTransparencyTaskOwnershipMixin", OptimizationModule.LOCK_FREE_SECTIONS),
+        Map.entry("RenderSectionOwnershipMixin", OptimizationModule.LOCK_FREE_SECTIONS),
+        Map.entry("VulkanGpuSurfaceImageCountMixin", OptimizationModule.SWAPCHAIN_IMAGES)
     );
 
     private static final String HELION_MOD_ID = "helion";

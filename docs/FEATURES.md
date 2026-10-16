@@ -89,14 +89,22 @@ Prepares the list of chunks to draw with much less work every frame.
 - Checks which chunks need rebuilding from a compact list instead of looking up every visible chunk every frame (`dirtySections`); in caves, where thousands of chunks are visible but hidden behind stone, the average rose by 7 % and the lows by 11 to 14 %
 - On graphics cards that support it, the graphics card itself builds the list of solid and leafy terrain to draw and skips faces turned away from you (`gpuCulling`); the main thread only names the chunks that occlusion culling kept, and the work on the card takes about 0.02 ms per frame; without Helion the lows rose by 4 to 5 %, with Helion it changes nothing; other cards keep the CPU path
 - When you cross a chunk border, only the columns of chunks that move are updated instead of all of them, about 100,000 at render distance 32 (`sectionGridMoves`); together with lighter light snapshots the 1% low rose by 6 % and by up to 15 % in the elytra flight
+- The main thread no longer waits for the chunk builders to free chunk memory (`lockFreeSections`): in vanilla it shares one lock with them for every frame's draw list, every chunk border crossing and every upload, and a builder that Windows paused while holding it froze the frame for up to 26 ms; now the main thread owns that memory and only the upload takes the lock, without waiting for it
 - Since: 0.1
 
 ### Dedicated Chunk Builders
 Chunks are prepared for drawing on Aervium's own worker threads.
 
-- In single player, vanilla prepares chunks on the same threads that generate and save the world, so new chunks wait behind world generation when you fly or run into new land; Aervium gives chunk building its own threads (all cores but two, up to eight)
+- In single player, vanilla prepares chunks on the same threads that generate and save the world, so new chunks wait behind world generation when you fly or run into new land; Aervium gives chunk building its own threads (all cores but two, up to eight), one priority step below normal so they never hold back the graphics driver and the window compositor; this cut the long freezes underground and in the elytra flight by two thirds and lifted the 0.1% low from about 157 to 205 FPS over the whole benchmark, with chunks built just as fast
 - The overlay (F7) shows chunk builds per second, how busy the workers are and how many builds are waiting; the benchmark log prints the same per scene
 - The overlay and the benchmark log also show how long uploading new chunks to the graphics card takes and how long the game waits for the chunk builders
+- Since: 0.1
+
+### Spare Swapchain Images
+The game keeps two more finished-frame images ready for the screen.
+
+- With vsync off, Windows sometimes holds on to an image for a few milliseconds before giving it back; vanilla has only three, so the next frame waited for it (`swapchainImages`)
+- With two more images those short holds no longer stall the game: the 1% low underground rose by about 15 % and frames over 4 ms fell by a third, at the same average frame rate; what you see on screen is unchanged
 - Since: 0.1
 
 ### Faster Villager Searches
@@ -204,6 +212,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`, `gpuCulling`, `sectionGridMoves`) with `true` or `false`; changes apply at the next start; every module starts on
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`, `gpuCulling`, `sectionGridMoves`, `lockFreeSections`, `swapchainImages`) with `true` or `false`; changes apply at the next start; every module starts on
 - Render optimizations stay off by themselves when Iris is installed, or next to Sodium in the benchmark
 - Since: 0.1
