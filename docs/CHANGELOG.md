@@ -38,6 +38,10 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - The overlay and benchmark show chunk upload time and how long the game waits for the chunk builders
 
 ### Changed
+- Chunk draw commands are written straight into GPU memory without creating objects every frame: 6 to 9 % higher average and 10 to 16 % higher 1% low without Helion
+- Finding chunks that need rebuilding no longer looks up every visible chunk every frame, which speeds up caves the most
+- Occlusion culling stretches a late result without extra work on the main thread, for steadier frames when flying through caves
+- The overlay draws its frame graph as one piece and costs much less frame time
 - The chunk draw list reads half as much scattered memory per section, which leaves the main thread more time per frame
 - Finding the chests, signs and beds to draw no longer looks into every visible chunk section
 - Occlusion culling keeps working through slow frames instead of drawing every chunk for a few frames, for steadier frame times when flying

@@ -23,6 +23,7 @@ See exactly how smooth your game runs, not just how fast.
 
 - Shows the frame rate together with the 1% and 0.1% lows, the average frame time and how much it varies, and the longest frame
 - A live frame time graph draws every frame as a bar: green within your target frame rate, yellow when slower, red for spikes that take twice as long
+- The graph is drawn as one piece, so showing the overlay no longer costs a noticeable part of the frame
 - Shows the server tick time (MSPT) of your single player world with the number of ticks over 50 ms, garbage collector pauses, RAM and video memory, and how long each part of the game takes per frame
 - Press F7 to show or hide it; the target frame rate is set in the Aervium settings (Mods, Aervium, Config)
 - Since: 0.1
@@ -81,6 +82,8 @@ Light changes no longer copy the whole light map of the world.
 Prepares the list of chunks to draw with much less work every frame.
 
 - Remembers where each chunk's geometry sits on the GPU instead of searching for it again in every pass, which matters most with Helion's shadows; in the benchmark with Helion at render distance 32 the 1% low rose from 36 to 51 FPS and caves from 58 to 78 FPS
+- Writes the draw commands straight into GPU memory instead of creating thousands of small objects every frame (`directDraws`); without Helion the benchmark average rose by 6 to 9 % and the 1% low by 10 to 16 %
+- Checks which chunks need rebuilding from a compact list instead of looking up every visible chunk every frame (`dirtySections`); in caves, where thousands of chunks are visible but hidden behind stone, the average rose by 7 % and the lows by 11 to 14 %
 - Since: 0.1
 
 ### Dedicated Chunk Builders
@@ -144,6 +147,7 @@ Skips terrain you cannot see because solid blocks are in the way.
 - Mobs, dropped items, armor stands, chests, signs and other block entities behind walls are skipped the same way, and so are particles like smoke, flames and drips; with Helion, entities under open sky are still drawn so their sun shadows stay
 - The visibility tests for the camera and for Helion's shadows run on their own background threads, so they no longer cost frame time on the main thread
 - When a frame takes longer than usual and the camera moved past the last visibility result, that result is stretched to the new position instead of drawing every chunk for a few frames, so one slow frame no longer causes the next ones
+- Stretching a result costs the main thread no extra visibility tests: the background thread already measured how far each hidden chunk stays hidden
 - F6 turns it on and off in game to compare; the overlay (F7) shows how many chunks, entities and particles were skipped
 - Since: 0.1
 
@@ -194,6 +198,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`) with `true` or `false`; changes apply at the next start; every module starts on
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`) with `true` or `false`; changes apply at the next start; every module starts on
 - Render optimizations stay off by themselves when Sodium or Iris is installed
 - Since: 0.1

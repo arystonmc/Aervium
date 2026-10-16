@@ -5,5 +5,7 @@ import org.jspecify.annotations.Nullable;
 public interface SectionDrawRecordHolder {
     @Nullable SectionDrawRecord aervium$drawRecord();
 
+    int @Nullable [] aervium$packedDraws();
+
     void aervium$setDrawRecord(SectionDrawRecord record);
 }

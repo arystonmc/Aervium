@@ -12,13 +12,22 @@ abstract class RenderSectionMixin implements SectionDrawRecordHolder {
     @Unique
     private @Nullable SectionDrawRecord aervium$drawRecord;
 
+    @Unique
+    private int @Nullable [] aervium$packedDraws;
+
     @Override
     public @Nullable SectionDrawRecord aervium$drawRecord() {
         return aervium$drawRecord;
     }
 
     @Override
+    public int @Nullable [] aervium$packedDraws() {
+        return aervium$packedDraws;
+    }
+
+    @Override
     public void aervium$setDrawRecord(SectionDrawRecord record) {
         aervium$drawRecord = record;
+        aervium$packedDraws = record.packedDraws();
     }
 }

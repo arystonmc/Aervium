@@ -2,6 +2,7 @@ package com.aryston.aervium.client;
 
 import com.aryston.aervium.Aervium;
 import com.aryston.aervium.client.benchmark.BenchmarkDriver;
+import com.aryston.aervium.client.chunk.DirectDraws;
 import com.aryston.aervium.client.chunk.LeafCulling;
 import com.aryston.aervium.client.culling.TerrainOcclusion;
 import com.aryston.aervium.client.pipeline.PipelineWarmup;
@@ -23,6 +24,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.FlipFrameEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -60,6 +62,7 @@ final class ClientEvents {
         modBus.addListener(ClientEvents::onRegisterGuiLayers);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onFrameStart);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onFrameEnd);
+        NeoForge.EVENT_BUS.addListener(ClientEvents::onFlipFrame);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onClientTickStart);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onClientTickEnd);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onLoggingIn);
@@ -110,6 +113,10 @@ final class ClientEvents {
         SystemTimings.SHARED.end(TimedSystem.FRAME, frameStart);
         TELEMETRY.frameFinished();
         TerrainOcclusion.frameFinished();
+    }
+
+    private static void onFlipFrame(FlipFrameEvent event) {
+        DirectDraws.endFrame();
     }
 
     private static void onClientTickStart(ClientTickEvent.Pre event) {

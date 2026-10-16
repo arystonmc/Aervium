@@ -12,6 +12,13 @@ import net.minecraft.core.BlockPos;
 
 public final class SectionDrawRecord {
     public static final int SLOTS = 3;
+    static final int MESH_VERSION = 0;
+    static final int VALID = 1;
+    static final int ORIGIN_X = 2;
+    static final int ORIGIN_Y = 3;
+    static final int ORIGIN_Z = 4;
+    static final int COUNT = 5;
+    static final int HEADER = 6;
     static final int LAYER = 0;
     static final int GROUP_HASH = 1;
     static final int INDEX_COUNT = 2;
@@ -22,30 +29,35 @@ public final class SectionDrawRecord {
     static final int STRIDE = FACES + FaceRanges.PACKED_INTS;
     static final int CUSTOM_INDEX_BUFFER = 1;
     static final int HAS_FACES = 2;
+    private static final int TRUE = 1;
+    private static final int FALSE = 0;
     private static final int HASH_SEED = 173;
     private static final int HASH_FACTOR = 31;
     private static final AtomicInteger MESH_VERSIONS = new AtomicInteger();
 
-    final int meshVersion;
-    final int originX;
-    final int originY;
-    final int originZ;
-    final int count;
     final int[] packed;
     final LayerDraw[] draws;
-    private boolean valid = true;
 
     private SectionDrawRecord(int meshVersion, BlockPos origin, LayerDraw[] draws, int count) {
-        this.meshVersion = meshVersion;
-        this.originX = origin.getX();
-        this.originY = origin.getY();
-        this.originZ = origin.getZ();
-        this.count = count;
         this.draws = draws;
-        this.packed = new int[count * STRIDE];
+        this.packed = new int[HEADER + count * STRIDE];
+        packed[MESH_VERSION] = meshVersion;
+        packed[VALID] = TRUE;
+        packed[ORIGIN_X] = origin.getX();
+        packed[ORIGIN_Y] = origin.getY();
+        packed[ORIGIN_Z] = origin.getZ();
+        packed[COUNT] = count;
         for (int slot = 0; slot < count; slot++) {
-            pack(draws[slot], slot * STRIDE);
+            pack(draws[slot], slotOffset(slot));
         }
+    }
+
+    static int slotOffset(int slot) {
+        return HEADER + slot * STRIDE;
+    }
+
+    static boolean current(int[] packed, int meshVersion) {
+        return packed[VALID] == TRUE && packed[MESH_VERSION] == meshVersion;
     }
 
     private void pack(LayerDraw draw, int offset) {
@@ -97,11 +109,11 @@ public final class SectionDrawRecord {
         return MESH_VERSIONS.incrementAndGet();
     }
 
-    public boolean isFor(int currentMeshVersion) {
-        return valid && meshVersion == currentMeshVersion;
+    public int[] packedDraws() {
+        return packed;
     }
 
     public void invalidate() {
-        valid = false;
+        packed[VALID] = FALSE;
     }
 }

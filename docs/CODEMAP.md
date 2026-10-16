@@ -31,7 +31,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Parallel feature generation (trees, ores, plants on several threads) | `ParallelFeatures`, `RegionLocks`, `JobSystem`, `ChunkStatusTasksFeaturesMixin` |
 | Crash report entry (modules on, Aervium code in the crash) | `CrashSummary`, `CrashReportSection`, `CrashReportMixin`, `MixinModules` |
 | Light engine snapshots | `ShardedLongMap`, `ShardedLongMapBuilder`, `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` |
-| Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
+| Chunk draw list (terrain buffer lookups per frame) | `SectionDrawLists`, `SectionDrawRecord`, `LevelRendererSectionSliceMixin`, `DirectDraws`, `PackedDraws`, `PackedDrawPool`, `PackedSectionInfos`, `SectionInfoStorage`, `DrawCommandRing`, `LevelRendererDirectDrawMixin`, `RenderSectionMixin`, `CompiledSectionMeshMixin`, `UberGpuBufferMixin`, `SectionSliceHolder` |
 | Block entity scan (skip sections without block entities) | `BlockEntitySectionHolder`, `RenderSectionBlockEntityMixin`, `LevelExtractorBlockEntitiesMixin` |
 | Occlusion culling (caves, Helion shadow casters, entities, particles) | `TerrainOcclusion`, `ShadowCascadeCulling`, `CameraResult`, `TileMask`, `EntityOcclusion`, `ParticleOcclusion`, `HelionShadowCasters`, `OcclusionPipeline`, `OcclusionPass`, `DepthRaster`, `CameraOcclusionHolder`, `RenderSectionOcclusionMixin`, `OpaqueMask`, `OccluderBoxes`, `VisGraphMixin`, `LevelRendererOcclusionMixin`, `LevelExtractorOcclusionMixin`, `QuadParticleGroupOcclusionMixin`, `ParticleAccessor`, `HelionShadowCastersMixin` |
 | Chunk mesh workers (own thread pool for chunk builds) | `MeshWorkers`, `LevelRendererMeshWorkersMixin`, `JobSystem`, `JobLoadMeter` |
@@ -40,6 +40,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Server light worker timings | `ServerLightTimings`, `ThreadedLevelLightEngineTimingMixin` |
 | Face culling (skip terrain faces turned away from the camera) | `FacingSort`, `FaceRanges`, `FaceCulling`, `FaceRangesHolder`, `CompiledSectionMeshFacingMixin`, `LevelRendererFaceCullingMixin`, `SectionDrawLists` |
 | Compact terrain vertices (16 instead of 28 bytes, off with a Helion that cannot read them) | `CompactVertexEncoder`, `CompactTerrainFormat`, `CompactMeshUpload`, `CompactWireframe`, `RenderPipelineBuilderCompactMixin`, `SectionCompilerCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `ChunkSectionsToRenderCompactMixin`, `shaders/terrain/compact.vsh` |
+| Dirty section scan (clean sections answered from an array) | `DirtySectionMirror`, `DirtySectionIndex`, `SectionDirtyStateMirrorMixin`, `SectionUpdateTrackerMirrorMixin`, `LevelExtractorDirtySectionsMixin` |
 | Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Settings | `AerviumConfig`, `lang/*.json` |
@@ -257,12 +258,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### OcclusionPass
 - Path: `src/main/java/com/aryston/aervium/core/culling/OcclusionPass.java`
-- Role: One culling pass over a list of sections: orders them near to far by projected depth, tests each section box (grown by one block for geometry that reaches out of its section, plus an optional reach for camera movement) against the raster, and draws the occluder boxes only of sections that turned out visible, until a box budget is spent. `widen` tests the hidden sections again with a larger reach; `sectionTiles` gives the raster tiles a section box covers. Reusable arrays, no allocation once grown.
+- Role: One culling pass over a list of sections: orders them near to far by projected depth, tests each section box (grown by one block for geometry that reaches out of its section, plus an optional reach for camera movement) against the raster, and draws the occluder boxes only of sections that turned out visible, until a box budget is spent. `measureReveal` records for every hidden section the largest of the reach steps 1, 2, 4 and 8 blocks at which it still stays hidden (testing the largest step first, so a section deep behind a wall costs one test), and `widen` reveals the hidden sections whose recorded step is below a larger reach and lists them, without any raster test; `sectionTiles` gives the raster tiles a section box covers. Reusable arrays, no allocation once grown.
 - Depends on: `DepthRaster`, `OccluderBoxes`.
 
 #### OcclusionPipeline
 - Path: `src/main/java/com/aryston/aervium/core/culling/OcclusionPipeline.java`
-- Role: Runs an `OcclusionPass` (the camera pass, or one Helion shadow cascade with a reach of 0) on a worker one frame behind the render thread. Two `Frame`s (pass, raster, clip matrix, eye position, reach and the opaque target object of each entry) alternate: the render thread fills a free frame and submits it, the worker rasterizes and tests it, and the render thread takes the finished frame at its next call of `activateFinished` while the next one is in flight. `begin` returns nothing while a frame is in flight, so the render thread never waits. `Frame.covers` says whether a later eye position is within the frame's reach; `Frame.isVisible` tests a world box grown by the reach. `Frame.widen` raises the reach of a finished frame for an eye that moved past it: only the sections the pass hid are tested again against the final raster with the larger margin, so widening can only reveal sections. `Frame.sameOccluders`, `beginChanges`, `markChanged` and `hiddenDespiteChanges` let a shadow cascade reuse a result after its section list changed: the tiles of every occluder that left the list or changed are marked in a `TileMask`, and a hidden section stays hidden only when none of its tiles is marked. `clear` drops the active frame and the result in flight.
+- Role: Runs an `OcclusionPass` (the camera pass, or one Helion shadow cascade with a reach of 0) on a worker one frame behind the render thread. Two `Frame`s (pass, raster, clip matrix, eye position, reach and the opaque target object of each entry) alternate: the render thread fills a free frame and submits it, the worker rasterizes and tests it, and the render thread takes the finished frame at its next call of `activateFinished` while the next one is in flight. `begin` returns nothing while a frame is in flight, so the render thread never waits. `Frame.covers` says whether a later eye position is within the frame's reach; `Frame.isVisible` tests a world box grown by the reach. `Frame.widen` raises the reach of a finished frame for an eye that moved past it (up to `MAX_REVEAL_REACH`, 8 blocks): it reveals every hidden section whose reveal step, measured on the worker after the pass (`measureReveal`), lies below the new reach, and `Frame.revealed` lists them, so widening can only reveal sections and costs the render thread no raster test. Before 2026-10-16 the render thread tested every hidden section again, which was 11 % of it in the cave scene, where 16 % of the frames widen. `Frame.sameOccluders`, `beginChanges`, `markChanged` and `hiddenDespiteChanges` let a shadow cascade reuse a result after its section list changed: the tiles of every occluder that left the list or changed are marked in a `TileMask`, and a hidden section stays hidden only when none of its tiles is marked. `clear` drops the active frame and the result in flight.
 - Notes: A frame's data belongs to the worker between `submit` and `finished`; the volatile `finished` flag publishes the result.
 - Depends on: `OcclusionPass`, `DepthRaster`, `ClipMatrix`, `OccluderBoxes`, `TileMask`.
 
@@ -552,7 +553,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### ClientEvents
 - Path: `src/main/java/com/aryston/aervium/client/ClientEvents.java`
-- Role: Client adapter: frame start and end (`RenderFrameEvent`), client tick scopes, the F7 key, the overlay layer, config loading (overlay, budget, dynamic frame rate), Sodium and Iris check, installing the shader caches and the pipeline warm-up (only without Sodium and Iris), the startup report, world joins and shutdown (saves the pipeline cache before the job system stops).
+- Role: Client adapter: frame start and end (`RenderFrameEvent`), client tick scopes, the F7 key, the overlay layer, the end of every frame for `DirectDraws` (`FlipFrameEvent`), config loading (overlay, budget, dynamic frame rate), Sodium and Iris check, installing the shader caches and the pipeline warm-up (only without Sodium and Iris), the startup report, world joins and shutdown (saves the pipeline cache before the job system stops).
 - Depends on: `ClientTelemetry`, `TelemetryOverlay`, `BenchmarkDriver`, `AerviumKeys`, `AerviumConfig`, `CompatibilityGuard`, `SystemTimings`, `ShaderCaches`, `PipelineWarmup`, `FrameRateGovernor`.
 
 #### FrameRateGovernor
@@ -567,8 +568,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### TelemetryOverlay
 - Path: `src/main/java/com/aryston/aervium/client/TelemetryOverlay.java`
-- Role: GUI layer in the top right corner: text lines and a 240 frame time graph (0 to 50 ms) with the budget line; bars are green, yellow over budget and red over twice the budget. Reads frames into a preallocated array, so drawing allocates nothing of its own.
-- Depends on: `ClientTelemetry`, `OverlayLines`, `FrameBudget`, `SystemTimings`.
+- Role: GUI layer in the top right corner: text lines and a 240 frame time graph (0 to 50 ms) with the budget line; bars are green, yellow over budget and red over twice the budget. Reads frames into a preallocated array and submits all bars as one `FrameGraphRenderState`, because vanilla checks every new GUI element against the elements before it, which made 240 single bars cost about 7 % of the render thread.
+- Depends on: `ClientTelemetry`, `OverlayLines`, `FrameBudget`, `SystemTimings`, `FrameGraphRenderState`.
+
+#### FrameGraphRenderState
+- Path: `src/main/java/com/aryston/aervium/client/FrameGraphRenderState.java`
+- Role: One GUI element with the quads of every bar of the overlay graph (x, top, bottom and color per bar) on the plain GUI pipeline.
+- Depends on: nothing.
 
 #### OverlayLines
 - Path: `src/main/java/com/aryston/aervium/client/OverlayLines.java`
@@ -599,8 +605,8 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### SectionDrawRecord, LayerDraw
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawRecord.java`, `src/main/java/com/aryston/aervium/client/chunk/LayerDraw.java`
-- Role: Everything `extractSectionDrawGroups` computes for one section mesh, prepared once. The numbers the draw list reads every frame (layer, group hash, index count, first index, base vertex, flags and the packed `FaceRanges` of each drawable layer, up to three slots in layer order) and the section origin sit in one `int[]` and three fields, so a frame reads two objects per section instead of up to ten; the `LayerDraw` objects with the buffers are only read when a draw group is created.
-- Notes: Valid while the section's mesh version (`RenderSectionMixin`) is the one it was built for and no allocation of that mesh was freed; `CompiledSectionMeshMixin` invalidates it together with the cached slices. A mesh's draws never change while it is shown (they are filled in its constructor and cleared only when it is released).
+- Role: Everything `extractSectionDrawGroups` computes for one section mesh, prepared once. The numbers the draw list reads every frame (layer, group hash, index count, first index, base vertex, flags and the packed `FaceRanges` of each drawable layer, up to three slots in layer order) and the section origin sit in one `int[]` whose header also holds the mesh version, a valid flag, the section origin and the slot count. `RenderSectionMixin` keeps that array on the section next to the record, so a frame reads the section and one array instead of up to ten objects; the `LayerDraw` objects with the buffers are only read when a draw group is created.
+- Notes: Valid while the section's mesh version (`RenderSectionMeshVersionMixin`) is the one it was built for and no allocation of that mesh was freed; `CompiledSectionMeshMixin` invalidates it (clears the valid flag in the array) together with the cached slices. Moving the header into the array raised the 1% low of the redstone scene by 3 to 4 % (2026-10-16). A mesh's draws never change while it is shown (they are filled in its constructor and cleared only when it is released).
 
 #### BlockEntitySectionHolder
 - Path: `src/main/java/com/aryston/aervium/client/chunk/BlockEntitySectionHolder.java`
@@ -609,14 +615,34 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### SectionDrawRecordHolder
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawRecordHolder.java`
-- Role: Interface `RenderSectionMixin` adds to `SectionRenderDispatcher.RenderSection` to keep its last `SectionDrawRecord`.
+- Role: Interface `RenderSectionMixin` adds to `SectionRenderDispatcher.RenderSection` to keep its last `SectionDrawRecord` and that record's packed array.
 - Depends on: `SectionDrawRecord`.
 
 #### SectionDrawLists
 - Path: `src/main/java/com/aryston/aervium/client/chunk/SectionDrawLists.java`
-- Role: Same result as vanilla `LevelRenderer.extractSectionDrawGroups` (section infos, draw groups by buffer hash, translucent order, largest index count) built from the section records. In the camera pass (`FaceCulling.cameraPass`) a layer with `FaceRanges` gets one draw per run of facing groups that can face the camera instead of one draw for the whole layer; empty groups join runs, so a section needs at most four draws per layer. Counts drawn and skipped quads for `CullingStatistics`.
+- Role: Same result as vanilla `LevelRenderer.extractSectionDrawGroups` (section infos, draw groups by buffer hash, translucent order, largest index count) built from the section records. Every draw group gets a pooled `PackedDraws` list, and in a multi-draw pass the section infos go into `DirectDraws` as plain numbers instead of records, so a frame allocates no object per section or draw. In the camera pass (`FaceCulling.cameraPass`) a layer with `FaceRanges` gets one draw per run of facing groups that can face the camera instead of one draw for the whole layer; empty groups join runs, so a section needs at most four draws per layer. Counts drawn and skipped quads for `CullingStatistics`.
 - Depends on: `FaceCulling`, `FaceRanges`, `CullingStatistics`, `SectionDrawRecord`, `SectionDrawRecordHolder`, `SectionSliceHolder`, `TerrainOcclusion` (skips sections the last finished camera pass hid); the access transformer for `LevelRenderer$ChunkDrawGroup`.
 - Notes: In the cave scene it cut the share of the render thread spent building draw lists from about 42 % to 28 %; the frame rate did not change because that scene waits on the GPU (`VulkanCommandEncoder.awaitSubmitCompletion`), so the gain shows on CPU-bound PCs.
+
+#### PackedDraws, PackedDrawPool
+- Path: `src/main/java/com/aryston/aervium/client/chunk/PackedDraws.java`, `src/main/java/com/aryston/aervium/client/chunk/PackedDrawPool.java`
+- Role: `PackedDraws` is the draw list of one draw group: a `List<IndexedDraw>` that stores the five numbers of every indirect draw command in one `int[]`, copies them into mapped memory in one block (or backwards for the reversed view vanilla asks for translucent layers) and builds `IndexedDraw` records only when vanilla code reads an element (the path without multi-draw). `PackedDrawPool` hands out the lists and reuses them in the next pass, because vanilla reads a group's list only inside the `prepareChunkRenders` call that built it.
+- Depends on: nothing.
+
+#### PackedSectionInfos, SectionInfoStorage, DrawCommandRing
+- Path: `src/main/java/com/aryston/aervium/client/chunk/PackedSectionInfos.java`, `src/main/java/com/aryston/aervium/client/chunk/SectionInfoStorage.java`, `src/main/java/com/aryston/aervium/client/chunk/DrawCommandRing.java`
+- Role: `PackedSectionInfos` holds the origin and fade of every drawn section of a pass as four ints. `SectionInfoStorage` uploads them like vanilla's instanced section buffer (one device buffer, a staging copy per pass, `writeToBuffer`). `DrawCommandRing` writes the indirect commands into a mapped ring of three buffers like vanilla's command buffer. Both grow by doubling, keep a buffer they replaced until the frame ends and start over at `FlipFrameEvent`.
+- Depends on: `PackedDraws`.
+
+#### DirtySectionMirror, DirtySectionIndex
+- Path: `src/main/java/com/aryston/aervium/client/chunk/DirtySectionMirror.java`, `src/main/java/com/aryston/aervium/client/chunk/DirtySectionIndex.java`
+- Role: Interfaces the `dirtySections` mixins add to `SectionUpdateTracker.SectionDirtyState` (attach the shared dirty array and the storage index) and to `SectionUpdateTracker` (whether a section node may be dirty, by its storage index).
+- Depends on: nothing.
+
+#### DirectDraws
+- Path: `src/main/java/com/aryston/aervium/client/chunk/DirectDraws.java`
+- Role: Entry point of the module `directDraws`: marks whether the current `prepareChunkRenders` call is a multi-draw pass, hands `SectionDrawLists` its pooled lists and packed section infos, writes them for vanilla's `writeChunkSectionCommands` and `writeChunkSectionsInstanced` calls, and falls back to vanilla for any list that is not packed (for example with `sectionSliceCache` off). `endFrame` runs at `FlipFrameEvent`.
+- Depends on: `PackedDraws`, `PackedDrawPool`, `PackedSectionInfos`, `SectionInfoStorage`, `DrawCommandRing`.
 
 #### FaceCulling
 - Path: `src/main/java/com/aryston/aervium/client/chunk/FaceCulling.java`
@@ -672,7 +698,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### TerrainOcclusion
 - Path: `src/main/java/com/aryston/aervium/client/culling/TerrainOcclusion.java`
-- Role: Occlusion culling for terrain and the camera raster that entity culling shares. `prepareCamera` runs once per frame before entities are extracted and never waits: it takes the camera pass the worker finished (`OcclusionPipeline`), stamps every section that pass hid with the pass generation (`CameraOcclusionHolder`), uses the result this frame unless it is both more than 6 frames and more than 60 ms old (so high frame rates do not age results out early) and while the eye is still within its reach (or widens it to the eye, up to 8 blocks, with `Frame.widen` instead of drawing every section), and then copies the visible sections (origin, occluder boxes, fully faded in) into the free frame and submits it. The reach is 0.125 blocks plus three times the distance the eye moved since the last frame, at most 4 blocks; test boxes grow by it. The camera raster uses a projection 25 % wider than the screen and treats boxes reaching past its edge as visible, so turning the camera cannot reveal a section the pass hid. `cullsCameraSections` and `hiddenFromCamera` let `SectionDrawLists` skip hidden sections; sections not in the pass are never hidden. The frame counter advances at `RenderFrameEvent.Post`, because vanilla extracts a frame before `RenderFrameEvent.Pre` fires. `beginTerrainPass` marks a `prepareChunkRenders` call as the camera pass when its matrix equals the camera's view rotation (vanilla and Helion both pass a copy of it; Helion's shadow cascades pass the light view). `filterShadowCasters` removes casters the light cannot reach, one orthographic pass per shadow cascade in light space (up to 8 cascades). Each cascade is a `ShadowCascadeCulling` on the `Aervium Shadow Culling` worker, matched by section position so results stay usable while the camera moves.
+- Role: Occlusion culling for terrain and the camera raster that entity culling shares. `prepareCamera` runs once per frame before entities are extracted and never waits: it takes the camera pass the worker finished (`OcclusionPipeline`), stamps every section that pass hid with the pass generation (`CameraOcclusionHolder`), uses the result this frame unless it is both more than 6 frames and more than 60 ms old (so high frame rates do not age results out early) and while the eye is still within its reach (or widens it to the eye, up to 8 blocks, with `Frame.widen` instead of drawing every section), and then copies the visible sections (origin, computed from the section node instead of the origin object, occluder boxes, fully faded in) into the free frame and submits it. The reach is 0.125 blocks plus three times the distance the eye moved since the last frame, at most 4 blocks; test boxes grow by it. The camera raster uses a projection 25 % wider than the screen and treats boxes reaching past its edge as visible, so turning the camera cannot reveal a section the pass hid. `cullsCameraSections` and `hiddenFromCamera` let `SectionDrawLists` skip hidden sections; sections not in the pass are never hidden. The frame counter advances at `RenderFrameEvent.Post`, because vanilla extracts a frame before `RenderFrameEvent.Pre` fires. `beginTerrainPass` marks a `prepareChunkRenders` call as the camera pass when its matrix equals the camera's view rotation (vanilla and Helion both pass a copy of it; Helion's shadow cascades pass the light view). `filterShadowCasters` removes casters the light cannot reach, one orthographic pass per shadow cascade in light space (up to 8 cascades). Each cascade is a `ShadowCascadeCulling` on the `Aervium Shadow Culling` worker, matched by section position so results stay usable while the camera moves.
 - Notes: Sections still fading in never occlude. The camera pass runs on the single `Aervium Culling` worker; the render thread part (copies, stamps, cascade hashes) shows as `Occlusion culling` in the overlay, the worker time as `worker` in the culling line. F6 and `occlusionCulling` in the client config switch it at runtime; switching it off drops the result in flight.
 - Depends on: `OcclusionPipeline`, `OcclusionPass`, `DepthRaster`, `ClipMatrix`, `CullingStatistics`, `JobSystem`, `CameraOcclusionHolder`, `OccluderHolder`, `CompiledSectionMeshVisibilityAccessor`, `ShadowCascadeCulling`, `CameraResult`.
 
@@ -807,6 +833,16 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererSectionSliceMixin.java`
 - Role: Replaces `LevelRenderer.extractSectionDrawGroups` with `SectionDrawLists` (under the dispatcher lock, as vanilla) when the game has at most three section layers; the redirects below remain for the vanilla path. In that path it answers `getRenderSectionSlice` from the slice cached in the mesh and asks vanilla only on a miss, and replaces the `ChunkSectionLayer.values()` copy for every section with `SectionLayers.ALL`.
 - Notes: Module `sectionSliceCache`, renderer module. Vanilla looks up two `HashMap` entries per section and layer in every pass (the camera and each of Helion's shadow cascades) and allocates a new slice record each time; with Helion at render distance 32 that lookup was about 27 % of the render thread. Turning the module on raised the benchmark 1% low from 36.1 to 50.9 FPS and the cave scene from 58 to 78 FPS average (ZGC, Helion and Arkea, 2026-10-12).
+
+#### SectionDirtyStateMirrorMixin, SectionUpdateTrackerMirrorMixin, LevelExtractorDirtySectionsMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/SectionDirtyStateMirrorMixin.java`, `src/main/java/com/aryston/aervium/mixin/SectionUpdateTrackerMirrorMixin.java`, `src/main/java/com/aryston/aervium/mixin/LevelExtractorDirtySectionsMixin.java`
+- Role: Every frame vanilla `LevelExtractor.extract` asks the `SectionUpdateTracker` for the dirty state of every visible section, two scattered objects per section (the storage node and the state). The tracker mixin gives each state its storage index and one shared `boolean[]` when the tracker is created (`DirtySectionMirror`), the state mixin copies `isDirty` into that array after `setDirty`, `setNotDirty` and `setSectionNode`, and the extractor mixin answers clean sections from the array (`DirtySectionIndex`) without touching their state; dirty or unknown sections take the vanilla lookup.
+- Notes: Module `dirtySections`, renderer module. In the cave scene the lookup was 17 % of the render thread (thousands of visible sections behind cave walls). The tracker iterates its storage with `forEach`, because the storage's own iterator skips the last value.
+
+#### LevelRendererDirectDrawMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererDirectDrawMixin.java`
+- Role: Tells `DirectDraws` at the start of `prepareChunkRendersIndirect` and `prepareChunkRenders` which kind of pass runs, and redirects the two writes of `prepareChunkRendersIndirect` (indirect commands, instanced section infos) to it.
+- Notes: Module `directDraws`, renderer module. Vanilla's writes take one record per draw and per section; the draw list built them by the ten thousand per frame.
 
 #### RenderSectionBlockEntityMixin, LevelExtractorBlockEntitiesMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/RenderSectionBlockEntityMixin.java`, `src/main/java/com/aryston/aervium/mixin/LevelExtractorBlockEntitiesMixin.java`

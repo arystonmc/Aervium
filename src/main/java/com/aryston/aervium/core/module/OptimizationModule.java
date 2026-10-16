@@ -16,7 +16,9 @@ public enum OptimizationModule {
     COMPACT_VERTICES("compactVertices", true),
     NETWORK_COMPRESSION("networkCompression", false),
     PARALLEL_FEATURES("parallelFeatures", false),
-    BLOCK_ENTITY_SECTIONS("blockEntitySections", true);
+    BLOCK_ENTITY_SECTIONS("blockEntitySections", true),
+    DIRECT_DRAWS("directDraws", true),
+    DIRTY_SECTIONS("dirtySections", true);
 
     private final String key;
     private final boolean renderer;

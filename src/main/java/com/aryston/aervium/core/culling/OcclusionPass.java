@@ -5,6 +5,8 @@ import java.util.Arrays;
 public final class OcclusionPass {
     public static final float SECTION_SIZE = 16.0F;
     public static final float GEOMETRY_MARGIN = 1.0F;
+    public static final float MAX_REVEAL_REACH = 8.0F;
+    private static final float[] REVEAL_STEPS = {1.0F, 2.0F, 4.0F, MAX_REVEAL_REACH};
     private static final int INITIAL_CAPACITY = 1024;
 
     private float[] originX = new float[INITIAL_CAPACITY];
@@ -13,6 +15,8 @@ public final class OcclusionPass {
     private OccluderBoxes[] boxes = new OccluderBoxes[INITIAL_CAPACITY];
     private boolean[] canOcclude = new boolean[INITIAL_CAPACITY];
     private boolean[] visible = new boolean[INITIAL_CAPACITY];
+    private float[] hiddenUpTo = new float[INITIAL_CAPACITY];
+    private int[] revealed = new int[INITIAL_CAPACITY];
     private long[] order = new long[INITIAL_CAPACITY];
     private int size;
     private int hidden;
@@ -79,7 +83,6 @@ public final class OcclusionPass {
     }
 
     public void run(DepthRaster raster, int maxOccluderBoxes, float reach) {
-        float margin = GEOMETRY_MARGIN + reach;
         ClipMatrix clip = raster.matrix();
         float half = SECTION_SIZE * 0.5F;
         for (int index = 0; index < size; index++) {
@@ -94,13 +97,7 @@ public final class OcclusionPass {
         int budget = maxOccluderBoxes;
         for (int rank = 0; rank < size; rank++) {
             int index = (int) order[rank];
-            float x = originX[index];
-            float y = originY[index];
-            float z = originZ[index];
-            if (!raster.isVisible(
-                x - margin, y - margin, z - margin,
-                x + SECTION_SIZE + margin, y + SECTION_SIZE + margin, z + SECTION_SIZE + margin
-            )) {
+            if (!visibleWithin(raster, index, reach)) {
                 visible[index] = false;
                 hidden++;
                 continue;
@@ -108,6 +105,9 @@ public final class OcclusionPass {
             if (!canOcclude[index] || budget <= 0) {
                 continue;
             }
+            float x = originX[index];
+            float y = originY[index];
+            float z = originZ[index];
             OccluderBoxes section = boxes[index];
             for (int box = 0; box < section.count() && budget > 0; box++) {
                 raster.addOccluder(
@@ -120,26 +120,47 @@ public final class OcclusionPass {
         }
     }
 
-    public int widen(DepthRaster raster, float reach) {
-        float margin = GEOMETRY_MARGIN + reach;
-        int revealed = 0;
+    public void measureReveal(DepthRaster raster, float reach) {
         for (int index = 0; index < size; index++) {
             if (visible[index]) {
                 continue;
             }
-            float x = originX[index];
-            float y = originY[index];
-            float z = originZ[index];
-            if (raster.isVisible(
-                x - margin, y - margin, z - margin,
-                x + SECTION_SIZE + margin, y + SECTION_SIZE + margin, z + SECTION_SIZE + margin
-            )) {
+            float upTo = reach;
+            for (int step = REVEAL_STEPS.length - 1; step >= 0 && REVEAL_STEPS[step] > reach; step--) {
+                if (!visibleWithin(raster, index, REVEAL_STEPS[step])) {
+                    upTo = REVEAL_STEPS[step];
+                    break;
+                }
+            }
+            hiddenUpTo[index] = upTo;
+        }
+    }
+
+    public int widen(float reach) {
+        int count = 0;
+        for (int index = 0; index < size; index++) {
+            if (!visible[index] && reach > hiddenUpTo[index]) {
                 visible[index] = true;
                 hidden--;
-                revealed++;
+                revealed[count++] = index;
             }
         }
-        return revealed;
+        return count;
+    }
+
+    public int revealed(int rank) {
+        return revealed[rank];
+    }
+
+    private boolean visibleWithin(DepthRaster raster, int index, float reach) {
+        float margin = GEOMETRY_MARGIN + reach;
+        float x = originX[index];
+        float y = originY[index];
+        float z = originZ[index];
+        return raster.isVisible(
+            x - margin, y - margin, z - margin,
+            x + SECTION_SIZE + margin, y + SECTION_SIZE + margin, z + SECTION_SIZE + margin
+        );
     }
 
     private void grow() {
@@ -150,6 +171,8 @@ public final class OcclusionPass {
         boxes = Arrays.copyOf(boxes, capacity);
         canOcclude = Arrays.copyOf(canOcclude, capacity);
         visible = Arrays.copyOf(visible, capacity);
+        hiddenUpTo = Arrays.copyOf(hiddenUpTo, capacity);
+        revealed = Arrays.copyOf(revealed, capacity);
         order = Arrays.copyOf(order, capacity);
     }
 }

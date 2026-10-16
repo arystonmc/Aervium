@@ -18,7 +18,7 @@ import net.minecraft.client.renderer.chunk.CompiledSectionMesh;
 import net.minecraft.client.renderer.chunk.SectionMesh;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-import net.minecraft.core.BlockPos;
+import net.minecraft.core.SectionPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4fc;
@@ -44,7 +44,7 @@ public final class TerrainOcclusion {
     private static final float REACH_FRAMES = 3.0F;
     private static final long MAX_RESULT_AGE = 6L;
     private static final long MAX_RESULT_AGE_NANOS = 60_000_000L;
-    private static final float MAX_WIDENED_REACH = 8.0F;
+    private static final float MAX_WIDENED_REACH = OcclusionPass.MAX_REVEAL_REACH;
     private static final int NOT_HIDDEN = 0;
 
     private static final JobSystem JOBS = new JobSystem(
@@ -188,17 +188,15 @@ public final class TerrainOcclusion {
         if (widened > MAX_WIDENED_REACH) {
             return CameraResult.OUT_OF_REACH;
         }
-        if (active.widen(widened) > 0) {
-            unmarkRevealed(active);
-        }
+        unmarkRevealed(active, active.widen(widened));
         return CameraResult.WIDENED;
     }
 
-    private static void unmarkRevealed(OcclusionPipeline.Frame result) {
+    private static void unmarkRevealed(OcclusionPipeline.Frame result, int revealed) {
         int generation = result.generation();
-        for (int index = 0, size = result.size(); index < size; index++) {
-            CameraOcclusionHolder section = (CameraOcclusionHolder) result.target(index);
-            if (result.isVisible(index) && section.aervium$hiddenGeneration() == generation) {
+        for (int rank = 0; rank < revealed; rank++) {
+            CameraOcclusionHolder section = (CameraOcclusionHolder) result.target(result.revealed(rank));
+            if (section.aervium$hiddenGeneration() == generation) {
                 section.aervium$setHiddenGeneration(NOT_HIDDEN);
             }
         }
@@ -229,18 +227,7 @@ public final class TerrainOcclusion {
         next.clip().set(MATRIX);
         camera.viewRotationMatrix.get(MATRIX);
         next.clip().multiply(VIEW.set(MATRIX)).depthFromW(CAMERA_NEAR, CAMERA_FAR);
-        for (int index = 0, size = sections.size(); index < size; index++) {
-            SectionRenderDispatcher.RenderSection section = sections.get(index);
-            BlockPos origin = section.getRenderOrigin();
-            next.add(
-                section,
-                origin.getX(),
-                origin.getY(),
-                origin.getZ(),
-                occluders(section),
-                section.getVisibility(now, sectionFadeDuration) >= FULLY_FADED_IN
-            );
-        }
+        addSections(next, sections, now, sectionFadeDuration);
     }
 
     public static void filterShadowCasters(List<List<SectionRenderDispatcher.RenderSection>> cascades, Matrix4fc lightView, Vec3 camera, long now, long fadeDuration) {
@@ -267,10 +254,10 @@ public final class TerrainOcclusion {
         float maxY = Float.NEGATIVE_INFINITY;
         float maxZ = Float.NEGATIVE_INFINITY;
         for (SectionRenderDispatcher.RenderSection section : sections) {
-            BlockPos origin = section.getRenderOrigin();
-            float x = (float) (origin.getX() + HALF_SECTION - next.eyeX());
-            float y = (float) (origin.getY() + HALF_SECTION - next.eyeY());
-            float z = (float) (origin.getZ() + HALF_SECTION - next.eyeZ());
+            long node = section.getSectionNode();
+            float x = (float) (originX(node) + HALF_SECTION - next.eyeX());
+            float y = (float) (originY(node) + HALF_SECTION - next.eyeY());
+            float z = (float) (originZ(node) + HALF_SECTION - next.eyeZ());
             float lightX = lightView.m00() * x + lightView.m10() * y + lightView.m20() * z + lightView.m30();
             float lightY = lightView.m01() * x + lightView.m11() * y + lightView.m21() * z + lightView.m31();
             float lightZ = lightView.m02() * x + lightView.m12() * y + lightView.m22() * z + lightView.m32();
@@ -289,18 +276,34 @@ public final class TerrainOcclusion {
         );
         lightView.get(MATRIX);
         next.clip().multiply(VIEW.set(MATRIX));
+        addSections(next, sections, now, fadeDuration);
+    }
+
+    private static void addSections(OcclusionPipeline.Frame next, List<SectionRenderDispatcher.RenderSection> sections, long now, long sectionFadeDuration) {
         for (int index = 0, size = sections.size(); index < size; index++) {
             SectionRenderDispatcher.RenderSection section = sections.get(index);
-            BlockPos origin = section.getRenderOrigin();
+            long node = section.getSectionNode();
             next.add(
                 section,
-                origin.getX(),
-                origin.getY(),
-                origin.getZ(),
+                originX(node),
+                originY(node),
+                originZ(node),
                 occluders(section),
-                section.getVisibility(now, fadeDuration) >= FULLY_FADED_IN
+                section.getVisibility(now, sectionFadeDuration) >= FULLY_FADED_IN
             );
         }
+    }
+
+    private static int originX(long sectionNode) {
+        return SectionPos.sectionToBlockCoord(SectionPos.x(sectionNode));
+    }
+
+    private static int originY(long sectionNode) {
+        return SectionPos.sectionToBlockCoord(SectionPos.y(sectionNode));
+    }
+
+    private static int originZ(long sectionNode) {
+        return SectionPos.sectionToBlockCoord(SectionPos.z(sectionNode));
     }
 
     private static void clearShadowResults() {

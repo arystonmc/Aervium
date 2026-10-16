@@ -119,6 +119,7 @@ public final class OcclusionPipeline {
             try {
                 raster.begin(clip, false);
                 pass.run(raster, maxOccluderBoxes, reach);
+                pass.measureReveal(raster, reach);
             } catch (RuntimeException failure) {
                 failed = true;
                 throw failure;
@@ -158,6 +159,10 @@ public final class OcclusionPipeline {
 
         public boolean isVisible(int index) {
             return pass.isVisible(index);
+        }
+
+        public int revealed(int rank) {
+            return pass.revealed(rank);
         }
 
         public Object target(int index) {
@@ -214,7 +219,7 @@ public final class OcclusionPipeline {
             if (nextReach <= reach) {
                 return 0;
             }
-            int revealed = pass.widen(raster, nextReach);
+            int revealed = pass.widen(nextReach);
             reach = nextReach;
             return revealed;
         }

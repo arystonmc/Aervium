@@ -6,7 +6,6 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import com.aryston.aervium.client.culling.TerrainOcclusion;
 import com.aryston.aervium.core.culling.CullingStatistics;
 import com.aryston.aervium.core.mesh.FaceRanges;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.renderer.DynamicGpuData;
@@ -18,8 +17,7 @@ import net.minecraft.client.renderer.state.level.CameraRenderState;
 
 public final class SectionDrawLists {
     private static final int INDICES_PER_QUAD = 6;
-    private static final int ORDERED_GROUP_CAPACITY = 16;
-    private static final int DRAWS_PER_SECTION = 2;
+    private static final Int2ObjectOpenHashMap<LevelRenderer.ChunkDrawGroup> DRAW_GROUP_CACHE = new Int2ObjectOpenHashMap<>();
 
     private SectionDrawLists() {
     }
@@ -37,9 +35,11 @@ public final class SectionDrawLists {
         List<DynamicGpuData.ChunkSectionInfo> sectionInfos,
         Map<ChunkSectionLayer, List<LevelRenderer.ChunkDrawGroup>> drawGroups
     ) {
+        boolean packedSections = DirectDraws.beginExtract();
+        Int2ObjectOpenHashMap<LevelRenderer.ChunkDrawGroup> drawGroupCache = DRAW_GROUP_CACHE;
+        drawGroupCache.clear();
         int largestIndexCount = 0;
         int lastTransparentGroupHash = 0;
-        Int2ObjectOpenHashMap<LevelRenderer.ChunkDrawGroup> drawGroupCache = new Int2ObjectOpenHashMap<>();
         Object[] sections = visibleSections.elements();
         int size = visibleSections.size();
         boolean occlusion = TerrainOcclusion.cullsCameraSections();
@@ -51,28 +51,21 @@ public final class SectionDrawLists {
             if (occlusion && TerrainOcclusion.hiddenFromCamera(section)) {
                 continue;
             }
-            SectionDrawRecordHolder holder = (SectionDrawRecordHolder) section;
-            int meshVersion = ((MeshVersionHolder) section).aervium$meshVersion();
-            SectionDrawRecord record = holder.aervium$drawRecord();
-            if (record == null || !record.isFor(meshVersion)) {
-                SectionMesh mesh = section.getSectionMesh();
-                record = SectionDrawRecord.build(mesh, meshVersion, section.getRenderOrigin(), dispatcher);
-                holder.aervium$setDrawRecord(record);
-                if (mesh instanceof SectionSliceHolder slices) {
-                    slices.aervium$trackRecord(record);
-                }
-            }
-            if (record.count == 0) {
+            int[] packed = currentDraws(section, dispatcher);
+            int count = packed[SectionDrawRecord.COUNT];
+            if (count == 0) {
                 continue;
             }
-            int sectionInfoDataIndex = sectionInfos.size();
-            sectionInfos.add(new DynamicGpuData.ChunkSectionInfo(
-                record.originX, record.originY, record.originZ, section.getVisibility(now, fadeDuration)
-            ));
+            int originX = packed[SectionDrawRecord.ORIGIN_X];
+            int originY = packed[SectionDrawRecord.ORIGIN_Y];
+            int originZ = packed[SectionDrawRecord.ORIGIN_Z];
+            float visibility = section.getVisibility(now, fadeDuration);
+            int sectionInfoDataIndex = packedSections
+                ? DirectDraws.addSection(originX, originY, originZ, visibility)
+                : addRecord(sectionInfos, originX, originY, originZ, visibility);
 
-            int[] packed = record.packed;
-            for (int slot = 0; slot < record.count; slot++) {
-                int offset = slot * SectionDrawRecord.STRIDE;
+            for (int slot = 0; slot < count; slot++) {
+                int offset = SectionDrawRecord.slotOffset(slot);
                 int indexCount = packed[offset + SectionDrawRecord.INDEX_COUNT];
                 int flags = packed[offset + SectionDrawRecord.FLAGS];
                 if ((flags & SectionDrawRecord.CUSTOM_INDEX_BUFFER) == 0 && indexCount > largestIndexCount) {
@@ -81,28 +74,28 @@ public final class SectionDrawLists {
                 ChunkSectionLayer layer = SectionLayers.ALL[packed[offset + SectionDrawRecord.LAYER]];
                 int groupHash = packed[offset + SectionDrawRecord.GROUP_HASH];
                 LevelRenderer.ChunkDrawGroup drawGroup = null;
-                boolean ordered = layer.translucent() && respectTranslucentOrder;
-                if (ordered) {
+                if (layer.translucent() && respectTranslucentOrder) {
                     if (groupHash == lastTransparentGroupHash) {
                         drawGroup = drawGroups.get(layer).getLast();
                     }
                     lastTransparentGroupHash = groupHash;
                 } else {
-                    drawGroup = drawGroupCache.getOrDefault(groupHash, null);
+                    drawGroup = drawGroupCache.get(groupHash);
                 }
                 if (drawGroup == null) {
-                    LayerDraw draw = record.draws[slot];
+                    LayerDraw draw = ((SectionDrawRecordHolder) section).aervium$drawRecord().draws[slot];
                     GpuBuffer indexBuffer = draw.indexBuffer();
                     drawGroup = new LevelRenderer.ChunkDrawGroup(
-                        draw.vertexBuffer().slice(), indexBuffer != null ? indexBuffer.slice() : null, draw.indexType(), new ArrayList<>(ordered ? ORDERED_GROUP_CAPACITY : size * DRAWS_PER_SECTION)
+                        draw.vertexBuffer().slice(), indexBuffer != null ? indexBuffer.slice() : null, draw.indexType(), DirectDraws.nextDraws()
                     );
                     drawGroupCache.put(groupHash, drawGroup);
                     drawGroups.get(layer).add(drawGroup);
                 }
+                PackedDraws draws = (PackedDraws) drawGroup.draws();
                 boolean hasFaces = (flags & SectionDrawRecord.HAS_FACES) != 0;
                 int faces = offset + SectionDrawRecord.FACES;
                 int visible = !hasFaces || faceCamera == null ? FaceRanges.ALL : FaceRanges.visibleBuckets(
-                    packed, faces, faceCamera.pos.x - record.originX, faceCamera.pos.y - record.originY, faceCamera.pos.z - record.originZ
+                    packed, faces, faceCamera.pos.x - originX, faceCamera.pos.y - originY, faceCamera.pos.z - originZ
                 );
                 if (hasFaces && faceCamera != null) {
                     faceQuads += indexCount / INDICES_PER_QUAD;
@@ -110,10 +103,10 @@ public final class SectionDrawLists {
                 int firstIndex = packed[offset + SectionDrawRecord.FIRST_INDEX];
                 int baseVertex = packed[offset + SectionDrawRecord.BASE_VERTEX];
                 if (visible == FaceRanges.ALL) {
-                    drawGroup.draws().add(new DynamicGpuData.IndexedDraw(indexCount, 1, firstIndex, baseVertex, sectionInfoDataIndex));
+                    draws.add(indexCount, firstIndex, baseVertex, sectionInfoDataIndex);
                 } else {
                     faceSkipped += indexCount / INDICES_PER_QUAD
-                        - addFacingDraws(drawGroup.draws(), packed, faces, firstIndex, baseVertex, visible, sectionInfoDataIndex);
+                        - addFacingDraws(draws, packed, faces, firstIndex, baseVertex, visible, sectionInfoDataIndex);
                 }
             }
         }
@@ -123,8 +116,30 @@ public final class SectionDrawLists {
         return largestIndexCount;
     }
 
+    private static int[] currentDraws(SectionRenderDispatcher.RenderSection section, SectionRenderDispatcher dispatcher) {
+        SectionDrawRecordHolder holder = (SectionDrawRecordHolder) section;
+        int meshVersion = ((MeshVersionHolder) section).aervium$meshVersion();
+        int[] packed = holder.aervium$packedDraws();
+        if (packed != null && SectionDrawRecord.current(packed, meshVersion)) {
+            return packed;
+        }
+        SectionMesh mesh = section.getSectionMesh();
+        SectionDrawRecord record = SectionDrawRecord.build(mesh, meshVersion, section.getRenderOrigin(), dispatcher);
+        holder.aervium$setDrawRecord(record);
+        if (mesh instanceof SectionSliceHolder slices) {
+            slices.aervium$trackRecord(record);
+        }
+        return record.packedDraws();
+    }
+
+    private static int addRecord(List<DynamicGpuData.ChunkSectionInfo> sectionInfos, int originX, int originY, int originZ, float visibility) {
+        int index = sectionInfos.size();
+        sectionInfos.add(new DynamicGpuData.ChunkSectionInfo(originX, originY, originZ, visibility));
+        return index;
+    }
+
     private static int addFacingDraws(
-        List<DynamicGpuData.IndexedDraw> draws, int[] packed, int faces, int firstIndex, int baseVertex, int visible, int sectionInfoDataIndex
+        PackedDraws draws, int[] packed, int faces, int firstIndex, int baseVertex, int visible, int sectionInfoDataIndex
     ) {
         int runStart = -1;
         int drawn = 0;
@@ -141,9 +156,7 @@ public final class SectionDrawLists {
                 int quads = FaceRanges.firstQuad(packed, faces, bucket) - firstQuad;
                 if (quads > 0) {
                     drawn += quads;
-                    draws.add(new DynamicGpuData.IndexedDraw(
-                        quads * INDICES_PER_QUAD, 1, firstIndex + firstQuad * INDICES_PER_QUAD, baseVertex, sectionInfoDataIndex
-                    ));
+                    draws.add(quads * INDICES_PER_QUAD, firstIndex + firstQuad * INDICES_PER_QUAD, baseVertex, sectionInfoDataIndex);
                 }
                 runStart = -1;
             }
