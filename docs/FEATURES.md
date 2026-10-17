@@ -100,6 +100,14 @@ Chunks are prepared for drawing on Aervium's own worker threads.
 - The overlay and the benchmark log also show how long uploading new chunks to the graphics card takes and how long the game waits for the chunk builders
 - Since: 0.1
 
+### Chunks Unpacked in the Background
+New chunks from the server are unpacked before the game needs them.
+
+- When a chunk arrives, two background threads read its blocks and find where sky light starts in each column; the main thread then only places the finished chunk, instead of doing all of that between two frames (`chunkPacketDecoding`)
+- The result is exactly the chunk vanilla builds: a built-in audit compared 1.4 million columns and found no difference
+- In the elytra flight the 1% low rose by about 6 % and slow frames caused by the main thread fell by a third
+- Since: 0.1
+
 ### Spare Swapchain Images
 The game keeps two more finished-frame images ready for the screen.
 
@@ -212,6 +220,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`, `gpuCulling`, `sectionGridMoves`, `lockFreeSections`, `swapchainImages`) with `true` or `false`; changes apply at the next start; every module starts on
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`, `gpuCulling`, `sectionGridMoves`, `lockFreeSections`, `swapchainImages`, `chunkPacketDecoding`) with `true` or `false`; changes apply at the next start; every module starts on
 - Render optimizations stay off by themselves when Iris is installed, or next to Sodium in the benchmark
 - Since: 0.1

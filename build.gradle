@@ -128,7 +128,7 @@ var setUpParityWorld = tasks.register('setUpParityWorld') {
         new File(config, 'aervium-modules.properties').text = [
                 'shaderCache', 'pipelineCache', 'pipelineWarmup', 'compactChunkLocks', 'sectionSliceCache',
                 'lightSnapshots', 'occlusionCulling', 'meshWorkers', 'faceCulling', 'poiSearch', 'entityCollisions',
-                'hopperSearch', 'compactVertices', 'networkCompression', 'parallelFeatures', 'blockEntitySections', 'directDraws', 'dirtySections', 'gpuCulling', 'sectionGridMoves', 'lockFreeSections', 'swapchainImages',
+                'hopperSearch', 'compactVertices', 'networkCompression', 'parallelFeatures', 'blockEntitySections', 'directDraws', 'dirtySections', 'gpuCulling', 'sectionGridMoves', 'lockFreeSections', 'swapchainImages', 'chunkPacketDecoding',
         ].collect { it + '=' + (modulesOff.contains(it) ? 'false' : value) }.join('\n') + '\n'
     }
 }

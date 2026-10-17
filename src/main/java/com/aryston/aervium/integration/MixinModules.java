@@ -80,7 +80,10 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("CompileTaskOwnershipMixin", OptimizationModule.LOCK_FREE_SECTIONS),
         Map.entry("ResortTransparencyTaskOwnershipMixin", OptimizationModule.LOCK_FREE_SECTIONS),
         Map.entry("RenderSectionOwnershipMixin", OptimizationModule.LOCK_FREE_SECTIONS),
-        Map.entry("VulkanGpuSurfaceImageCountMixin", OptimizationModule.SWAPCHAIN_IMAGES)
+        Map.entry("VulkanGpuSurfaceImageCountMixin", OptimizationModule.SWAPCHAIN_IMAGES),
+        Map.entry("ClientPacketListenerChunkDecodeMixin", OptimizationModule.CHUNK_PACKET_DECODING),
+        Map.entry("ClientChunkCacheChunkDecodeMixin", OptimizationModule.CHUNK_PACKET_DECODING),
+        Map.entry("LevelChunkChunkDecodeMixin", OptimizationModule.CHUNK_PACKET_DECODING)
     );
 
     private static final String HELION_MOD_ID = "helion";

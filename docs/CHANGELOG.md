@@ -15,6 +15,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Faster chunk drawing: draw commands go straight into GPU memory, chunks that need rebuilding are found from a compact list, and crossing a chunk border updates only the columns that move
 - The main thread no longer waits for the chunk builders to free chunk memory, which removed freezes of up to 26 ms in caves
 - Chunk builders run one priority step below normal, so they no longer hold back the graphics driver: about two thirds fewer freezes of 15 to 25 ms underground and in fast flight, 0.1% low up by about 30 %
+- New chunks are unpacked on background threads before the main thread places them, with exactly the same result (1% low in fast flight up by about 6 %)
 - The game asks for two more swapchain images, so short presentation hiccups no longer stall the next frame (1% low underground up by about 15 %)
 - Compact chunk vertices: terrain takes 16 instead of 28 bytes per vertex, for less video memory and faster drawing (off by itself with Helion 0.1)
 - Chunks are prepared on Aervium's own threads instead of waiting behind world generation in single player

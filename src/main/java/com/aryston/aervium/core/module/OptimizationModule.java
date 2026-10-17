@@ -22,7 +22,8 @@ public enum OptimizationModule {
     GPU_CULLING("gpuCulling", true),
     SECTION_GRID_MOVES("sectionGridMoves", true),
     LOCK_FREE_SECTIONS("lockFreeSections", true),
-    SWAPCHAIN_IMAGES("swapchainImages", false);
+    SWAPCHAIN_IMAGES("swapchainImages", false),
+    CHUNK_PACKET_DECODING("chunkPacketDecoding", false);
 
     private final String key;
     private final boolean renderer;
