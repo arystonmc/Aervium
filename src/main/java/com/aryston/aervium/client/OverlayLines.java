@@ -8,6 +8,7 @@ import com.aryston.aervium.core.job.JobLoadMeter.JobLoad;
 import com.aryston.aervium.core.telemetry.ByteSizes;
 import com.aryston.aervium.core.telemetry.FrameTimeSummary;
 import com.aryston.aervium.core.telemetry.GcPauseTotals;
+import com.aryston.aervium.core.telemetry.MotionErrorSummary;
 import com.aryston.aervium.core.telemetry.TelemetrySnapshot;
 import com.aryston.aervium.core.telemetry.TelemetrySnapshot.SystemTiming;
 import com.aryston.aervium.core.telemetry.TickSummary;
@@ -25,6 +26,7 @@ final class OverlayLines {
 
     private static final double MEGABYTES_PER_GIGABYTE = 1024.0;
     private static final double NANOS_PER_MILLI = 1.0E6;
+    private static final double MOTION_ERROR_WARNING_MS = 0.5;
 
     private OverlayLines() {
     }
@@ -34,6 +36,7 @@ final class OverlayLines {
         FrameTimeSummary frames = snapshot.frames();
         lines.add(new Line(format("Aervium  FPS %.0f  1%% low %.0f  0.1%% low %.0f", frames.averageFps(), frames.onePercentLowFps(), frames.pointOnePercentLowFps()), TEXT));
         lines.add(new Line(format("Frame %.2f ms  stddev %.2f ms  max %.1f ms", frames.averageMs(), frames.standardDeviationMs(), frames.maxMs()), MUTED));
+        lines.add(smoothnessLine(frames, snapshot.motion()));
         lines.add(snapshot.serverTicks().map(OverlayLines::tickLine).orElse(new Line("MSPT: no local server", MUTED)));
         lines.add(gcLine(snapshot.gcPauses()));
         lines.add(new Line(memoryText(snapshot), MUTED));
@@ -47,6 +50,11 @@ final class OverlayLines {
         }
         lines.add(new Line(AerviumKeys.TOGGLE_OVERLAY.getTranslatedKeyMessage().getString() + " hides this overlay, " + AerviumKeys.TOGGLE_CULLING.getTranslatedKeyMessage().getString() + " switches occlusion culling", MUTED));
         return lines;
+    }
+
+    private static Line smoothnessLine(FrameTimeSummary frames, MotionErrorSummary motion) {
+        int color = motion.p99Ms() > MOTION_ERROR_WARNING_MS || frames.hitches() > 0 ? WARNING : MUTED;
+        return new Line(format("Hitches %d  motion error %.2f ms avg  %.2f ms p99  %.2f ms max", frames.hitches(), motion.averageMs(), motion.p99Ms(), motion.maxMs()), color);
     }
 
     private static Line tickLine(TickSummary ticks) {

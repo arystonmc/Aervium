@@ -52,4 +52,12 @@ class FrameTimeSummaryTest {
         assertEquals(4, summary.framesOver33Ms());
         assertEquals(2, summary.framesOver50Ms());
     }
+
+    @Test
+    void countsHitchesAgainstTheMedianAndADisplayFrame() {
+        long[] fast = {1_000_000L, 1_000_000L, 1_000_000L, 3_000_000L, 9_000_000L};
+        assertEquals(1, FrameTimeSummary.of(fast, fast.length).hitches());
+        long[] slow = {10_000_000L, 10_000_000L, 10_000_000L, 19_000_000L, 21_000_000L};
+        assertEquals(1, FrameTimeSummary.of(slow, slow.length).hitches());
+    }
 }

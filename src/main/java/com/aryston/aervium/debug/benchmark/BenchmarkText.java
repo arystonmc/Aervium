@@ -27,7 +27,7 @@ public final class BenchmarkText {
         line(text, "Window %dx%d, render distance %d, simulation distance %d, frame limit %d, vsync %s",
             environment.windowWidth(), environment.windowHeight(), environment.renderDistance(), environment.simulationDistance(),
             environment.framerateLimit(), environment.vsync() ? "on" : "off");
-        line(text, "Seed %d, village %s, mods: %s", environment.seed(), report.anchors().villageFound() ? "found" : "not found", String.join(", ", environment.mods()));
+        line(text, "Seed %d, %d scenes with built sites, mods: %s", environment.seed(), report.anchors().sites().size(), String.join(", ", environment.mods()));
         line(text, "");
         line(text, SCENE_HEADER);
         line(text, RULE);
@@ -41,8 +41,9 @@ public final class BenchmarkText {
         report.scenes().forEach(scene -> line(text, "%-12s peak VRAM %.0f MB, %d GC pauses (longest %.1f ms), %d frames dropped from the record",
             scene.scene(), scene.peakVramMb(), scene.gcPauses().pauses(), scene.gcPauses().longestMs(), scene.droppedFrames()));
         line(text, "");
-        report.scenes().forEach(scene -> line(text, "%-12s median frame %.2f ms, p99 %.2f ms, p99.9 %.2f ms, %d frames over 33 ms, %d over 50 ms",
-            scene.scene(), scene.frames().medianMs(), scene.frames().p99Ms(), scene.frames().p999Ms(), scene.frames().framesOver33Ms(), scene.frames().framesOver50Ms()));
+        report.scenes().forEach(scene -> line(text, "%-12s median frame %.2f ms, p99 %.2f ms, p99.9 %.2f ms, %d frames over 33 ms, %d over 50 ms, %d hitches, motion error %.3f ms avg %.3f ms p99",
+            scene.scene(), scene.frames().medianMs(), scene.frames().p99Ms(), scene.frames().p999Ms(), scene.frames().framesOver33Ms(), scene.frames().framesOver50Ms(),
+            scene.frames().hitches(), scene.motion().averageMs(), scene.motion().p99Ms()));
         comparison.ifPresent(delta -> comparisonSection(text, delta));
         return text.toString();
     }

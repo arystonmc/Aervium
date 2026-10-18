@@ -13,7 +13,7 @@ public final class FrameRateGovernor {
 
     public static int limit(int vanillaLimit) {
         if (suspended) {
-            return vanillaLimit;
+            return Minecraft.getInstance().options.framerateLimit().get();
         }
         return policy.limit(vanillaLimit, windowState(Minecraft.getInstance()));
     }

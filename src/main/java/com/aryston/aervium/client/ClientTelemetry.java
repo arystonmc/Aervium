@@ -11,6 +11,8 @@ import com.aryston.aervium.core.telemetry.FrameTimeSummary;
 import com.aryston.aervium.core.telemetry.GcPauseRecorder;
 import com.aryston.aervium.core.telemetry.GcPauseTotals;
 import com.aryston.aervium.core.telemetry.HeapUsage;
+import com.aryston.aervium.core.telemetry.MotionErrorRecorder;
+import com.aryston.aervium.core.telemetry.MotionErrorSummary;
 import com.aryston.aervium.core.telemetry.SampleRing;
 import com.aryston.aervium.core.telemetry.TelemetrySnapshot;
 import com.aryston.aervium.core.telemetry.TelemetrySnapshot.SystemTiming;
@@ -29,6 +31,7 @@ final class ClientTelemetry implements AutoCloseable {
     private static final String JOB_SYSTEM_NAME = "Aervium";
 
     private final FrameTimeRecorder frames = new FrameTimeRecorder(FRAME_WINDOW);
+    private final MotionErrorRecorder motion = new MotionErrorRecorder(FRAME_WINDOW);
     private final GcPauseRecorder gcPauses = GcPauseRecorder.install();
     private final JobSystem jobs = new JobSystem(
         JOB_SYSTEM_NAME,
@@ -45,6 +48,14 @@ final class ClientTelemetry implements AutoCloseable {
 
     void frameStarted(long nanoTime) {
         frames.frameStarted(nanoTime);
+    }
+
+    void motionSampled(long nanoTime, double simulatedMillis) {
+        motion.framePresented(nanoTime, simulatedMillis);
+    }
+
+    void motionInterrupted() {
+        motion.interrupted();
     }
 
     void frameFinished() {
@@ -79,10 +90,11 @@ final class ClientTelemetry implements AutoCloseable {
         ticksUntilAggregation = AGGREGATION_INTERVAL_TICKS;
         aggregationPending = true;
         long[] frameNanos = frames.frameTimes().latest(FRAME_WINDOW);
+        long[] motionErrorNanos = motion.errors().latest(FRAME_WINDOW);
         Optional<long[]> tickNanos = TickTimeRecorder.SERVER.isRunning()
             ? Optional.of(TickTimeRecorder.SERVER.latest(TICK_WINDOW))
             : Optional.empty();
-        RawTelemetry raw = new RawTelemetry(frameNanos, tickNanos, gcPauses.total(), HeapUsage.current(), VulkanMemoryProbe.sample(), SystemTimings.SHARED.sample(budget));
+        RawTelemetry raw = new RawTelemetry(frameNanos, motionErrorNanos, tickNanos, gcPauses.total(), HeapUsage.current(), VulkanMemoryProbe.sample(), SystemTimings.SHARED.sample(budget));
         jobs.submit(() -> {
             Optional<TelemetrySnapshot> snapshot = summarize(raw);
             mainThread.post(() -> {
@@ -97,6 +109,7 @@ final class ClientTelemetry implements AutoCloseable {
         try {
             return Optional.of(new TelemetrySnapshot(
                 FrameTimeSummary.of(raw.frameNanos(), raw.frameNanos().length),
+                MotionErrorSummary.of(raw.motionErrorNanos(), raw.motionErrorNanos().length),
                 raw.tickNanos().map(ticks -> TickSummary.of(ticks, ticks.length)),
                 raw.gcPauses(),
                 raw.heap(),
@@ -116,6 +129,6 @@ final class ClientTelemetry implements AutoCloseable {
         jobs.close();
     }
 
-    private record RawTelemetry(long[] frameNanos, Optional<long[]> tickNanos, GcPauseTotals gcPauses, HeapUsage heap, VramUsage vram, List<SystemTiming> timings) {
+    private record RawTelemetry(long[] frameNanos, long[] motionErrorNanos, Optional<long[]> tickNanos, GcPauseTotals gcPauses, HeapUsage heap, VramUsage vram, List<SystemTiming> timings) {
     }
 }

@@ -29,6 +29,7 @@ Adapter layer                 the only code that touches Minecraft or NeoForge
    integration/               both sides: server events, mod list checks
    client/                    client side: frame events, keys, overlay drawing, VRAM probe
    client/benchmark/          benchmark world, camera and environment
+   client/pregeneration/      join hold, terrain readiness, compile order while joining
    mixin/                     accessors and hooks where no API exists
    config/                    NeoForge config spec
    ▼
@@ -37,6 +38,7 @@ Engine (game-independent, unit tested)
    core/budget                frame budget, timed systems, timing scopes
    core/job                   work-stealing job system, main-thread queue
    core/culling               software depth raster, occluder boxes, occlusion passes
+   core/pregeneration         terrain progress, join hold states, loading progress blend
    world/                     server-side engine parts (tick recorder now, TPS work in Phase 4)
    debug/route, debug/benchmark  camera routes, benchmark scenes, commands, reports
 ```
@@ -63,7 +65,8 @@ Raw data is copied on the thread that writes it, statistics are computed on a wo
 ### Telemetry
 - `SampleRing` stores nanosecond samples; recording never allocates. Marks (`recorded()`) cut windows out of a ring without copying it.
 - Frame time is the time between two `RenderFrameEvent.Pre`, so it includes everything a player waits for: game logic on the client thread, rendering, presentation and frame limiting.
-- 1% low is the frame rate at the 99th percentile frame time and 0.1% low at the 99.9th (nearest rank). Standard deviation is the population standard deviation of frame times.
+- 1% low is the frame rate at the 99th percentile frame time and 0.1% low at the 99.9th (nearest rank). Standard deviation is the population standard deviation of frame times. A hitch is longer than twice the median and 8.33 ms, so short but noticeable high-refresh stutters are not hidden by the lows.
+- `MotionSampler` records the simulated time step of each presented frame while the game is running; `MotionErrorRecorder` compares it with the real time between presents. The overlay warns when the p99 error exceeds 0.5 ms or any hitch occurred.
 - MSPT is the time from `ServerTickEvent.Pre` to `Post`, recorded on the integrated and the dedicated server.
 - GC pauses come from the collector notifications; concurrent cycles of ZGC and Shenandoah are not pauses.
 - VRAM is the device-local usage the game's Vulkan memory allocator reports; it counts what Minecraft allocated, not other programs.
@@ -86,6 +89,8 @@ Vanilla compiles every GLSL shader to SPIR-V with shaderc at each start and reso
 
 ### Occlusion Culling
 Vanilla's cave culling only knows whether two faces of a section are connected by air; a cave behind a stone wall still gets drawn when air connects it to the camera somewhere. Aervium adds a software occlusion test, the technique console games used before GPUs could do it themselves.
+
+When the current camera result hid no terrain section, `ParticleOcclusion.hidden` and both `EntityOcclusion.hidden` overloads return before raster testing. This can only draw more, never less; in the 2026-10-18 particles scene it removed a test that used 12.7 % of render-thread self time while it hid 0 % of particles and entities.
 
 - While a section mesh is built, its opaque blocks (the same ones vanilla's `VisGraph` sees) become up to 24 occluder boxes.
 - Camera pass, every frame: the visible sections are sorted near to far; each is tested against a 256-pixel-wide depth raster and, if visible, draws its occluder boxes into it. Hidden sections are skipped in the draw list only; vanilla's visible list stays untouched, so section updates, translucency sorting and entities work as before.
@@ -134,28 +139,58 @@ Vanilla generates noise, surface and biomes of new chunks on the shared backgrou
 ### Packet Compression
 The module `networkCompression` gives every connection's `CompressionEncoder` a zlib level 4 deflater instead of level 6. On 1024 real chunks (45 MB of chunk data from the benchmark world) level 6 took 834 ms and gave 14.0 %, level 4 399 ms and 14.6 %, level 1 251 ms and 16.8 % (Can's PC, 2026-10-15). Deflating straight from the packet buffer instead of vanilla's copy into a byte array gave 1 to 2 %, within noise, so it was not kept. Vanilla already holds back flushes during the server tick (`suspendFlushing`) and flushes once per tick, so flush batching has nothing left to gain. Singleplayer connections are in memory and never compress.
 
+### Pregeneration on Join
+Vanilla prepares only the chunks within 3 of the spawn while the player is still in the configuration phase (`PrepareSpawnTask`, a `PLAYER_SPAWN` ticket) and closes the loading screen once the chunk under the player is there; the rest of the render distance is generated, sent, lit and built while the player already plays. The module `spawnPregeneration` moves that work in front of the entry, for the owner of an integrated server only:
+
+1. Radius: `SpawnPregenerationSettings` holds the config (on or off, 6 to 32, off during the benchmark) and the client's render distance, and `joinRadius()` is the smaller of the two. The client writes its render distance when the loading screen adopts the tracker, because an integrated server that has no player yet is paused and still reports view distance 10 until its first unpaused tick; both sides run in the same process.
+2. Server (`PrepareSpawnTaskPreparingMixin`, `PrepareSpawnTaskPregenerationMixin`, `SpawnPregeneration`): the spawn ticket gets radius `joinRadius() + 1`, because the server sends a chunk only at ticking level, which a ticket of radius r gives to radius r - 1 (without the extra ring the last ring never arrived). The loading listener counts these chunks, the task does not spawn the player before they are loaded, `keepAlive` refreshes the ticket every tick and the ticket expires like vanilla's after the spawn. `ServerGamePacketListenerTerrainWaitMixin` pauses the 60 tick client load timeout for the owner while the client waits.
+3. Client (`LevelLoadTrackerPregenerationMixin`, `JoinPregeneration`, `TerrainReadiness`, `PregenerationHold`): when the client load starts, `isLevelReady` stays false until every chunk within the radius is on the client, every non-empty section within radius - 1 that the occlusion graph reaches has a mesh, the client light queue is empty, and this held for the chunk fade-in time. `TerrainReadiness` checks a few cells of its grid per frame (1.5 ms) and keeps running totals, so a check never walks the whole radius. A hold without progress for 15 s or longer than 90 s lets the player in and logs a warning. The progress bar shows 60 % server progress and 40 % terrain readiness (`JoinProgress`).
+4. While the client holds (`JoinPregeneration.spreadsWork`), three vanilla bursts are spread over frames. `PacketProcessorPregenerationMixin` handles queued packets for at most 10 ms per frame: a memory connection delivers every chunk at once and vanilla handled them in one frame (815 ms at render distance 32). `ClientLevelPregenerationMixin` runs light updates for at most 6 ms; vanilla runs the whole queue once it holds 1000 entries. `LevelExtractorPregenerationMixin` replaces the sections handed to compiling: the occlusion graph only grows through compiled sections, so with the visible list the terrain arrived in waves; instead up to 64 dirty sections per frame come from a copy of every graph node (refreshed every 100 ms), uncompiled sections whose neighbours are loaded first.
+
+Measured on Can's PC with Arkea and Helion (2026-10-17, existing world, render distance 12, windowed): vanilla entered after 4.3 to 5.2 s with 365 to 432 chunks missing and 29 to 52 visible sections not built, and the first 10 s in game ran at 232 to 248 FPS with a 1% low of 35 to 41; with the module 8.2 to 9.1 s, 0 missing, 0 not built, 373 to 389 FPS and a 1% low of 139 to 165. Render distance 32: entry after 18.2 to 21.2 s with 0 chunks missing. The join itself still has 11 to 15 frames over 50 ms, the longest 200 to 340 ms in the server start and the first terrain frames (level creation, first uploads).
+
+### Join Warm-up
+Two lazy steps of the first join run ahead of time once the game has loaded. `JoinWarmup` (module `joinWarmup`) loads every class listed in `assets/aervium/warmup/join_classes.txt` with `Class.forName(name, false, loader)` on a minimum priority daemon thread and creates one Netty `DefaultChannelId`, whose first use reads the network interfaces. The list holds the 1721 classes the render thread loaded during a join on Can's PC; class loading inside long join frames fell from 70 to 156 ms to 4 to 50 ms and the frame that opens the progress screen from 111 to 185 ms to 65 ms, while the warm-up itself took 467 ms in the background. `GpuCulling.warmUp` compiles the culling compute pipeline on the job system as soon as the device exists; until it is ready the CPU draw list draws the terrain, so the first world frame no longer compiles it.
+
 ### Modules
 Optimizations that change game classes are mixins grouped into modules (`OptimizationModule`). `MixinModules` reads `config/aervium-modules.properties` before any mixin applies and writes every switch back; renderer modules also stay off with Sodium or Iris. Features that run later (dynamic frame rate) use the normal client config.
 
+`preciseFrameTime` uses nanosecond timing for the client timer. Vanilla feeds the timer millisecond time, which makes partial ticks advance in 1 ms steps at high frame rates even when frame times look even. After client ticks and swapchain image acquisition, it advances the partial tick to the time the frame will show when that remains inside the current tick.
+
+`particleCollisions` is a non-renderer module. `ParticleCollisionMixin` wraps the block collision call in `Particle.move`; when the same swept, widened and one-block-expanded cuboid vanilla would inspect has at most 256 loaded air cells, it returns the unchanged movement, exactly as vanilla does for an empty collider list. Otherwise vanilla runs. In the 2026-10-18 JFR stress-particles scene, particle movement was 40 % of slow frames, almost all in building the block collider list for `CampfireSmokeParticle.tick`.
+
+`entityCollisions` now applies on both sides. `EntityCollisionShapes` shares the server and client logic, using each level's entity section storage to skip the entity search only when no nearby section can hold a collidable entity, with the same audit. In the explosion and server scenes, client `ItemEntity` and `PrimedTnt` ticks spent most of their time in that search.
+
+`modelCorners` is a renderer module. `ModelCubeCornersMixin` replaces `ModelPart.Cube.compile`, where no API exists, with `CubeCorners`: each distinct cube corner is transformed once and then written in the same vertex order with the same normals. `SharedCorners` identifies positions by exact float bits. Cubes with more than 64 distinct positions use the per-vertex path. In the stress crowd and storage scenes, `Vector3f.mulPosition` below the vanilla compile path used about 10 % of render-thread time for entity and block entity models.
+
+`teamlessPushing` applies on both sides. `EntitySelectorPushMixin` bypasses team lookups only when the level scoreboard has no teams. `PushRules` then keeps the vanilla predicate order: not spectator, pushable, and on the client only the local player. In dense crowds, this predicate was the hottest server-thread frame.
+
 ## Benchmark
 
-`-Daervium.benchmark=true` (works with `launcher/launch.ps1 -Define`) starts the benchmark from the first screen; `-Daervium.benchmark.quit=true` closes the game afterwards. For a fair comparison of setups every run forces an unlimited frame rate and vsync off and restores both afterwards (`BenchmarkOptions`); `-Daervium.benchmark.renderDistance` and `-Daervium.benchmark.simulationDistance` set both distances before the world is created, `-Daervium.modules=off` keeps every module off for that start (`MixinModules`), and every scene reports frames over 33 and 50 ms next to the median, p99 and p99.9 frame time.
+`-Daervium.benchmark=true` (works with `launcher/launch.ps1 -Define`) starts the benchmark from the first screen; `-Daervium.benchmark.quit=true` closes the game afterwards. For a fair comparison of setups every run forces borderless fullscreen, an unlimited frame rate and vsync off, ignores the frame cap of an unfocused window, raises the game window to the front and restores the options afterwards (`BenchmarkOptions`); render distance defaults to 32 unless `-Daervium.benchmark.renderDistance` sets it, `-Daervium.benchmark.simulationDistance` sets the simulation distance, `-Daervium.modules=off` keeps every module off for that start (`MixinModules`), and every scene reports hitches and motion error beside the frame-time and tick summaries. Reports use format version 2, so earlier reports are not compared.
 
 1. Deletes the previous `aervium-benchmark` world and creates a fresh one: seed 8675309, spectator, peaceful, cheats on.
-2. Freezes time at noon and the weather, turns mob spawning off, finds the spawn, the nearest village and the redstone platform height on the server thread.
-3. Force-loads the village crowd area, summons the 40 villagers as soon as its entities are loaded and releases the area, so no scene starts with a summon (the redstone clocks stay built at their scene, because they lie within the simulation distance of the first routes and would tick during them).
-4. Warms up for 400 ticks at the start of the first route.
-5. Runs every scene: 200 ticks of settling (camera already moving, world set up), then 600 measured ticks. The log names the longest frame while settling: the jump to a new scene costs 100 to 500 ms on Can's PC (JFR 2026-10-14: vanilla moving the view area and releasing old meshes, Helion rescanning its shadow caster sections, chunk uploads), which is why settling is not measured.
+2. Freezes time at noon and the weather, turns mob spawning off and finds the spawn on the server thread.
+3. Captures the environment before restoring the player's options.
+4. Runs every scene: force-loads its site, builds it once its entities are loaded, settles for 200 ticks while the camera moves, then measures 600 ticks. It runs the setup's per-tick commands, clears the site, removes loose item and experience-orb drops, and releases the force load before the next scene.
 
 | Scene | Route | Stresses |
 |---|---|---|
 | walk | east from the spawn at walking speed, following the ground | steady terrain rendering |
-| elytra | south at 1.6 blocks per tick, 80 blocks above the spawn | chunk generation, meshing and uploads |
-| village | orbit around the village center with 40 summoned villagers | entities, AI, block entities |
+| flight | south at 4 blocks per tick, 80 blocks above the spawn | chunk generation, meshing and uploads |
 | underground | west at y -30 through stone and caves | occlusion, cave visibility |
-| redstone | orbit around 96 observer clocks with sticky pistons and lamps | block updates, light updates, server ticks |
+| crowd | glass pen on a platform 40 blocks above spawn -96/-96: 1600 mobs of eight passive types with AI, 800 floating never-despawning items and 200 armor stands | entities and AI |
+| storage | 64 x 64, two-layer platform with 8192 block entities in rows of chests, signs, banners, furnaces, hoppers, ender chests, barrels and shulker boxes | block entities |
+| particles | 32 x 32 lit campfires plus flame, end rod, smoke and explosion particles every tick | particles |
+| redstone | 192 observer clocks in 12 clusters | block and light updates |
+| explosion | 2048 TNT lit on the first measured tick | explosions |
+| server | 12 simulated players: radius-10 ender-pearl chunk tickets 40 chunks from spawn, walking one chunk outward every 20 ticks in 12 directions | integrated-server chunk loading, generation and ticks |
 
 The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>.json` and `.txt` and is also printed to the log. It compares itself with the newest earlier report. Repeatability target: average FPS of every scene within ±2 % between two runs on the same settings; the frame limit, vsync, window size, render distance and installed mods are written into the report because they change the result.
+
+## Join Check
+
+`-Daervium.joinCheck=true` measures a world join: it opens the save folder named by `aervium.joinCheck.world`, creates a fresh world on the benchmark seed with `aervium.joinCheck.newWorld=true`, or follows a join started by hand or by quick play. `JoinTimeline` sorts every frame into a phase by the screen on show (reading world data, loading data packs, progress, server, terrain, game), and the log prints each phase with its frames, longest frame and frames over 50 ms, the slowest frames with their phase, the chunks and visible sections missing at entry and every second after it, and frame rate and lows of the first 10 s in game. `aervium.joinCheck.quit=true` closes the game afterwards and `aervium.joinCheck.delay` sets the seconds to wait on the title screen (5); `aervium.joinCheck.shots=true` saves a screenshot every 700 ms while loading and every 70 ms in the first 1.4 s in game (they slow those frames, so measure without them).
 
 ## Vanilla Parity Check
 
@@ -194,6 +229,7 @@ The same run doubles as a light benchmark: the log prints the wall and CPU time 
 | `PipelineCacheMixin`, `PipelineCacheAccessor` | `PipelineCache.get`, its fields | Late compiles are invisible otherwise; the warm-up needs the device and shader source of the cache. |
 | `RenderSystemMixin` | `RenderSystem.setCurrentPipelineCache` | No event after the shader manager installs its pipelines. |
 | `FramerateLimitTrackerMixin` | `FramerateLimitTracker.getFramerateLimit` | The frame limit has no API. |
+| `DeltaTrackerTimerPrecisionMixin` | `DeltaTracker$Timer.advanceGameTime` and `advanceRealTime` | No API replaces the millisecond time vanilla feeds to the timer. |
 | `PalettedContainerMixin` | `PalettedContainer` threading check | The check is a private field of every container. |
 | `DataLayerStorageMapMixin`, `BlockDataLayerStorageMapMixin`, `SkyDataLayerStorageMapMixin` | `DataLayerStorageMap` writes, `copy()` of the block and sky light maps | The visible light map is always a full clone and the storage has no hook for how it is copied. |
 | `VisGraphMixin`, `VisibilitySetMixin`, `CompiledSectionMeshVisibilityAccessor` | `VisGraph.resolve`, `VisibilitySet`, `CompiledSectionMesh.visibilitySet` | The opaque blocks of a section are only known inside the mesh build. |
@@ -202,7 +238,8 @@ The same run doubles as a light benchmark: the log prints the wall and CPU time 
 | `QuadParticleGroupOcclusionMixin`, `ParticleAccessor` | `QuadParticleGroup.extractRenderState`, `Particle.xo/yo/zo` | Particle extraction only checks the frustum and has no hook. |
 | `LevelRendererMeshWorkersMixin` | `new SectionRenderDispatcher` in `LevelRenderer.invalidateCompiledGeometry` | The chunk build executor is hard-wired to the shared background pool. |
 | `SectionStoragePoiIndexMixin`, `SectionStorageAccessor`, `PoiManagerColumnSearchMixin` | `SectionStorage` constructor and fields, `PoiManager.getInChunk` | The point of interest storage is a private map with no per-column view, and every POI search goes through `getInChunk`. |
-| `EntitySectionCollidableMixin`, `PersistentEntitySectionManagerAccessor`, `ServerLevelEntityCollisionsMixin` | `EntitySection.add` and `remove`, `PersistentEntitySectionManager.sectionStorage`, `getEntityCollisions` overridden in `ServerLevel` | Sections have no per-kind counts and the collision query is an interface default method with no hook. |
+| `EntitySectionCollidableMixin`, `PersistentEntitySectionManagerAccessor`, `TransientEntitySectionManagerAccessor`, `ServerLevelEntityCollisionsMixin`, `ClientLevelEntityCollisionsMixin` | `EntitySection.add` and `remove`, persistent and transient entity manager section storage, `getEntityCollisions` overridden in `ServerLevel` and added to `ClientLevel` | Sections have no per-kind counts, the collision query is an interface default method with no hook, and the client level has no implementation. |
+| `ParticleCollisionMixin` | `Entity.collideBoundingBox` in `Particle.move` | Particle movement has no API around its block collision call. |
 | `EntitySectionHopperMixin`, `ServerLevelEntityManagerAccessor`, `EntityCapabilityAccessor`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin` | `EntitySection.add` and `remove`, `ServerLevel.entityManager`, NeoForge `EntityCapability.providers`, `HopperBlockEntity.getItemsAtAndAbove`, NeoForge `VanillaInventoryCodeHooks.getEntityContainerOrHandler` | Sections have no per-kind counts, and whether an entity type has an item automation provider is only visible in the capability's provider map. |
 | `CrashReportMixin` | `CrashReport.getDetails` | NeoForge crash callables get no access to the exception, and the section needs its stack. |
 | `ChunkStatusTasksTerrainMixin` | `ChunkStatusTasks.buildTerrain` | The worldgen check needs each chunk right after its terrain step, before features from its neighbours land in it. Does nothing outside the check. |
@@ -222,6 +259,12 @@ The same run doubles as a light benchmark: the log prints the wall and CPU time 
 | `ChunkSectionsToRenderIndirectCountMixin` | `RenderPass.drawIndexedIndirect` calls in `ChunkSectionsToRender.DrawIndirect.render` | Renderpearl has no counted indirect draw. |
 | `VulkanFeatureSetsMixin`, `VulkanConstStorageMixin` | `VulkanFeatureSets.optionalFeatureSets`, `VulkanConst.bufferUsageToVk` | Renderpearl enables only the device features vanilla uses and has no storage buffer usage. |
 | `VulkanDeviceAccessor`, `VulkanCommandEncoderAccessor`, `VulkanRenderPassAccessor`, `FrontendRenderPassAccessor` | enabled features, the encoder's command buffer, a render pass's command buffer and descriptor push, the frontend pass's backend | The compute pass and the counted draw record raw Vulkan commands into renderpearl's command buffers. |
+| `PrepareSpawnTaskPregenerationMixin`, `PrepareSpawnTaskPreparingMixin` | `PrepareSpawnTask.keepAlive`, `spawnPlayer` and `close`; `LevelLoadListener.start` and `update` and the player chunk `isDone` check in `PrepareSpawnTask.Preparing.tick` | The spawn ticket radius and the wait for it are fixed inside the configuration task. |
+| `ServerGamePacketListenerTerrainWaitMixin` | `ServerGamePacketListenerImpl.tickClientLoadTimeout` | The client load timeout has no setting. |
+| `LevelLoadTrackerPregenerationMixin` | `LevelLoadTracker.setServerChunkStatusView`, `startClientLoad`, `isLevelReady`, `serverProgress` | The loading screen closes on a fixed condition and has no event to delay it. |
+| `PacketProcessorPregenerationMixin` | `PacketProcessor.processQueuedPackets` | The client handles every queued packet in one frame. |
+| `ClientLevelPregenerationMixin` | `ClientLevel.pollLightUpdates` | The light queue is private and runs completely past 1000 entries. |
+| `LevelExtractorPregenerationMixin` | the `LevelRenderer.visibleSections()` call in `LevelExtractor.extract` | Sections are only scheduled for compiling from the visible list. |
 | `RenderSectionBlockEntityMixin`, `LevelExtractorBlockEntitiesMixin` | `setSectionMesh` and `reset` of `RenderSection`, the `getSectionMesh` call in `LevelExtractor.extractVisibleBlockEntities` | Block entity extraction walks every visible section and has no hook. |
 
 ## Phases
@@ -242,7 +285,9 @@ The same run doubles as a light benchmark: the log prints the wall and CPU time 
 1. Update `gradle.properties` and build; fix compile errors only in `integration/`, `client/`, `mixin/` and `config/`.
 2. Check the mixin target of `FrontendGpuDeviceAccessor` and the VMA calls in `VulkanMemoryProbe`.
 3. Check the gamerule names and command syntax used by `BenchmarkCommands` and the world creation in `BenchmarkWorld`.
-4. Run the unit tests, then a benchmark, and compare it with the last report of the previous version.
+4. Check the targets of the pregeneration mixins (`PrepareSpawnTask` and its `Preparing` state, `LevelLoadTracker`, `PacketProcessor`, `ClientLevel.pollLightUpdates`) and run the join check.
+5. Regenerate `assets/aervium/warmup/join_classes.txt`: record a join with JFR and the `jdk.ClassLoad` event enabled, list the classes loaded on the render thread (JFR names it `main`) between leaving the title screen and entering the world, leave out lambdas, hidden classes, `java.lang.invoke`, `jdk.internal` and the classes of other mods, and sort the list.
+6. Run the unit tests, then a benchmark, and compare it with the last report of the previous version.
 
 ## Measuring
 

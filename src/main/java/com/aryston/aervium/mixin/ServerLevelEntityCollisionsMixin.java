@@ -1,24 +1,16 @@
 package com.aryston.aervium.mixin;
 
-import com.aryston.aervium.world.collision.CollidableEntities;
-import com.aryston.aervium.world.collision.CollisionAudit;
-import com.aryston.aervium.world.entity.SectionCounts;
-import com.google.common.collect.ImmutableList;
+import com.aryston.aervium.world.collision.EntityCollisionShapes;
 import java.util.List;
-import java.util.function.Predicate;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntitySelector;
-import net.minecraft.world.level.entity.EntitySectionStorage;
 import net.minecraft.world.level.entity.PersistentEntitySectionManager;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
 
 @Mixin(ServerLevel.class)
 abstract class ServerLevelEntityCollisionsMixin {
@@ -27,33 +19,8 @@ abstract class ServerLevelEntityCollisionsMixin {
     private PersistentEntitySectionManager<Entity> entityManager;
 
     public List<VoxelShape> getEntityCollisions(@Nullable Entity source, AABB testArea) {
-        if (testArea.getSize() < 1.0E-7) {
-            return List.of();
-        }
-        Predicate<Entity> canCollide = source == null ? EntitySelector.CAN_BE_COLLIDED_WITH : EntitySelector.NO_SPECTATORS.and(source::canCollideWith);
-        if ((source == null || CollidableEntities.defaultSource(source)) && aervium$noCollidableNear(testArea.inflate(1.0E-7))) {
-            if (CollisionAudit.ENABLED) {
-                CollisionAudit.skipped(((ServerLevel) (Object) this).getEntities(source, testArea.inflate(1.0E-7), canCollide).isEmpty());
-            }
-            return List.of();
-        }
-        List<Entity> collidingEntities = ((ServerLevel) (Object) this).getEntities(source, testArea.inflate(1.0E-7), canCollide);
-        if (collidingEntities.isEmpty()) {
-            return List.of();
-        }
-        ImmutableList.Builder<VoxelShape> shapes = ImmutableList.builderWithExpectedSize(collidingEntities.size());
-        for (Entity entity : collidingEntities) {
-            shapes.add(Shapes.create(entity.getBoundingBox()));
-        }
-        return shapes.build();
-    }
-
-    @Unique
-    private boolean aervium$noCollidableNear(AABB box) {
-        if (!((ServerLevel) (Object) this).dragonParts().isEmpty()) {
-            return false;
-        }
-        EntitySectionStorage<Entity> storage = ((PersistentEntitySectionManagerAccessor) entityManager).aervium$sectionStorage();
-        return SectionCounts.noneNear(storage, box, section -> ((CollidableEntities.Counter) section).aervium$collidable());
+        return EntityCollisionShapes.of(
+            (ServerLevel) (Object) this, ((PersistentEntitySectionManagerAccessor) entityManager).aervium$sectionStorage(), source, testArea
+        );
     }
 }

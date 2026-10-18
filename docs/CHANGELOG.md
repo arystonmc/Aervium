@@ -7,6 +7,19 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
+- Faster entity and block entity model rendering by transforming each cube corner once
+- Faster pushing in dense teamless crowds by skipping unused scoreboard team checks
+- Faster particles in open air by skipping empty block collision searches
+- Faster client entity collision searches in explosions and other crowded scenes
+- Open scenes now skip particle and entity occlusion raster tests when no terrain section is hidden
+- Benchmark scenes now remove loose item and experience-orb drops after each site
+- Smoother high-frame-rate motion with nanosecond partial-tick timing
+- Stress benchmark scenes for crowds, storage, particles, redstone, explosions and integrated-server terrain loading
+- Benchmark reports now show hitches and motion error for every scene
+- Pregenerate on join: in single player the loading screen stays until every chunk within the pregeneration radius (6 to 32, default 32, never beyond the render distance) is generated, lit and built, so the world opens without missing chunks; at render distance 12 the first 10 s in game went from a 1% low of about 39 to about 150 FPS
+- While the game waits for that terrain, chunk packets and light updates are spread over frames, so the loading screen keeps moving
+- The classes the first world join needs are loaded on the title screen in the background, and the GPU culling shader compiles on a worker instead of in the first frame of the world
+- Join check (`-Daervium.joinCheck=true`): opens a world, logs every loading phase with its slow frames, the missing chunks at entry and the first 10 s in game
 - The benchmark runs with no frame limit and no vsync, can set render and simulation distance, can turn every optimization off for vanilla runs, and counts frames over 33 and 50 ms
 - Aervium refuses to start next to Sodium and explains why on the loading screen; only its benchmark still runs next to Sodium to compare the two
 - Occlusion culling: terrain, mobs, chests, signs and particles hidden behind solid blocks are no longer drawn; the tests run on background threads and rest where they would hide little (F6 to compare)

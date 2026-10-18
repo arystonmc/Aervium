@@ -12,10 +12,13 @@ public record FrameTimeSummary(
     double p999Ms,
     double maxMs,
     int framesOver33Ms,
-    int framesOver50Ms
+    int framesOver50Ms,
+    int hitches
 ) {
     public static final long STUTTER_NANOS = 33_000_000L;
     public static final long LONG_STUTTER_NANOS = 50_000_000L;
+    public static final long HITCH_FLOOR_NANOS = 8_333_333L;
+    public static final long HITCH_MEDIAN_FACTOR = 2L;
 
     public static FrameTimeSummary of(long[] frameNanos, int count) {
         int over33 = 0;
@@ -41,7 +44,19 @@ public record FrameTimeSummary(
             Durations.millis(statistics.p999()),
             Durations.millis(statistics.max()),
             over33,
-            over50
+            over50,
+            hitches(frameNanos, count, statistics.median())
         );
+    }
+
+    private static int hitches(long[] frameNanos, int count, long medianNanos) {
+        long threshold = Math.max(HITCH_FLOOR_NANOS, medianNanos * HITCH_MEDIAN_FACTOR);
+        int hitches = 0;
+        for (int index = 0; index < count; index++) {
+            if (frameNanos[index] > threshold) {
+                hitches++;
+            }
+        }
+        return hitches;
     }
 }

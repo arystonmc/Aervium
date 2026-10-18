@@ -1,4 +1,9 @@
 package com.aryston.aervium.debug.benchmark;
 
-public record BenchmarkAnchors(BlockPoint spawn, BlockPoint village, boolean villageFound, BlockPoint redstone) {
+import java.util.Map;
+
+public record BenchmarkAnchors(BlockPoint spawn, Map<String, BlockPoint> sites) {
+    public BlockPoint site(BenchmarkScene scene) {
+        return sites.getOrDefault(scene.id(), spawn);
+    }
 }

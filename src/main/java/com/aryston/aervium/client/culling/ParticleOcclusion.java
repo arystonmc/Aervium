@@ -13,7 +13,7 @@ public final class ParticleOcclusion {
     }
 
     public static boolean hidden(double previousX, double previousY, double previousZ, double x, double y, double z, float quadSize) {
-        if (!TerrainOcclusion.enabled()) {
+        if (!TerrainOcclusion.enabled() || !TerrainOcclusion.cameraHidesSections()) {
             return false;
         }
         double reach = Math.abs(quadSize) * QUAD_REACH + MARGIN;

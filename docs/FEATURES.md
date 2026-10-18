@@ -4,7 +4,7 @@ What the latest version of Aervium can do. Written for players and ready to reus
 
 ## Summary
 
-Aervium makes Minecraft run smoother on the Vulkan renderer: steadier frame times, fewer stutters and a server that keeps 20 ticks per second, while redstone, farms and mobs behave exactly as in vanilla. It skips terrain, mobs and particles hidden behind blocks, lets the graphics card build its own terrain draw list, caches shaders so games start faster without hitches, speeds up villagers, mobs, hoppers and world generation on the server, and measures all of it with a built-in overlay and benchmark. Every optimization can be switched off on its own.
+Aervium makes Minecraft run smoother on the Vulkan renderer: steadier frame times, fewer stutters and a server that keeps 20 ticks per second, while redstone, farms and mobs behave exactly as in vanilla. It skips terrain, mobs and particles hidden behind blocks, lets the graphics card build its own terrain draw list, caches shaders so games start faster without hitches, opens single player worlds with the land around you already built, speeds up villagers, mobs, hoppers and world generation on the server, and measures all of it with a built-in overlay and benchmark. Every optimization can be switched off on its own.
 
 ## At a Glance
 
@@ -22,6 +22,7 @@ Aervium makes Minecraft run smoother on the Vulkan renderer: steadier frame time
 See exactly how smooth your game runs, not just how fast.
 
 - Shows the frame rate together with the 1% and 0.1% lows, the average frame time and how much it varies, and the longest frame
+- Shows hitches and average, p99 and maximum motion error, so uneven motion is visible even when frame rate looks steady
 - A live frame time graph draws every frame as a bar: green within your target frame rate, yellow when slower, red for spikes that take twice as long
 - The graph is drawn as one piece, so showing the overlay no longer costs a noticeable part of the frame
 - Shows the server tick time (MSPT) of your single player world with the number of ticks over 50 ms, garbage collector pauses, RAM and video memory, and how long each part of the game takes per frame
@@ -31,9 +32,11 @@ See exactly how smooth your game runs, not just how fast.
 ### Built-in Benchmark
 A repeatable test run so changes can be measured instead of guessed.
 
-- Creates a fresh world from a fixed seed and flies the camera along a fixed route: walking over the surface, elytra-speed flight over new terrain, a village with a crowd of villagers, a flight through caves and a running redstone build
+- Creates a fresh world from a fixed seed and runs fixed stress scenes for walking, flight, caves, a large mob crowd, dense storage, particles, redstone, explosions and integrated-server chunk loading
+- Uses render distance 32 unless `aervium.benchmark.renderDistance` changes it, prepares each scene before measuring it and records the actual benchmark settings before restoring yours
+- Reports hitches and motion error per scene as well as frame rate, frame time and server tick time
 - Measures every scene for 30 seconds after 10 seconds of settling: frame rate, 1% and 0.1% lows, frame time deviation, median, p99 and p99.9 frame time, frames over 33 and 50 ms, server tick time distribution, garbage collector pauses, peak RAM and video memory
-- Writes `aervium/benchmarks/benchmark-<date>.json` and a readable `.txt` report into the game folder and compares the result with the previous run
+- Writes `aervium/benchmarks/benchmark-<date>.json` and a readable `.txt` report into the game folder and compares format 2 reports with the previous run
 - Start it with the JVM argument `-Daervium.benchmark=true`; add `-Daervium.benchmark.quit=true` to close the game when it is done
 - Every run gives Minecraft all the power: no frame limit and no vsync while it runs (your settings come back afterwards); `-Daervium.benchmark.renderDistance=N` and `-Daervium.benchmark.simulationDistance=N` set the distances for the run, and `-Daervium.modules=off` turns every Aervium optimization off for that start, to measure vanilla without editing `aervium-modules.properties`
 - Since: 0.1
@@ -108,6 +111,24 @@ New chunks from the server are unpacked before the game needs them.
 - In the elytra flight the 1% low rose by about 6 % and slow frames caused by the main thread fell by a third
 - Since: 0.1
 
+### Finished World on Entry
+In single player the world is ready when the loading screen closes: no chunks popping in, no holes at the horizon.
+
+- While the loading screen is up, the server generates and loads every chunk within the pregeneration radius around the spawn, and the game waits until those chunks have arrived, are lit and are built for drawing before it lets you in; vanilla prepares only 3 chunks around you and builds the rest while you already play
+- Set it in the Aervium settings (Mods, Aervium, Config): Pregenerate on Join turns it on or off, Pregeneration Radius goes from 6 to 32 chunks (default 32, vanilla's largest render distance); the radius never goes beyond your render distance, so at render distance 12 the first 12 chunks are ready
+- Chunk packets and light updates are worked off in small slices per frame while the game waits (at most 10 and 6 ms per frame), so the loading screen keeps moving, and its progress bar includes this terrain work
+- Measured on Can's PC on an existing world at render distance 12: vanilla opened the world after 4.3 to 5.2 s with 365 to 432 chunks still missing, and the first 10 s in game had a 1% low of 35 to 41 FPS; with Aervium the world opens after 8.2 to 9.1 s with no chunk missing and every visible section built, and the first 10 s run at 373 to 389 FPS with a 1% low of 139 to 165; at render distance 32 the world opens after about 18 to 21 s, also with no chunk missing
+- Joining takes a few seconds longer, because the work vanilla does while you already play happens before you enter; if something stops the terrain from arriving, the game lets you in after 15 s without progress or 90 s in total
+- Only for the owner of a single player or LAN world; servers and other players join as before (`spawnPregeneration`)
+- Since: 0.1
+
+### Smoother First Join
+The first world you open after starting the game no longer stalls on loading code.
+
+- On the title screen a low-priority background thread loads the 1,721 game classes the first world join needs, so the render thread no longer stops to load them in the middle of the loading screen (`joinWarmup`); the longest class loading stalls inside a join frame fell from 70 to 156 ms to 4 to 50 ms
+- The compute shader of GPU-driven culling is compiled on a worker while the game loads instead of in the first frame of the world; until it is ready, the CPU draw list draws the terrain
+- Since: 0.1
+
 ### Spare Swapchain Images
 The game keeps two more finished-frame images ready for the screen.
 
@@ -127,10 +148,34 @@ Villagers find beds, job sites and bells with far less work.
 ### Faster Mob Movement
 Moving mobs stop searching for entities they could never bump into.
 
-- Every step of every mob asks which nearby entities it would collide with, and vanilla checks every entity around it although only boats, shulkers and happy ghasts can be bumped into; Aervium counts those per chunk section and skips the search where there are none
+- Every step of every mob asks which nearby entities it would collide with, and vanilla checks every entity around it although only boats, shulkers and happy ghasts can be bumped into; Aervium counts those per chunk section and skips the search where there are none, on both the server and your game client
 - Same results as vanilla; a built-in audit checks every skipped search and CI runs it
 - Cloud profile with 600 mobs: the entity collision search went from about 6 % to under 1 % of the server tick (2 to 5 % faster ticks)
 - Module `entityCollisions`
+- Since: 0.1
+
+### Faster Particles in Open Air
+Particles do not build a block collision list when there is nothing for them to hit.
+
+- When a particle moves through loaded air, Aervium checks the small area vanilla would search and keeps its movement unchanged without building the empty collision list; particles near blocks or unloaded chunks use vanilla's path
+- In the stress particles scene, this removes nearly all of the particle-movement work that made up 40 % of slow frames
+- Module `particleCollisions`
+- Since: 0.1
+
+### Faster Model Rendering
+Entity and block entity models reuse each transformed cube corner.
+
+- A normal cube has 24 vertices but only 8 corners. Aervium transforms each corner once, then writes the same vertices, normals and picture as vanilla
+- In the stress crowd and storage scenes, this removed work that took about 10 % of render-thread time in model rendering
+- Module `modelCorners`
+- Since: 0.1
+
+### Faster Pushing in Teamless Worlds
+Dense crowds skip team checks when the world's scoreboard has no teams.
+
+- Pushing keeps vanilla's spectator, pushable and local-player rules, so behavior is unchanged
+- This removes the hottest server-thread predicate in dense crowd profiles
+- Module `teamlessPushing`
 - Since: 0.1
 
 ### Faster Idle Hoppers
@@ -170,6 +215,7 @@ Skips terrain you cannot see because solid blocks are in the way.
 - When a frame takes longer than usual and the camera moved past the last visibility result, that result is stretched to the new position instead of drawing every chunk for a few frames, so one slow frame no longer causes the next ones
 - Stretching a result costs the main thread no extra visibility tests: the background thread already measured how far each hidden chunk stays hidden
 - Where nothing is hidden, for example on flat land, culling rests and costs nothing; it checks again every second, so it starts working as soon as you enter a cave or walk behind a hill. The overlay shows when it rests
+- In open scenes, particles and entities skip their visibility test when the terrain test hid nothing, so Aervium spends no time asking whether they are behind a wall
 - F6 turns it on and off in game to compare; the overlay (F7) shows how many chunks, entities and particles were skipped
 - Since: 0.1
 
@@ -220,6 +266,6 @@ When the game crashes, the crash report says whether Aervium was involved.
 ### Switchable Modules
 Every optimization can be turned off.
 
-- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`, `gpuCulling`, `sectionGridMoves`, `lockFreeSections`, `swapchainImages`, `chunkPacketDecoding`) with `true` or `false`; changes apply at the next start; every module starts on
+- `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`, `gpuCulling`, `sectionGridMoves`, `lockFreeSections`, `swapchainImages`, `chunkPacketDecoding`, `spawnPregeneration`, `joinWarmup`, `preciseFrameTime`, `particleCollisions`, `modelCorners`, `teamlessPushing`) with `true` or `false`; changes apply at the next start; every module starts on
 - Render optimizations stay off by themselves when Iris is installed, or next to Sodium in the benchmark
 - Since: 0.1

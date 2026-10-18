@@ -129,6 +129,11 @@ public final class TerrainOcclusion {
         return cameraPass != null && current != null;
     }
 
+    public static boolean cameraHidesSections() {
+        OcclusionPipeline.Frame result = current;
+        return result != null && result.hidden() > 0;
+    }
+
     public static boolean hiddenFromCamera(SectionRenderDispatcher.RenderSection section) {
         OcclusionPipeline.Frame result = current;
         return result != null && ((CameraOcclusionHolder) section).aervium$hiddenGeneration() == result.generation();

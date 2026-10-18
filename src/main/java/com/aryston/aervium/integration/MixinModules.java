@@ -56,6 +56,7 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("PoiManagerColumnSearchMixin", OptimizationModule.POI_SEARCH),
         Map.entry("EntitySectionCollidableMixin", OptimizationModule.ENTITY_COLLISIONS),
         Map.entry("ServerLevelEntityCollisionsMixin", OptimizationModule.ENTITY_COLLISIONS),
+        Map.entry("ClientLevelEntityCollisionsMixin", OptimizationModule.ENTITY_COLLISIONS),
         Map.entry("EntitySectionHopperMixin", OptimizationModule.HOPPER_SEARCH),
         Map.entry("HopperBlockEntityItemSearchMixin", OptimizationModule.HOPPER_SEARCH),
         Map.entry("HopperEntityContainerSearchMixin", OptimizationModule.HOPPER_SEARCH),
@@ -83,7 +84,19 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("VulkanGpuSurfaceImageCountMixin", OptimizationModule.SWAPCHAIN_IMAGES),
         Map.entry("ClientPacketListenerChunkDecodeMixin", OptimizationModule.CHUNK_PACKET_DECODING),
         Map.entry("ClientChunkCacheChunkDecodeMixin", OptimizationModule.CHUNK_PACKET_DECODING),
-        Map.entry("LevelChunkChunkDecodeMixin", OptimizationModule.CHUNK_PACKET_DECODING)
+        Map.entry("LevelChunkChunkDecodeMixin", OptimizationModule.CHUNK_PACKET_DECODING),
+        Map.entry("PrepareSpawnTaskPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),
+        Map.entry("PrepareSpawnTaskPreparingMixin", OptimizationModule.SPAWN_PREGENERATION),
+        Map.entry("ServerGamePacketListenerTerrainWaitMixin", OptimizationModule.SPAWN_PREGENERATION),
+        Map.entry("DeltaTrackerTimerPrecisionMixin", OptimizationModule.PRECISE_FRAME_TIME),
+        Map.entry("ParticleCollisionMixin", OptimizationModule.PARTICLE_COLLISIONS),
+        Map.entry("ModelCubeCornersMixin", OptimizationModule.MODEL_CORNERS),
+        Map.entry("EntitySelectorPushMixin", OptimizationModule.TEAMLESS_PUSHING),
+        Map.entry("LevelLoadTrackerPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),
+        Map.entry("LevelExtractorPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),
+        Map.entry("PacketProcessorPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),
+        Map.entry("IntegratedServerJoinDistanceMixin", OptimizationModule.SPAWN_PREGENERATION),
+        Map.entry("ClientLevelPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION)
     );
 
     private static final String HELION_MOD_ID = "helion";

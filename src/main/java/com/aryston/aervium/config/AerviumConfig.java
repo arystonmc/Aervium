@@ -2,6 +2,7 @@ package com.aryston.aervium.config;
 
 import com.aryston.aervium.core.budget.FrameBudget;
 import com.aryston.aervium.core.budget.FrameRatePolicy;
+import com.aryston.aervium.world.spawn.SpawnPregenerationSettings;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 public final class AerviumConfig {
@@ -35,6 +36,12 @@ public final class AerviumConfig {
 
     public static final ModConfigSpec.BooleanValue LEAF_CULLING = BUILDER
         .define("leafCulling", false);
+
+    public static final ModConfigSpec.BooleanValue PREGENERATE = BUILDER
+        .define("pregenerate", true);
+
+    public static final ModConfigSpec.IntValue PREGENERATION_RADIUS = BUILDER
+        .defineInRange("pregenerationRadius", SpawnPregenerationSettings.DEFAULT_RADIUS, SpawnPregenerationSettings.MIN_RADIUS, SpawnPregenerationSettings.MAX_RADIUS);
 
     public static final ModConfigSpec SPEC = BUILDER.build();
 

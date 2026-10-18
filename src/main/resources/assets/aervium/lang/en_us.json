@@ -22,6 +22,10 @@
   "aervium.configuration.occlusionCulling.tooltip": "Skips terrain hidden behind solid blocks, like caves behind stone, and shadow casters the sun cannot see. The picture stays the same. F6 turns it on and off in game to compare.",
   "aervium.configuration.leafCulling": "Leaf Culling",
   "aervium.configuration.leafCulling.tooltip": "Skips leaf faces buried two or more leaves deep inside a tree. Forests draw faster, but trees look slightly less dense through the gaps in the leaves, so it is off by default. Only matters with detailed (cutout) leaves; changing it rebuilds the chunks.",
+  "aervium.configuration.pregenerate": "Pregenerate on Join",
+  "aervium.configuration.pregenerate.tooltip": "While the loading screen is up, generates, loads and prepares every chunk around you up to the radius below. When you enter, the terrain is complete: no holes, no chunks popping in, no generation stutter in the first minutes. The first opening of a new world takes a little longer. Single player worlds only.",
+  "aervium.configuration.pregenerationRadius": "Pregeneration Radius",
+  "aervium.configuration.pregenerationRadius.tooltip": "How many chunks around you are ready when you enter (6 to 32). It never goes past your render distance, because chunks beyond it are not shown anyway. Larger values make the first opening of a new world take longer.",
   "aervium.hardware.title": "Aervium set up this PC",
   "aervium.hardware.low": "Lighter settings for this hardware: shorter view and simulation distance, leaf culling on.",
   "aervium.hardware.medium": "Lighter settings for this hardware: view and simulation distance capped."

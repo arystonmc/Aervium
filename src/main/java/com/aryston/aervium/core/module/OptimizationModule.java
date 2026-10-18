@@ -23,7 +23,13 @@ public enum OptimizationModule {
     SECTION_GRID_MOVES("sectionGridMoves", true),
     LOCK_FREE_SECTIONS("lockFreeSections", true),
     SWAPCHAIN_IMAGES("swapchainImages", false),
-    CHUNK_PACKET_DECODING("chunkPacketDecoding", false);
+    CHUNK_PACKET_DECODING("chunkPacketDecoding", false),
+    SPAWN_PREGENERATION("spawnPregeneration", true),
+    JOIN_WARMUP("joinWarmup", false),
+    PRECISE_FRAME_TIME("preciseFrameTime", false),
+    PARTICLE_COLLISIONS("particleCollisions", false),
+    MODEL_CORNERS("modelCorners", true),
+    TEAMLESS_PUSHING("teamlessPushing", false);
 
     private final String key;
     private final boolean renderer;

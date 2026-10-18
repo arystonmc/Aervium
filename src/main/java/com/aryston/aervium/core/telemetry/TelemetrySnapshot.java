@@ -6,6 +6,7 @@ import java.util.Optional;
 
 public record TelemetrySnapshot(
     FrameTimeSummary frames,
+    MotionErrorSummary motion,
     Optional<TickSummary> serverTicks,
     GcPauseTotals gcPauses,
     HeapUsage heap,

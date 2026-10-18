@@ -27,7 +27,7 @@ public final class EntityOcclusion {
     }
 
     public static boolean hidden(Entity entity, float partialTicks) {
-        if (!TerrainOcclusion.enabled() || !cullable(entity) || castsSunShadow(entity.level(), entity.blockPosition())) {
+        if (!TerrainOcclusion.enabled() || !TerrainOcclusion.cameraHidesSections() || !cullable(entity) || castsSunShadow(entity.level(), entity.blockPosition())) {
             return false;
         }
         AABB bounds = entity.getInterpolatedBoundingBox(partialTicks);
@@ -40,7 +40,7 @@ public final class EntityOcclusion {
     }
 
     public static boolean hidden(BlockEntity blockEntity, AABB renderBox) {
-        if (!TerrainOcclusion.enabled() || blockEntity.getLevel() == null || castsSunShadow(blockEntity.getLevel(), blockEntity.getBlockPos())) {
+        if (!TerrainOcclusion.enabled() || !TerrainOcclusion.cameraHidesSections() || blockEntity.getLevel() == null || castsSunShadow(blockEntity.getLevel(), blockEntity.getBlockPos())) {
             return false;
         }
         AABB box = renderBox.inflate(BLOCK_ENTITY_MARGIN);

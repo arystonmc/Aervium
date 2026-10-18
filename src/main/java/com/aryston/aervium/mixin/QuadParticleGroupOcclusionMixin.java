@@ -4,7 +4,6 @@ import com.aryston.aervium.client.culling.ParticleOcclusion;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
-import net.minecraft.client.Camera;
 import net.minecraft.client.particle.QuadParticleGroup;
 import net.minecraft.client.particle.SingleQuadParticle;
 import net.minecraft.client.renderer.culling.Frustum;

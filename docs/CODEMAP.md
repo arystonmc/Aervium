@@ -17,7 +17,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Overlay drawing and text | `TelemetryOverlay`, `OverlayLines`, `ClientTelemetry` |
 | VRAM usage | `VulkanMemoryProbe`, `FrontendGpuDeviceAccessor` |
 | Benchmark route and scenes | `BenchmarkRoute`, `BenchmarkScene`, `LinePath`, `OrbitPath` |
-| Benchmark world, commands and camera | `BenchmarkWorld`, `BenchmarkCommands`, `BenchmarkCamera` |
+| Benchmark world, commands and camera | `BenchmarkWorld`, `BenchmarkCommands`, `BoxCommands`, `SceneSetup`, `CrowdSetup`, `StorageSetup`, `ParticleStormSetup`, `RedstoneSetup`, `ExplosionSetup`, `SimulatedPlayerRoutes`, `BenchmarkCamera` |
 | Benchmark flow and report | `BenchmarkDriver`, `SceneMeasurement`, `BenchmarkReport`, `BenchmarkText`, `BenchmarkFiles`, `BenchmarkComparison` |
 | Refusing to load next to Sodium (loading error in the game language) | `SodiumClash`, `LoadingText`, `Aervium` |
 | Shader and pipeline caches, startup report | `ShaderCaches`, `SpirvCache`, `VulkanPipelineCache`, `ShaderCacheKey`, `DiskCache` |
@@ -26,7 +26,10 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Chunk memory | `PalettedContainerMixin` |
 | First launch hardware class (lower distances, leaf culling on weak machines) | `HardwareClassifier`, `HardwareTier`, `HardwareProfile`, `GpuKind`, `HardwareSetup`, `VulkanMemoryProbe` |
 | Faster point of interest searches (villager beds, job sites) | `ColumnIndexedLongMap`, `PoiColumns`, `PoiAudit`, `SectionStoragePoiIndexMixin`, `SectionStorageAccessor`, `PoiManagerColumnSearchMixin` |
-| Entity collision search skip (sections without boats, shulkers, happy ghasts) | `CollidableEntities`, `CollisionAudit`, `EntitySectionCollidableMixin`, `PersistentEntitySectionManagerAccessor`, `ServerLevelEntityCollisionsMixin` |
+| Entity collision search skip (sections without boats, shulkers, happy ghasts) | `CollidableEntities`, `CollisionAudit`, `EntityCollisionShapes`, `EntitySectionCollidableMixin`, `PersistentEntitySectionManagerAccessor`, `TransientEntitySectionManagerAccessor`, `ServerLevelEntityCollisionsMixin`, `ClientLevelEntityCollisionsMixin` |
+| Particle collision search skip (empty air around a moving particle) | `ParticleCollisions`, `ParticleCollisionMixin` |
+| Model cube corner reuse | `SharedCorners`, `CubeCorners`, `ModelCubeCornersMixin` |
+| Teamless pushing | `PushRules`, `EntitySelectorPushMixin` |
 | Idle hopper entity search skip (sections without items or item-holding entities) | `HopperEntities`, `HopperAudit`, `SectionCounts`, `EntitySectionHopperMixin`, `ServerLevelEntityManagerAccessor`, `EntityCapabilityAccessor`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin` |
 | Faster packet compression on servers (level 4 instead of 6) | `PacketCompression`, `CompressionCheck`, `CompressionEncoderLevelMixin` |
 | Parallel feature generation (trees, ores, plants on several threads) | `ParallelFeatures`, `RegionLocks`, `JobSystem`, `ChunkStatusTasksFeaturesMixin` |
@@ -44,8 +47,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Dirty section scan (clean sections answered from an array) | `DirtySectionMirror`, `DirtySectionIndex`, `SectionDirtyStateMirrorMixin`, `SectionUpdateTrackerMirrorMixin`, `LevelExtractorDirtySectionsMixin` |
 | GPU culling (advanced terrain path: the GPU builds the solid and cutout draw lists) | `GpuCulling`, `GpuSections`, `GpuSectionTable`, `GpuSectionEntry`, `TerrainGroups`, `GpuDrawList`, `CullPipeline`, `VulkanAccess`, `IndirectCountFeature`, `GpuBufferUsage`, `ChunkSectionsToRenderIndirectCountMixin`, `VulkanFeatureSetsMixin`, `VulkanConstStorageMixin`, `shaders/culling/terrain_draws.csh` |
 | Section grid moves (only the edge columns when the camera enters another chunk) | `RotatingSectionStorageEdgeMixin` |
-| Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules` |
+| Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules`, `DeltaTrackerTimerPrecisionMixin` |
 | Sodium and Iris detection | `CompatibilityGuard` |
+| Pregeneration on join (everything within the radius generated, sent, lit and built before the loading screen closes) | `SpawnPregeneration`, `SpawnPregenerationSettings`, `PrepareSpawnTaskPreparingMixin`, `PrepareSpawnTaskPregenerationMixin`, `JoinPregeneration`, `TerrainReadiness`, `PregenerationHold`, `TerrainProgress`, `JoinProgress`, `LevelLoadTrackerPregenerationMixin`, `LevelExtractorPregenerationMixin`, `PacketProcessorPregenerationMixin`, `ClientLevelPregenerationMixin`, `ServerGamePacketListenerTerrainWaitMixin`, `OwnerTerrainWait` |
+| Join warm-up (classes, network and the GPU culling pipeline ready before the first join) | `JoinWarmup`, `assets/aervium/warmup/join_classes.txt`, `GpuCulling.warmUp` |
+| Join check (frame gaps per loading phase, terrain missing at entry, first 10 s in game) | `JoinCheck`, `JoinShots`, `JoinTimeline`, `FreshWorld` |
 | Settings | `AerviumConfig`, `lang/*.json` |
 | Key bindings | `AerviumKeys` |
 | Event wiring | `CommonEvents` (both sides), `ClientEvents` (client) |
@@ -95,7 +101,17 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### FrameTimeSummary
 - Path: `src/main/java/com/aryston/aervium/core/telemetry/FrameTimeSummary.java`
-- Role: Frame time statistics for players: average FPS, 1% low (FPS at the 99th percentile frame time), 0.1% low (99.9th percentile), average, standard deviation, median, p99, p99.9 frames over 33 and 50 ms (counted before the samples are sorted), and maximum in milliseconds.
+- Role: Frame time statistics for players: average FPS, 1% low (FPS at the 99th percentile frame time), 0.1% low (99.9th percentile), average, standard deviation, median, p99, p99.9, hitches (longer than twice the median and 8.33 ms), frames over 33 and 50 ms (counted before the samples are sorted), and maximum in milliseconds.
+- Depends on: `SampleStatistics`, `Durations`.
+
+#### MotionErrorRecorder
+- Path: `src/main/java/com/aryston/aervium/core/telemetry/MotionErrorRecorder.java`
+- Role: Records the absolute difference between the simulated time step and real time between consecutive presented frames.
+- Depends on: `SampleRing`, `Durations`.
+
+#### MotionErrorSummary
+- Path: `src/main/java/com/aryston/aervium/core/telemetry/MotionErrorSummary.java`
+- Role: Motion error statistics: sampled frames, average, p99 and maximum milliseconds.
 - Depends on: `SampleStatistics`, `Durations`.
 
 #### TickSummary
@@ -185,6 +201,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/core/budget/FrameBudget.java`
 - Role: Record of the target frame rate; gives the frame time and the budget of each `TimedSystem` (tick systems always get 50 ms).
 - Depends on: `TimedSystem`, `Durations`.
+
+#### LapTimer
+- Path: `src/main/java/com/aryston/aervium/core/budget/LapTimer.java`
+- Role: Lap timer on nanosecond time for `DeltaTrackerTimerPrecisionMixin`: the first lap is empty, later laps return the milliseconds since the previous lap with their fraction, and `elapsedMillis` reads the running lap without ending it.
+- Depends on: `Durations`.
 
 #### StallMeter
 - Path: `src/main/java/com/aryston/aervium/core/budget/StallMeter.java`
@@ -319,6 +340,23 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: The first quad of each facing group of one layer mesh and its plane bound. Stored as one packed `int[]` (`PACKED_INTS`: first quads, then the planes as float bits); `pack` copies it into a draw record and the static methods read it there. `visibleBuckets` gives the groups that can face an eye at a section-relative position: a group is skipped only when the eye is at least half a block behind every plane in it (the margin covers view bobbing, which moves the real eye slightly).
 - Depends on: nothing.
 
+### `com.aryston.aervium.core.pregeneration`
+
+#### TerrainProgress
+- Path: `src/main/java/com/aryston/aervium/core/pregeneration/TerrainProgress.java`
+- Role: Record of the terrain around the joining player: chunks arrived and required, sections built and required, client light updates still queued. `fraction()` gives the first half to chunks and the second to built sections; `complete()` needs every chunk, every section and no queued light update; `advancedFrom` tells the stall timer that something moved.
+- Depends on: nothing.
+
+#### PregenerationHold
+- Path: `src/main/java/com/aryston/aervium/core/pregeneration/PregenerationHold.java`
+- Role: Decides when the loading screen may close: `READY` once the terrain stayed complete for the chunk fade-in time, `STALLED` when nothing advanced for 15 s, `TIMED_OUT` after 90 s, otherwise `WAITING`.
+- Depends on: `TerrainProgress`.
+
+#### JoinProgress
+- Path: `src/main/java/com/aryston/aervium/core/pregeneration/JoinProgress.java`
+- Role: Blends the server's spawn area progress (first 60 %) with the client terrain progress (last 40 %) into the one value the loading screen shows.
+- Depends on: nothing.
+
 ### `com.aryston.aervium.core.module`
 
 #### OptimizationModule
@@ -435,6 +473,28 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Builds the fixed parity scenario on the flat ground: observer clock with redstone, lamps and a sticky piston, hopper chain between chests with cobblestone, furnace with raw iron and coal, 9 x 9 wheat farm around water, water and lava in a stone basin, saplings, sugar cane and torches. `changeLight` places light sources and blockers in the light lab with a fixed sequence per tick. Also defines the hashed area.
 - Depends on: nothing.
 
+### `com.aryston.aervium.world.spawn`
+
+#### SpawnPregeneration
+- Path: `src/main/java/com/aryston/aervium/world/spawn/SpawnPregeneration.java`
+- Role: Loads, and in new land generates, every chunk within the join radius around the joining player's spawn chunk while the integrated server prepares the spawn: one loading-only `PLAYER_SPAWN` ticket with one ring more than the radius (a chunk is only sent once its neighbours are loaded too), refreshed every tick until the player is placed, and a `ChunkLoadCounter` for the progress. Only for the owner of a single player world, never on a dedicated server or for LAN guests.
+- Depends on: `SpawnPregenerationSettings`, `Durations`.
+
+#### SpawnPregenerationSettings
+- Path: `src/main/java/com/aryston/aervium/world/spawn/SpawnPregenerationSettings.java`
+- Role: The switch and radius from the client config (6 to 32 chunks, default 32) and the render distance the client had when the world opened; `joinRadius()` is the smaller of radius and render distance, because chunks beyond the render distance are never shown on entry. Common code, so the integrated server reads it without touching client classes.
+- Depends on: nothing.
+
+#### SpawnPregenerationHolder
+- Path: `src/main/java/com/aryston/aervium/world/spawn/SpawnPregenerationHolder.java`
+- Role: Interface `PrepareSpawnTaskPregenerationMixin` adds to `PrepareSpawnTask`: starts the pregeneration for its player and keeps it alive until the player is placed.
+- Depends on: `SpawnPregeneration`.
+
+#### OwnerTerrainWait
+- Path: `src/main/java/com/aryston/aervium/world/spawn/OwnerTerrainWait.java`
+- Role: Flag the client sets while it holds the loading screen for terrain; the integrated server then keeps the owner's client-loaded timer from running out, so the player cannot be hurt behind the loading screen.
+- Depends on: nothing.
+
 ### `com.aryston.aervium.world.light`
 
 #### ServerLightTimings
@@ -468,39 +528,83 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### BenchmarkScene
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/BenchmarkScene.java`
-- Role: The scenes in route order: walk, elytra, village, underground, redstone, with id and description.
-- Depends on: nothing.
+- Role: The stress scenes in route order: walk, flight, underground, crowd, storage, particles, redstone, explosion and server, each with a setup and site.
+- Depends on: `SceneSetup`, `SceneSite`.
 
 #### BenchmarkRoute
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/BenchmarkRoute.java`
-- Role: Timing (400 warm-up ticks, then 200 settle and 600 measured ticks per scene) and the camera path of every scene from the anchors.
-- Depends on: `BenchmarkScene`, `BenchmarkAnchors`, `BenchmarkCommands`, `LinePath`, `OrbitPath`.
+- Role: Timing (200 settle and 600 measured ticks per scene) and the camera path of every scene from the anchors.
+- Depends on: `BenchmarkScene`, `BenchmarkAnchors`, `LinePath`, `OrbitPath`.
 
 #### BenchmarkCommands
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/BenchmarkCommands.java`
-- Role: Server commands of the benchmark: frozen time and weather without mob spawning, a crowd of 40 villagers on the village surface, and a floating platform with 96 observer clocks driving sticky pistons and redstone lamps.
+- Role: Server world rules for the benchmark.
+- Depends on: nothing.
+
+#### BoxCommands
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/BoxCommands.java`
+- Role: Builds bounded fill, force-load and cleanup commands for stress scenes; splits fills within the vanilla 32768-block limit, removes loose item and experience-orb drops between scenes, and uses the `aervium_stress` entity tag.
 - Depends on: `BlockPoint`.
-- Notes: The second observer row is placed last so each pair starts pulsing when it is built.
+
+#### SceneSetup
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/SceneSetup.java`
+- Role: Interface for a stress scene's size, height, build, per-tick commands, cleanup, center and far point; `NONE` has no setup.
+- Depends on: `BlockPoint`.
+
+#### CrowdSetup
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/CrowdSetup.java`
+- Role: Crowd scene: a glass pen on a platform with 1600 tagged mobs of eight passive types (AI on, persistent), 800 floating items that never despawn or merge and 200 floating armor stands; clearing kills the tag and empties the box.
+- Depends on: `SceneSetup`, `BoxCommands`.
+
+#### StorageSetup
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/StorageSetup.java`
+- Role: Storage scene: a 64 x 64 platform with two layers of block entity rows (chests, signs with text on both sides, banners with patterns, lit furnaces, hopper chains, ender chests, barrels, shulker boxes), 8192 in all.
+- Depends on: `SceneSetup`, `BoxCommands`.
+
+#### ParticleStormSetup
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/ParticleStormSetup.java`
+- Role: Particle scene: 32 x 32 lit campfires and, every tick, forced bursts of flame, end rod, smoke and explosion particles over them (`particlesPerTick()`).
+- Depends on: `SceneSetup`, `BoxCommands`.
+
+#### RedstoneSetup
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/RedstoneSetup.java`
+- Role: Redstone scene: 12 clusters of 16 observer clocks with sticky pistons and lamps on a stone platform (192 clocks), built after their surroundings are cleared.
+- Depends on: `SceneSetup`, `BoxCommands`.
+
+#### ExplosionSetup
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/ExplosionSetup.java`
+- Role: Explosion scene: 16 x 16 x 8 TNT on the ground, lit by a redstone block on the first measured tick; clearing kills dropped items and leftover primed TNT around the crater.
+- Depends on: `SceneSetup`, `BoxCommands`, `BenchmarkRoute`.
+
+#### SimulatedPlayerRoutes
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/SimulatedPlayerRoutes.java`
+- Role: Game-independent routes for twelve moving ender-pearl chunk tickets that load, generate and tick terrain like extra integrated-server players.
+- Depends on: `BlockPoint`.
 
 #### BlockPoint
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/BlockPoint.java`
 - Role: Game-independent block position with offset and command coordinates.
 - Depends on: nothing.
 
+#### SceneSite
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/SceneSite.java`
+- Role: A scene's east and south offset from spawn and height above the surface.
+- Depends on: nothing.
+
 #### BenchmarkAnchors
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/BenchmarkAnchors.java`
-- Role: Record of the spawn, the village center (spawn when none was found) and the redstone platform origin.
+- Role: Record of the spawn and sites by scene id.
 - Depends on: `BlockPoint`.
 
 #### SceneMeasurement
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/SceneMeasurement.java`
-- Role: Marks of the frame, tick and GC recorders at the start of a measured scene, peak heap and VRAM during it, and the `SceneResult` at its end including frames lost from a full ring.
-- Depends on: `SampleRing`, `FrameTimeSummary`, `TickSummary`, `GcPauseTotals`, `SceneResult`.
+- Role: Marks of the frame, motion-error, tick and GC recorders at the start of a measured scene, peak heap and VRAM during it, and the `SceneResult` at its end including frames lost from a full ring.
+- Depends on: `SampleRing`, `FrameTimeSummary`, `MotionErrorSummary`, `TickSummary`, `GcPauseTotals`, `SceneResult`.
 
 #### SceneResult
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/SceneResult.java`
-- Role: Record of one measured scene for the JSON report.
-- Depends on: `FrameTimeSummary`, `TickSummary`, `GcPauseTotals`.
+- Role: Record of one measured scene for the JSON report, including motion error.
+- Depends on: `FrameTimeSummary`, `MotionErrorSummary`, `TickSummary`, `GcPauseTotals`.
 
 #### BenchmarkEnvironment
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/BenchmarkEnvironment.java`
@@ -509,7 +613,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### BenchmarkReport
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/BenchmarkReport.java`
-- Role: Record of a whole run with format version, start time, environment, anchors, scenes and overall frame and tick summaries.
+- Role: Format-version-2 record of a whole run with start time, environment, anchors, scenes and overall frame and tick summaries.
 - Depends on: `BenchmarkEnvironment`, `BenchmarkAnchors`, `SceneResult`.
 
 #### BenchmarkComparison
@@ -524,8 +628,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### BenchmarkFiles
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/BenchmarkFiles.java`
-- Role: Writes `benchmark-<start>.json` and `.txt` and reads the newest earlier JSON report of the same format version.
+- Role: Writes `benchmark-<start>.json` and `.txt` and reads the newest earlier format-version-2 JSON report.
 - Depends on: `BenchmarkReport`.
+
+#### JoinTimeline
+- Path: `src/main/java/com/aryston/aervium/debug/benchmark/JoinTimeline.java`
+- Role: Frame starts of a world join in phases (reading world data, data packs, server, terrain): per phase its start, length, frame count, longest frame and frames over 50 ms, and the eight longest frame gaps with the phases they fell between, as log lines.
+- Depends on: `Durations`.
 
 ### `com.aryston.aervium.integration`
 
@@ -564,8 +673,8 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### AerviumConfig
 - Path: `src/main/java/com/aryston/aervium/config/AerviumConfig.java`
-- Role: Client config: overlay visibility (saved when F7 toggles it), the target frame rate of the frame budget, dynamic frame rate (on by default, 30 FPS in the background, 60 FPS while paused), occlusion culling (on) and leaf culling (off).
-- Depends on: `FrameBudget`, `FrameRatePolicy`.
+- Role: Client config: overlay visibility (saved when F7 toggles it), the target frame rate of the frame budget, dynamic frame rate (on by default, 30 FPS in the background, 60 FPS while paused), occlusion culling (on), leaf culling (off), pregeneration on join (on) and its radius (32 chunks, 6 to 32).
+- Depends on: `FrameBudget`, `FrameRatePolicy`, `SpawnPregenerationSettings`.
 
 ### `com.aryston.aervium.client`
 
@@ -576,8 +685,14 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### ClientEvents
 - Path: `src/main/java/com/aryston/aervium/client/ClientEvents.java`
-- Role: Client adapter: frame start and end (`RenderFrameEvent`), client tick scopes, the F7 key, the overlay layer, the end of every frame for `DirectDraws` (`FlipFrameEvent`), config loading (overlay, budget, dynamic frame rate), Sodium and Iris check, installing the shader caches and the pipeline warm-up (only without Sodium and Iris), the startup report, world joins and shutdown (saves the pipeline cache before the job system stops).
-- Depends on: `ClientTelemetry`, `TelemetryOverlay`, `BenchmarkDriver`, `AerviumKeys`, `AerviumConfig`, `CompatibilityGuard`, `SystemTimings`, `ShaderCaches`, `PipelineWarmup`, `FrameRateGovernor`.
+- Role: Client adapter: frame start and end (`RenderFrameEvent`), client tick scopes, the F7 key, the overlay layer, the end of every frame for `DirectDraws` (`FlipFrameEvent`), config loading (overlay, budget, dynamic frame rate, pregeneration; pregeneration stays off during the benchmark), Sodium and Iris check, installing the shader caches and the pipeline warm-up (only without Sodium and Iris), the startup report, the join warm-up and the GPU culling pipeline compile once the game has loaded, the join check, world joins, leaving a world (ends a terrain wait) and shutdown (saves the pipeline cache before the job system stops).
+- Depends on: `ClientTelemetry`, `TelemetryOverlay`, `BenchmarkDriver`, `JoinCheck`, `JoinWarmup`, `JoinPregeneration`, `GpuCulling`, `AerviumKeys`, `AerviumConfig`, `SpawnPregenerationSettings`, `MixinModules`, `CompatibilityGuard`, `SystemTimings`, `ShaderCaches`, `PipelineWarmup`, `FrameRateGovernor`.
+
+#### JoinWarmup
+- Path: `src/main/java/com/aryston/aervium/client/JoinWarmup.java`
+- Role: Once the game has loaded, a low priority thread prepares the first world join: it starts Netty's network address lookup (about 100 ms the first time a connection is made) and loads, without initializing, every class in `assets/aervium/warmup/join_classes.txt`, the 1721 classes the render thread loaded during a join on Minecraft 26.3. Loading and transforming them during the join cost the render thread about 600 ms in frames of 70 to 160 ms each. Classes that are not installed are skipped.
+- Depends on: `Durations`.
+- Notes: Module `joinWarmup` (no mixins). The list is version specific; regenerate it from a JFR recording with class loading on when Minecraft changes (see the porting checklist in `docs/ARCHITECTURE.md`).
 
 #### FrameRateGovernor
 - Path: `src/main/java/com/aryston/aervium/client/FrameRateGovernor.java`
@@ -587,7 +702,12 @@ Every class and source file of Aervium with its purpose. Find the right file her
 #### ClientTelemetry
 - Path: `src/main/java/com/aryston/aervium/client/ClientTelemetry.java`
 - Role: Owns the overlay frame recorder (2048 frames), the GC recorder, the job system and the main-thread queue; every five client ticks it copies the raw data, summarizes it on a worker and publishes the snapshot on the main thread within 0.5 ms.
-- Depends on: `FrameTimeRecorder`, `GcPauseRecorder`, `JobSystem`, `MainThreadQueue`, `TickTimeRecorder`, `SystemTimings`, `VulkanMemoryProbe`.
+- Depends on: `FrameTimeRecorder`, `MotionErrorRecorder`, `GcPauseRecorder`, `JobSystem`, `MainThreadQueue`, `TickTimeRecorder`, `SystemTimings`, `VulkanMemoryProbe`.
+
+#### MotionSampler
+- Path: `src/main/java/com/aryston/aervium/client/MotionSampler.java`
+- Role: Reads the game-time delta of a presented frame and converts it to milliseconds, skipping paused or frozen worlds.
+- Depends on: nothing inside the mod.
 
 #### TelemetryOverlay
 - Path: `src/main/java/com/aryston/aervium/client/TelemetryOverlay.java`
@@ -606,7 +726,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### OverlayLines
 - Path: `src/main/java/com/aryston/aervium/client/OverlayLines.java`
-- Role: Turns a `TelemetrySnapshot` into colored text lines; rebuilt only when a snapshot arrives. Shows culling counts and, with module `meshWorkers`, chunk builds per second, busy workers and queued builds.
+- Role: Turns a `TelemetrySnapshot` into colored text lines; rebuilt only when a snapshot arrives. Shows hitches and motion error, yellow when the p99 motion error exceeds 0.5 ms or a hitch occurred, culling counts and, with module `meshWorkers`, chunk builds per second, busy workers and queued builds.
 - Depends on: `TelemetrySnapshot`, `ByteSizes`, `CullingStatistics`, `MeshWorkers`.
 
 #### AerviumKeys
@@ -623,6 +743,28 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/client/VulkanMemoryProbe.java`
 - Role: Reads used and budgeted device-local memory from the game's Vulkan memory allocator (`vmaGetHeapBudgets`), and the total size of the device-local heaps for the hardware class.
 - Depends on: `FrontendGpuDeviceAccessor`, `VramUsage`.
+
+### `com.aryston.aervium.client.pregeneration`
+
+#### JoinPregeneration
+- Path: `src/main/java/com/aryston/aervium/client/pregeneration/JoinPregeneration.java`
+- Role: Client half of pregeneration on join. Adopts the load tracker of a single player world when it opens, then, from the moment the player exists until the terrain is ready, keeps vanilla's "level ready" false, blends server and terrain progress into the tracker's progress, gives the section build loop a batch of at most 64 dirty sections per frame from every direction (all sections of the occlusion graph, not only the ones in view, built first when they have no mesh yet), and spreads chunk packets (10 ms) and client light updates (6 ms) over frames so no single frame freezes. Logs how long the wait took or why it gave up.
+- Depends on: `TerrainReadiness`, `PregenerationHold`, `TerrainProgress`, `JoinProgress`, `OmniFrustum`, `PendingLightUpdates`, `SpawnPregenerationSettings`, `OwnerTerrainWait`.
+
+#### TerrainReadiness
+- Path: `src/main/java/com/aryston/aervium/client/pregeneration/TerrainReadiness.java`
+- Role: Counts, over a grid of the chunks within the join radius, which chunks have arrived and how many non-empty sections of the occlusion graph within one chunk less have a mesh. Each frame it revisits as many chunks as fit in 1.5 ms and keeps running totals, so a radius of 32 chunks (about 3500 chunks) never costs one frame more than that.
+- Depends on: `TerrainProgress`.
+
+#### OmniFrustum
+- Path: `src/main/java/com/aryston/aervium/client/pregeneration/OmniFrustum.java`
+- Role: A frustum that contains everything, so the octree of the occlusion graph lists sections in every direction.
+- Depends on: nothing.
+
+#### PendingLightUpdates
+- Path: `src/main/java/com/aryston/aervium/client/pregeneration/PendingLightUpdates.java`
+- Role: Interface `ClientLevelPregenerationMixin` adds to `ClientLevel`: the number of queued client light updates.
+- Depends on: nothing.
 
 ### `com.aryston.aervium.client.chunk`
 
@@ -755,13 +897,13 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### EntityOcclusion
 - Path: `src/main/java/com/aryston/aervium/client/culling/EntityOcclusion.java`
-- Role: Decides whether an entity or a block entity is hidden from the camera by testing its box (entities: interpolated bounding box grown by 1 block; block entities: the renderer's render box grown by half a block) against this frame's camera raster in `TerrainOcclusion`. Counts tested and hidden entities for the overlay.
+- Role: Decides whether an entity or a block entity is hidden from the camera by testing its box (entities: interpolated bounding box grown by 1 block; block entities: the renderer's render box grown by half a block) against this frame's camera raster in `TerrainOcclusion`. Skips the raster test when the current camera result hid no section. Counts tested and hidden entities for the overlay.
 - Notes: Only mobs, dropped items, experience orbs and armor stands are culled; glowing, named, leashed, riding or ridden entities are always drawn. With Helion loaded an entity under open sky is always drawn, because it may cast a sun shadow onto visible ground.
 - Depends on: `TerrainOcclusion`, `CullingAudit`.
 
 #### ParticleOcclusion
 - Path: `src/main/java/com/aryston/aervium/client/culling/ParticleOcclusion.java`
-- Role: Decides whether a particle is hidden from the camera: the box spans its position last tick and now, grown by one and a half times its quad size plus half a block, and is tested against this frame's camera raster in `TerrainOcclusion`. Counts tested and hidden particles for the overlay.
+- Role: Decides whether a particle is hidden from the camera: the box spans its position last tick and now, grown by one and a half times its quad size plus half a block, and is tested against this frame's camera raster in `TerrainOcclusion`. Skips the raster test when the current camera result hid no section. Counts tested and hidden particles for the overlay.
 - Depends on: `TerrainOcclusion`, `CullingAudit`.
 
 #### HelionShadowCasters
@@ -789,7 +931,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### GpuCulling
 - Path: `src/main/java/com/aryston/aervium/client/gpu/GpuCulling.java`
-- Role: The advanced terrain path of module `gpuCulling`. In the camera pass the CPU only lists the visible sections that occlusion culling kept (section index and fade) in a mapped ring; the GPU section table holds each section's solid and cutout draws; a compute shader (`shaders/culling/terrain_draws.csh`) applies face culling against the camera, writes the section instance data and appends the draw commands of each draw group with an atomic counter, and the terrain layers draw them with `vkCmdDrawIndexedIndirectCount` (`ChunkSectionsToRenderIndirectCountMixin`). Translucent layers, Helion's shadow cascades and every other pass keep the CPU draw list. Sets itself up on first use (Vulkan device, `drawIndirectCount` enabled through `IndirectCountFeature`, compiled pipeline) and otherwise stays off with one log line, so devices without the feature keep the CPU path (the baseline path).
+- Role: The advanced terrain path of module `gpuCulling`. In the camera pass the CPU only lists the visible sections that occlusion culling kept (section index and fade) in a mapped ring; the GPU section table holds each section's solid and cutout draws; a compute shader (`shaders/culling/terrain_draws.csh`) applies face culling against the camera, writes the section instance data and appends the draw commands of each draw group with an atomic counter, and the terrain layers draw them with `vkCmdDrawIndexedIndirectCount` (`ChunkSectionsToRenderIndirectCountMixin`). Translucent layers, Helion's shadow cascades and every other pass keep the CPU draw list. Checks the device once the game has loaded (`warmUp`: Vulkan device, `drawIndirectCount` enabled through `IndirectCountFeature`) and compiles its compute pipeline on a job system worker; until the pipeline is ready the CPU path draws, so the first world frame never waits for shaderc (that compile cost the first frame of every join about 300 ms). Devices without the feature stay on the CPU path (the baseline path) with one log line.
 - Notes: One GPU pass per frame. The dispatch is recorded into the frame's command buffer when the section infos are written, between full memory barriers (`VulkanCommandEncoder.memoryBarrier`), after the table uploads and a fill of the draw counts. A group gets room for four draws per visible section (face runs), so no draw can be lost.
 - Depends on: `GpuSectionTable`, `GpuSectionEntry`, `TerrainGroups`, `CullPipeline`, `GpuDrawList`, `VulkanAccess`, `GpuBufferUsage`, `FrontendRenderPassAccessor`, `VulkanRenderPassAccessor`, `MixinModules`.
 
@@ -850,7 +992,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### BenchmarkOptions
 - Path: `src/main/java/com/aryston/aervium/client/benchmark/BenchmarkOptions.java`
-- Role: Before the benchmark world is created, remembers the frame limit, vsync, render and simulation distance, sets an unlimited frame rate (`Options.UNLIMITED_FRAMERATE_CUTOFF`), vsync off and the distances from `-Daervium.benchmark.renderDistance` and `.simulationDistance` (current values when absent), and restores all four when the benchmark ends.
+- Role: Before the benchmark world is created, remembers the frame limit, vsync, render and simulation distance, sets an unlimited frame rate (`Options.UNLIMITED_FRAMERATE_CUTOFF`), vsync off, render distance 32 unless `-Daervium.benchmark.renderDistance` sets it and the simulation distance from `.simulationDistance`, then restores all four when the benchmark ends.
 - Depends on: nothing inside the mod.
 
 #### BenchmarkDriver
@@ -863,20 +1005,80 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### BenchmarkWorld
 - Path: `src/main/java/com/aryston/aervium/client/benchmark/BenchmarkWorld.java`
-- Role: Deletes the previous `aervium-benchmark` world, creates a fresh one (seed 8675309, spectator, peaceful, cheats on), runs the world rules, finds the spawn, the nearest village and the redstone platform height on the server thread, and builds each scene.
-- Depends on: `BenchmarkCommands`, `BenchmarkAnchors`, `BlockPoint`.
+- Role: Deletes the previous `aervium-benchmark` world, creates a fresh one (seed 8675309, spectator, peaceful, cheats on), runs world rules, force-loads, builds and ticks each scene setup once its entities are loaded, then clears and releases it.
+- Depends on: `BenchmarkCommands`, `BenchmarkAnchors`, `BenchmarkScene`, `SceneSetup`, `CommandFailureLog`, `BlockPoint`, `FreshWorld`.
 
 #### BenchmarkCamera
 - Path: `src/main/java/com/aryston/aervium/client/benchmark/BenchmarkCamera.java`
 - Role: Moves the spectator player along a `CameraPath` every client tick; walking routes follow the client heightmap with at most 0.6 blocks of climb per tick.
 - Depends on: `CameraPath`, `CameraPose`.
 
+#### CommandFailureLog
+- Path: `src/main/java/com/aryston/aervium/client/benchmark/CommandFailureLog.java`
+- Role: Command source for benchmark scene setup and cleanup that logs failures only.
+- Depends on: nothing inside the mod.
+
+#### SimulatedPlayers
+- Path: `src/main/java/com/aryston/aervium/client/benchmark/SimulatedPlayers.java`
+- Role: Client adapter that runs the engine's simulated-player chunk-ticket routes in the benchmark world.
+- Depends on: `SimulatedPlayerRoutes`.
+
 #### BenchmarkEnvironmentProbe
 - Path: `src/main/java/com/aryston/aervium/client/benchmark/BenchmarkEnvironmentProbe.java`
 - Role: Collects the `BenchmarkEnvironment` from the game, the options, the window, the GPU and the mod list.
 - Depends on: `BenchmarkEnvironment`, `BenchmarkWorld`.
 
+#### FreshWorld
+- Path: `src/main/java/com/aryston/aervium/client/benchmark/FreshWorld.java`
+- Role: Deletes a world folder if it exists and creates a fresh normal world with the given settings and seed through vanilla's world creation; shared by the benchmark and the join check.
+- Depends on: nothing inside the mod.
+
+#### JoinCheck
+- Path: `src/main/java/com/aryston/aervium/client/benchmark/JoinCheck.java`
+- Role: Developer check of a world join (`-Daervium.joinCheck=true`): from the first loading screen frame it times every frame per phase, logs at entry how many chunks within the render distance are missing and how many visible non-empty sections have no mesh, samples both every second for 10 s, and logs the frame rate, lows and longest frame of those 10 s. `aervium.joinCheck.world=<folder>` opens a world and `aervium.joinCheck.newWorld=true` creates a fresh one after `aervium.joinCheck.delay` seconds (5) on the title screen; `aervium.joinCheck.quit=true` closes the game afterwards. Joins started otherwise (quick play, the menus) are measured too.
+- Depends on: `JoinTimeline`, `JoinShots`, `FreshWorld`, `FrameTimeRecorder`, `FrameTimeSummary`.
+
+#### JoinShots
+- Path: `src/main/java/com/aryston/aervium/client/benchmark/JoinShots.java`
+- Role: With `-Daervium.joinCheck.shots=true` saves `screenshots/join_<ms>_<phase>.png` every 700 ms while loading and `join_entry_<ms>.png` every 70 ms in the first 1.4 s in game, to check loading screens and transitions. Screenshots cost frame time, so timings of such a run are not comparable.
+- Depends on: `Durations`.
+
 ### `com.aryston.aervium.mixin`
+
+#### DeltaTrackerTimerPrecisionMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/DeltaTrackerTimerPrecisionMixin.java`
+- Role: Advances `DeltaTracker$Timer` game and real time from `Util.getNanos()` through `LapTimer`, then moves the partial tick to the draw moment when it remains in the current tick.
+- Notes: Module `preciseFrameTime`, client side. No API replaces the millisecond time vanilla feeds to the timer.
+
+#### IntegratedServerJoinDistanceMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/IntegratedServerJoinDistanceMixin.java`
+- Role: Sets the integrated server's initial view and simulation distances from the client options after server initialization, before a player joins.
+- Notes: No API sets the initial integrated-server distances at this point.
+
+#### PrepareSpawnTaskPregenerationMixin, PrepareSpawnTaskPreparingMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/PrepareSpawnTaskPregenerationMixin.java`, `src/main/java/com/aryston/aervium/mixin/PrepareSpawnTaskPreparingMixin.java`
+- Role: When vanilla's `PrepareSpawnTask$Preparing` schedules its three chunk radius around the found spawn, also starts the `SpawnPregeneration`, reports its chunk counts through the same `LOAD_PLAYER_CHUNKS` progress and holds the task until both loads are done; the outer task keeps the pregeneration ticket alive every configuration tick until `spawnPlayer` or `close`.
+- Notes: Module `spawnPregeneration`, physical client only (integrated server). No API exposes the spawn preparation or its progress. The inner class is reached through its synthetic `this$0`.
+
+#### ServerGamePacketListenerTerrainWaitMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ServerGamePacketListenerTerrainWaitMixin.java`
+- Role: Pauses `tickClientLoadTimeout` for the owner while `OwnerTerrainWait` is set, so the server treats the player as still loading (invulnerable, not moved) during the terrain wait instead of after vanilla's three seconds.
+- Notes: Module `spawnPregeneration`, physical client only.
+
+#### LevelLoadTrackerPregenerationMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/LevelLoadTrackerPregenerationMixin.java`
+- Role: Adopts the tracker of a single player world in `setServerChunkStatusView` (only `Minecraft.doWorldLoad` calls it), starts the terrain wait in `startClientLoad`, keeps `isLevelReady` false while `JoinPregeneration` holds and blends the terrain progress into `serverProgress`.
+- Notes: Module `spawnPregeneration`. Vanilla offers no hook between "player chunk built" and "loading screen closes".
+
+#### LevelExtractorPregenerationMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/LevelExtractorPregenerationMixin.java`
+- Role: Replaces the visible section list that `LevelExtractor.extract` scans for sections to build with the batch from `JoinPregeneration` while the terrain wait runs; drawing, entities and culling keep the camera's list.
+- Notes: Module `spawnPregeneration`. The build loop has no hook and only knows sections inside the camera frustum.
+
+#### PacketProcessorPregenerationMixin, ClientLevelPregenerationMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/PacketProcessorPregenerationMixin.java`, `src/main/java/com/aryston/aervium/mixin/ClientLevelPregenerationMixin.java`
+- Role: During the terrain wait, handle queued client packets for at most 10 ms and queued client light updates for at most 6 ms per frame, in order, and leave the rest for the next frame; `ClientLevelPregenerationMixin` also reports the queued light updates.
+- Notes: Module `spawnPregeneration`. A single player server sends every pending chunk in one batch, and vanilla's `pollLightUpdates` runs the whole queue once it holds 1000 updates, which froze the loading screen for up to 815 ms at render distance 32.
 
 #### FrontendGpuDeviceAccessor
 - Path: `src/main/java/com/aryston/aervium/mixin/FrontendGpuDeviceAccessor.java`
@@ -1134,8 +1336,18 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### ServerLevelEntityCollisionsMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/ServerLevelEntityCollisionsMixin.java`
-- Role: Overrides `getEntityCollisions` in `ServerLevel`: for a source with the default collision rule, when no section in the range vanilla would search counts a collidable entity and the level has no part entities, returns the empty list; otherwise runs the vanilla body. Uses `PersistentEntitySectionManagerAccessor` for the section storage.
+- Role: Overrides `getEntityCollisions` in `ServerLevel` and delegates its collision-shape search to `EntityCollisionShapes`, using `PersistentEntitySectionManagerAccessor` for the section storage.
 - Notes: Module `entityCollisions`.
+
+#### ClientLevelEntityCollisionsMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ClientLevelEntityCollisionsMixin.java`
+- Role: Adds `getEntityCollisions` to `ClientLevel` and delegates its collision-shape search to `EntityCollisionShapes`, using `TransientEntitySectionManagerAccessor` for the section storage.
+- Notes: Module `entityCollisions`; a mixin is required because `ClientLevel` does not implement this collision query.
+
+#### ParticleCollisionMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ParticleCollisionMixin.java`
+- Role: Wraps `Entity.collideBoundingBox` in `Particle.move` and returns the unchanged movement when `ParticleCollisions` proves that the swept area contains only air and has no entity collider.
+- Notes: Module `particleCollisions`; a mixin is required because `Particle.move` has no API hook around the block collision call.
 
 #### SectionCounts
 - Path: `src/main/java/com/aryston/aervium/world/entity/SectionCounts.java`
@@ -1181,6 +1393,11 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/mixin/PersistentEntitySectionManagerAccessor.java`
 - Role: Accessor for the private `sectionStorage` of `PersistentEntitySectionManager`.
 - Notes: Modules `entityCollisions` and `hopperSearch`.
+
+#### TransientEntitySectionManagerAccessor
+- Path: `src/main/java/com/aryston/aervium/mixin/TransientEntitySectionManagerAccessor.java`
+- Role: Accessor for the private `sectionStorage` of `TransientEntitySectionManager`.
+- Notes: Module `entityCollisions`; a mixin is required because the client entity section storage has no public accessor.
 
 #### SectionStorageAccessor
 - Path: `src/main/java/com/aryston/aervium/mixin/SectionStorageAccessor.java`
@@ -1232,6 +1449,39 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: In `copy()` of the block and sky light maps, replace the `clone()` of the whole section map with `LightSnapshotSource.aervium$snapshot()`.
 - Notes: Module `lightSnapshots`, both sides. Vanilla `LayerLightSectionStorage.swapSectionMap` cloned the full map (several MB at render distance 32) after every light batch so other threads read a stable copy; the snapshot is still a complete, never-changing copy published at the same moment, so readers see exactly the vanilla data. It was about 18 % of all allocation; with G1 the benchmark spent 9 % less time in GC pauses, the 0.1% low rose from 14.6 to 17.9 FPS and the heap peak fell from 4014 to 3046 MB (1% low unchanged); with ZGC the difference was within noise.
 
+### `com.aryston.aervium.core.mesh`
+
+#### SharedCorners
+- Path: `src/main/java/com/aryston/aervium/core/mesh/SharedCorners.java`
+- Role: Finds the distinct vertex positions of a model cube by exact float bits and maps every vertex to its shared corner.
+- Depends on: nothing.
+
+### `com.aryston.aervium.client.model`
+
+#### CubeCorners
+- Path: `src/main/java/com/aryston/aervium/client/model/CubeCorners.java`
+- Role: Transforms each shared cube corner once and writes vertices in vanilla order with the same normals; cubes with more than 64 distinct positions use per-vertex transforms.
+- Depends on: `SharedCorners`, Minecraft model and vertex classes.
+
+### `com.aryston.aervium.world.entity`
+
+#### PushRules
+- Path: `src/main/java/com/aryston/aervium/world/entity/PushRules.java`
+- Role: Detects a scoreboard without teams and supplies the vanilla-equivalent pushable predicate without team lookups.
+- Depends on: Minecraft entity and player classes.
+
+### `com.aryston.aervium.mixin`
+
+#### ModelCubeCornersMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/ModelCubeCornersMixin.java`
+- Role: Replaces `ModelPart.Cube.compile` with shared-corner model rendering and caches the corner map per cube.
+- Notes: Module `modelCorners`. No API replaces `ModelPart.Cube.compile`.
+
+#### EntitySelectorPushMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/EntitySelectorPushMixin.java`
+- Role: Returns the teamless pushable predicate from `EntitySelector.pushableBy` when the level scoreboard has no teams.
+- Notes: Module `teamlessPushing`. No API avoids the team lookups inside `EntitySelector.pushableBy`.
+
 ## Tests
 
 Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI. Each test class sits in the package of the class it checks.
@@ -1240,14 +1490,16 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/test/java/com/aryston/aervium/LanguageFilesTest.java` | Every language file has the same keys and every config entry has a `.tooltip` translation (lesson L-011). |
 | `src/test/java/com/aryston/aervium/core/telemetry/SampleRingTest.java` | Order, overwriting the oldest samples, copies into existing arrays, marks, clearing, invalid capacity. |
+| `src/test/java/com/aryston/aervium/core/telemetry/MotionErrorRecorderTest.java` | The error is the distance between the simulated and the real step, an interruption skips the next step, the summary is in milliseconds. |
 | `src/test/java/com/aryston/aervium/core/telemetry/SampleStatisticsTest.java` | Nearest-rank percentiles, mean, population standard deviation, sorting only the counted prefix, empty samples. |
-| `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeSummaryTest.java` | Steady frames give equal average and lows; spikes lower the 1% and 0.1% lows and the average as computed by hand. Frames over 33 and 50 ms are counted at the exact thresholds. |
+| `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeSummaryTest.java` | Steady frames give equal average and lows; spikes lower the 1% and 0.1% lows and the average as computed by hand. Frames over 33 and 50 ms and hitches are counted at the exact thresholds. |
 | `src/test/java/com/aryston/aervium/core/telemetry/TickSummaryTest.java` | Histogram buckets and their edges, ticks over 50 ms and their share, median. |
 | `src/test/java/com/aryston/aervium/core/telemetry/FrameTimeRecorderTest.java` | Frame times are the gaps between frame starts; a reset drops the gap. |
 | `src/test/java/com/aryston/aervium/core/culling/DepthRasterTest.java` | Walls hide boxes behind them but never boxes in front, partly covered boxes, gaps, a section never hides itself, near plane clipping, boxes behind the camera, orthographic light space, and 200 random scenes checked against ray casting: nothing visible is ever hidden. |
 | `src/test/java/com/aryston/aervium/core/culling/OpaqueMaskTest.java` | Empty and sparse sections give no boxes, a solid section is one box, a cave pocket splits into a few boxes with the exact volume, boxes only ever cover opaque blocks. |
 | `src/test/java/com/aryston/aervium/core/culling/VoxelRayTest.java` | Rays through open air, blocked by an opaque block, start block ignored, diagonal rays visit every crossed block, box entry parameter. |
 | `src/test/java/com/aryston/aervium/core/mesh/FacingSortTest.java` | Quads are grouped by facing with their bytes intact and slanted quads first; the winding of Minecraft's up face counts as up; groups behind the eye by more than the margin are skipped and both sides stay when the eye is between the planes. |
+| `src/test/java/com/aryston/aervium/core/mesh/SharedCornersTest.java` | Equal positions share a corner, while positive and negative zero remain distinct by exact float bits. |
 | `src/test/java/com/aryston/aervium/core/mesh/FaceRangesTest.java` | Packed face ranges at an offset give the same first quads, quad counts and visible groups as the object for eyes on every side; each side of the eye shows only the faces turned to it. |
 | `src/test/java/com/aryston/aervium/core/culling/OcclusionPipelineTest.java` | A camera pass arrives one frame later and `begin` never blocks while one is in flight; `clear` drops the result in flight; `covers` accepts only eyes within the reach; the worker result equals the same `OcclusionPass` run directly; widening reaches farther eyes and only reveals sections; a changed occluder in front reveals the section behind it while a far one does not; only the same boxes and fade state count as unchanged. |
 | `src/test/java/com/aryston/aervium/core/culling/TileMaskTest.java` | Ranges touching a marked tile, marking everything, clearing. |
@@ -1259,6 +1511,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/telemetry/GcAdviceTest.java` | Collector recognition from bean names, advice for G1 and for a small heap. |
 | `src/test/java/com/aryston/aervium/core/telemetry/GcPauseRecorderTest.java` | Pauses versus concurrent cycles, totals, pauses after a mark. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameBudgetTest.java` | Frame and system budgets, fixed 50 ms tick budget, budget edge, invalid target. |
+| `src/test/java/com/aryston/aervium/core/budget/LapTimerTest.java` | Empty first lap, laps keep the fraction of a millisecond, elapsed time does not start a lap, laps add up to the whole time. |
 | `src/test/java/com/aryston/aervium/core/collection/ColumnIndexedLongMapTest.java` | A column is complete only with every section stored; replacing and removing keep counts and masks exact, double removes are harmless; columns over 64 sections are rejected. |
 | `src/test/java/com/aryston/aervium/core/hardware/HardwareClassifierTest.java` | A gaming desktop is high, an integrated laptop medium; the weakest part (4 threads, small heap, software renderer, little video memory or RAM) decides; unknown values do not lower; tiers only lower distances. |
 | `src/test/java/com/aryston/aervium/core/crash/CrashSummaryTest.java` | No Aervium code gives the "none" line; a mixin handler in the stack names its module with the fixed marker and the switch-off hint; own frames and always-on mixins are listed without a hint. |
@@ -1274,10 +1527,30 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 | `src/test/java/com/aryston/aervium/core/cache/CacheFilesTest.java` | Disk cache round trip without leftover temporary files, existing entries kept, eight concurrent writers and readers of one key, SPIR-V validation, pipeline cache header checks, cache counters. |
 | `src/test/java/com/aryston/aervium/core/budget/FrameRatePolicyTest.java` | Active, background and paused limits, never above a lower vanilla limit, disabled policy. |
 | `src/test/java/com/aryston/aervium/core/module/ModuleSettingsTest.java` | Every module starts on, switched-off and unknown lines, every module written back. |
-| `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkCommandsTest.java` | Crowd size and distinct positions, build order of the redstone platform, every fill within the vanilla volume limit, frozen time and weather. |
+| `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkCommandsTest.java` | Frozen time and weather, large boxes split into fills within the vanilla limit, oversized layers refused, every scene setup within the limit, tagged crowd summons and their removal, every storage row placed, the explosion lit only on the first measured tick, the particle count per tick, scenes without a site build nothing. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/SceneMeasurementTest.java` | Only frames after the scene start count, peaks of heap and VRAM, frames lost from a full ring. |
+| `src/test/java/com/aryston/aervium/debug/benchmark/SimulatedPlayerRoutesTest.java` | Simulated players start in distinct directions, walk one chunk outward per step and move only on step ticks. |
 | `src/test/java/com/aryston/aervium/debug/benchmark/BenchmarkReportTest.java` | Comparison percentages, JSON round trip, newest report by start time, missing folder, text report content. |
 | `src/test/java/com/aryston/aervium/world/network/PacketCompressionTest.java` | Packets compressed at the faster level inflate to the same bytes and stay within 10 % of the vanilla size. |
+| `src/test/java/com/aryston/aervium/core/pregeneration/TerrainProgressTest.java` | Chunks fill the first half and built sections the second; complete only with every chunk, section and light update; every kind of advance is noticed. |
+| `src/test/java/com/aryston/aervium/core/pregeneration/PregenerationHoldTest.java` | Waits while terrain is missing, releases after the fade-in time, restarts the fade when new sections appear, gives up when nothing advances and after the limit. |
+| `src/test/java/com/aryston/aervium/core/pregeneration/JoinProgressTest.java` | The server fills the first 60 %, terrain the rest, values outside the range are clamped. |
+| `src/test/java/com/aryston/aervium/world/spawn/SpawnPregenerationSettingsTest.java` | The radius stays within 6 to 32, never goes past the render distance, the switch is followed. |
+| `src/test/java/com/aryston/aervium/debug/benchmark/JoinTimelineTest.java` | The first frame starts the timeline, each frame gap is charged to the phase it started in, long gaps name both phases. |
+
+### `com.aryston.aervium.client.particle`
+
+#### ParticleCollisions
+- Path: `src/main/java/com/aryston/aervium/client/particle/ParticleCollisions.java`
+- Role: Checks the exact widened, one-block-expanded swept block cuboid that vanilla collision iteration would visit, clamped to build height and limited to 256 cells. Returns true only when every required loaded chunk and cell is air, so an empty collider list has vanilla's unchanged movement result.
+- Depends on: nothing.
+
+### `com.aryston.aervium.world.collision`
+
+#### EntityCollisionShapes
+- Path: `src/main/java/com/aryston/aervium/world/collision/EntityCollisionShapes.java`
+- Role: Shared client and server implementation of `getEntityCollisions`. Skips the entity search only when the sections vanilla would inspect have no collidable entity and the level has no dragon parts; otherwise builds vanilla-equivalent collision shapes and audits each skipped search.
+- Depends on: `CollidableEntities`, `CollisionAudit`, `SectionCounts`.
 
 ## Source Files
 
@@ -1285,7 +1558,9 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
-| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CompressionEncoderLevelMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `ChunkStatusTasksFeaturesMixin` on dedicated servers only (module `parallelFeatures`); `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorBlockEntitiesMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionBlockEntityMixin`, `RenderSectionMeshVersionMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` `VulkanRenderPipelineMixin`, the frame and GPU timing mixins (`ClientLevelLightTimingMixin`, `ClientPacketListenerChunkTimingMixin`, `FrameGraphBuilderTimingMixin`, `FrontendCommandEncoderTimingMixin`, `FrontendRenderPassTimingMixin`, `LevelRendererMainPassTimingMixin`, `UberGpuBufferHeapTraceMixin`, `VulkanCommandEncoderTimingMixin`, `VulkanGpuSurfaceTimingMixin`, `VulkanMemoryTraceMixin`, `VulkanTransientMemoryTraceMixin`, `VulkanQueryPoolAccessor`), the section ownership mixins (`CompileTaskOwnershipMixin`, `RenderSectionAccessor`, `RenderSectionOwnershipMixin`, `ResortTransparencyTaskOwnershipMixin`, `SectionRenderDispatcherOwnershipMixin`, module `lockFreeSections`) and `VulkanGpuSurfaceImageCountMixin` (module `swapchainImages`) on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`). |
+| `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CompressionEncoderLevelMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `ChunkStatusTasksFeaturesMixin` on dedicated servers only (module `parallelFeatures`); `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorBlockEntitiesMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionBlockEntityMixin`, `RenderSectionMeshVersionMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` `VulkanRenderPipelineMixin`, the frame and GPU timing mixins (`ClientLevelLightTimingMixin`, `ClientPacketListenerChunkTimingMixin`, `FrameGraphBuilderTimingMixin`, `FrontendCommandEncoderTimingMixin`, `FrontendRenderPassTimingMixin`, `LevelRendererMainPassTimingMixin`, `UberGpuBufferHeapTraceMixin`, `VulkanCommandEncoderTimingMixin`, `VulkanGpuSurfaceTimingMixin`, `VulkanMemoryTraceMixin`, `VulkanTransientMemoryTraceMixin`, `VulkanQueryPoolAccessor`), the section ownership mixins (`CompileTaskOwnershipMixin`, `RenderSectionAccessor`, `RenderSectionOwnershipMixin`, `ResortTransparencyTaskOwnershipMixin`, `SectionRenderDispatcherOwnershipMixin`, module `lockFreeSections`) and `VulkanGpuSurfaceImageCountMixin` (module `swapchainImages`) on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`) and `ClientLevelPregenerationMixin`, `LevelExtractorPregenerationMixin`, `LevelLoadTrackerPregenerationMixin`, `PacketProcessorPregenerationMixin`, `PrepareSpawnTaskPregenerationMixin`, `PrepareSpawnTaskPreparingMixin` and `ServerGamePacketListenerTerrainWaitMixin` (module `spawnPregeneration`, physical client only, so the integrated server but never a dedicated one). |
+
+| `src/main/resources/aervium.mixins.json` | Client-side `DeltaTrackerTimerPrecisionMixin` for module `preciseFrameTime` and `ModelCubeCornersMixin` for module `modelCorners`; both-side `EntitySelectorPushMixin` for module `teamlessPushing`. |
 
 ## Asset Folders
 
@@ -1293,6 +1568,7 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 |---|---|
 | `src/main/resources/assets/aervium/lang/` | `en_us.json` and `tr_tr.json`: key binding and config texts. |
 | `src/main/resources/assets/aervium/shaders/terrain/` | `compact.vsh`: the vanilla `core/terrain` vertex shader reading the compact vertex format (module `compactVertices`); the fragment shader stays vanilla. |
+| `src/main/resources/assets/aervium/warmup/` | `join_classes.txt`: classes `JoinWarmup` loads ahead of the first world join, one name per line, sorted; generated from a JFR recording of joins on Minecraft 26.3 (render thread class loads, without hidden and lambda classes and without other Aryston mods). |
 
 ## Build Files
 

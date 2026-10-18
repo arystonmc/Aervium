@@ -13,10 +13,16 @@ import com.mojang.renderpearl.api.commands.RenderPass;
 import com.mojang.renderpearl.api.pipeline.IndexType;
 import com.mojang.renderpearl.backend.vulkan.VulkanCommandEncoder;
 import com.mojang.renderpearl.backend.vulkan.VulkanDevice;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MappableRingBuffer;
 import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
@@ -59,6 +65,7 @@ public final class GpuCulling {
     private static final long[] RANGES = new long[CullPipeline.BINDINGS];
 
     private static State state = State.UNCHECKED;
+    private static @Nullable CompletableFuture<CullPipeline> pendingPipeline;
     private static @Nullable VulkanDevice device;
     private static @Nullable CullPipeline pipeline;
     private static @Nullable MappableRingBuffer visibleRing;
@@ -244,29 +251,49 @@ public final class GpuCulling {
         RANGES[binding] = range;
     }
 
-    private static boolean ready() {
-        if (state == State.UNCHECKED) {
-            state = initialize();
+    public static void warmUp(Executor worker) {
+        if (state != State.UNCHECKED) {
+            return;
         }
-        return state == State.READY;
-    }
-
-    private static State initialize() {
         if (!MixinModules.activeModules().getOrDefault(OptimizationModule.GPU_CULLING.key(), false)) {
-            return State.UNAVAILABLE;
+            state = State.UNAVAILABLE;
+            return;
         }
         VulkanDevice vulkan = VulkanAccess.device();
         if (vulkan == null || !VulkanAccess.supportsIndirectCount(vulkan)) {
             Aervium.LOGGER.info("Aervium GPU culling is not available on this device; terrain draw lists stay on the CPU");
-            return State.UNAVAILABLE;
-        }
-        try {
-            pipeline = CullPipeline.create(vulkan);
-        } catch (Exception failure) {
-            Aervium.LOGGER.warn("Aervium GPU culling could not be set up; terrain draw lists stay on the CPU", failure);
-            return State.UNAVAILABLE;
+            state = State.UNAVAILABLE;
+            return;
         }
         device = vulkan;
+        pendingPipeline = CompletableFuture.supplyAsync(() -> {
+            try {
+                return CullPipeline.create(vulkan);
+            } catch (IOException failure) {
+                throw new UncheckedIOException(failure);
+            }
+        }, worker);
+        state = State.COMPILING;
+    }
+
+    private static boolean ready() {
+        if (state == State.UNCHECKED) {
+            warmUp(ForkJoinPool.commonPool());
+        }
+        if (state == State.COMPILING && pendingPipeline != null && pendingPipeline.isDone()) {
+            state = initialize(pendingPipeline);
+            pendingPipeline = null;
+        }
+        return state == State.READY;
+    }
+
+    private static State initialize(CompletableFuture<CullPipeline> compiled) {
+        try {
+            pipeline = compiled.join();
+        } catch (CompletionException failure) {
+            Aervium.LOGGER.warn("Aervium GPU culling could not be set up; terrain draw lists stay on the CPU", failure.getCause());
+            return State.UNAVAILABLE;
+        }
         maxDrawCount = RenderSystem.getDevice().getDeviceInfo().limits().maxDrawIndirectDrawCount();
         counts = RenderSystem.getDevice().createBuffer(() -> "Aervium GPU draw counts", COUNT_USAGE, RANK_BYTES);
         Aervium.LOGGER.info("Aervium GPU culling is on: the GPU builds the solid and cutout terrain draw lists");
@@ -313,6 +340,7 @@ public final class GpuCulling {
 
     private enum State {
         UNCHECKED,
+        COMPILING,
         READY,
         UNAVAILABLE
     }

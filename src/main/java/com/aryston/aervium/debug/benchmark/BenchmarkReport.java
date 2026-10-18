@@ -13,5 +13,5 @@ public record BenchmarkReport(
     FrameTimeSummary overallFrames,
     TickSummary overallTicks
 ) {
-    public static final int FORMAT_VERSION = 1;
+    public static final int FORMAT_VERSION = 2;
 }

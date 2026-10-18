@@ -1,53 +1,79 @@
 package com.aryston.aervium.debug.benchmark;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class BenchmarkCommandsTest {
-    private static final int MAX_FILL_VOLUME = 32_768;
-
-    @Test
-    void summonsTheWholeCrowdOnTheSurface() {
-        List<String> commands = BenchmarkCommands.villageCrowd(new BlockPoint(100, 70, 200), (x, z) -> 64 + (x + z) % 3);
-        assertEquals(BenchmarkCommands.crowdSize(), commands.size());
-        assertTrue(commands.stream().allMatch(command -> command.startsWith("summon minecraft:villager ")));
-        assertEquals(commands.size(), commands.stream().distinct().count());
-    }
-
-    @Test
-    void forceLoadsExactlyTheCrowdArea() {
-        BlockPoint center = new BlockPoint(100, 70, 200);
-        assertEquals("forceload add 93 196 107 204", BenchmarkCommands.forceLoadCrowd(center, true));
-        assertEquals("forceload remove 93 196 107 204", BenchmarkCommands.forceLoadCrowd(center, false));
-        List<String> crowd = BenchmarkCommands.villageCrowd(center, (x, z) -> 64);
-        assertTrue(crowd.getFirst().startsWith("summon minecraft:villager 93 64 196 "));
-        assertTrue(crowd.getLast().startsWith("summon minecraft:villager 107 64 204 "));
-    }
-
-    @Test
-    void buildsTheRedstoneClocksAfterTheirSurroundings() {
-        List<String> commands = BenchmarkCommands.redstoneBuild(new BlockPoint(0, 90, 0));
-        assertTrue(commands.get(0).endsWith("minecraft:air"));
-        assertTrue(commands.get(1).endsWith("minecraft:stone"));
-        assertTrue(commands.getLast().endsWith("minecraft:observer[facing=west]"));
-        long eastObservers = commands.stream().filter(command -> command.endsWith("observer[facing=east]")).count();
-        assertEquals(BenchmarkCommands.clockCount() / 16, eastObservers);
-    }
-
-    @Test
-    void everyFillStaysWithinTheVanillaLimit() {
-        BenchmarkCommands.redstoneBuild(new BlockPoint(-40, 120, 33)).stream()
-            .filter(command -> command.startsWith("fill "))
-            .forEach(command -> assertTrue(volume(command) <= MAX_FILL_VOLUME, command));
-    }
+    private static final BlockPoint SITE = new BlockPoint(-40, 120, 33);
 
     @Test
     void freezesTimeAndWeather() {
         assertTrue(BenchmarkCommands.worldRules().contains("gamerule advance_time false"));
         assertTrue(BenchmarkCommands.worldRules().contains("gamerule advance_weather false"));
+    }
+
+    @Test
+    void splitsLargeBoxesIntoFillsWithinTheVanillaLimit() {
+        List<String> fills = BoxCommands.fill(new BlockPoint(0, 0, 0), new BlockPoint(63, 47, 63), "minecraft:air");
+        assertEquals(6, fills.size());
+        fills.forEach(command -> assertTrue(volume(command) <= BoxCommands.FILL_LIMIT, command));
+        assertEquals(64L * 48 * 64, fills.stream().mapToLong(BenchmarkCommandsTest::volume).sum());
+    }
+
+    @Test
+    void refusesALayerLargerThanOneFill() {
+        assertThrows(IllegalArgumentException.class, () -> BoxCommands.fill(new BlockPoint(0, 0, 0), new BlockPoint(200, 0, 200), "minecraft:air"));
+    }
+
+    @Test
+    void everySceneKeepsItsFillsWithinTheVanillaLimit() {
+        for (BenchmarkScene scene : BenchmarkScene.values()) {
+            SceneSetup setup = scene.setup();
+            for (List<String> commands : List.of(setup.build(SITE), setup.clear(SITE))) {
+                commands.stream()
+                    .filter(command -> command.startsWith("fill "))
+                    .forEach(command -> assertTrue(volume(command) <= BoxCommands.FILL_LIMIT, scene + ": " + command));
+            }
+        }
+    }
+
+    @Test
+    void theCrowdSummonsEveryEntityWithTheStressTag() {
+        List<String> summons = new CrowdSetup().build(SITE).stream().filter(command -> command.startsWith("summon ")).toList();
+        assertEquals(CrowdSetup.MOBS + CrowdSetup.ITEMS + CrowdSetup.ARMOR_STANDS, summons.size());
+        summons.forEach(command -> assertTrue(command.contains(BoxCommands.STRESS_TAG), command));
+        assertTrue(new CrowdSetup().clear(SITE).contains(BoxCommands.killTagged()));
+    }
+
+    @Test
+    void theStorageFillsEveryRowOfEveryLayer() {
+        long rows = new StorageSetup().build(SITE).stream().filter(command -> command.contains("{") || command.contains("ender_chest") || command.contains("shulker_box")).count();
+        assertEquals(StorageSetup.SIZE * StorageSetup.LAYERS, rows);
+    }
+
+    @Test
+    void theExplosionIsLitOnlyWhenTheMeasurementStarts() {
+        ExplosionSetup explosion = new ExplosionSetup();
+        assertTrue(explosion.everyTick(SITE, BenchmarkRoute.SETTLE_TICKS - 1).isEmpty());
+        assertEquals(1, explosion.everyTick(SITE, BenchmarkRoute.SETTLE_TICKS).size());
+        assertTrue(explosion.everyTick(SITE, BenchmarkRoute.SETTLE_TICKS).getFirst().endsWith("minecraft:redstone_block"));
+    }
+
+    @Test
+    void theParticleStormSpawnsItsParticlesEveryTick() {
+        List<String> storm = new ParticleStormSetup().everyTick(SITE, 0);
+        int count = storm.stream().mapToInt(command -> Integer.parseInt(command.split(" ")[9])).sum();
+        assertEquals(ParticleStormSetup.particlesPerTick(), count);
+    }
+
+    @Test
+    void scenesWithoutASiteBuildNothing() {
+        assertTrue(BenchmarkScene.WALK.setup().build(SITE).isEmpty());
+        assertTrue(BenchmarkScene.SERVER.setup().clear(SITE).isEmpty());
     }
 
     private static long volume(String fillCommand) {

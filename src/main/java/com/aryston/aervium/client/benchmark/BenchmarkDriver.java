@@ -16,16 +16,19 @@ import com.aryston.aervium.core.telemetry.FrameTimeRecorder;
 import com.aryston.aervium.core.telemetry.FrameTimeSummary;
 import com.aryston.aervium.core.telemetry.GcPauseRecorder;
 import com.aryston.aervium.core.telemetry.HeapUsage;
+import com.aryston.aervium.core.telemetry.MotionErrorRecorder;
 import com.aryston.aervium.core.telemetry.StageTimes;
 import com.aryston.aervium.core.telemetry.TickSummary;
 import com.aryston.aervium.core.telemetry.VramUsage;
 import com.aryston.aervium.debug.benchmark.BenchmarkAnchors;
 import com.aryston.aervium.debug.benchmark.BenchmarkComparison;
+import com.aryston.aervium.debug.benchmark.BenchmarkEnvironment;
 import com.aryston.aervium.debug.benchmark.BenchmarkFiles;
 import com.aryston.aervium.debug.benchmark.BenchmarkReport;
 import com.aryston.aervium.debug.benchmark.BenchmarkRoute;
 import com.aryston.aervium.debug.benchmark.BenchmarkScene;
 import com.aryston.aervium.debug.benchmark.BenchmarkText;
+import com.aryston.aervium.debug.benchmark.BlockPoint;
 import com.aryston.aervium.debug.benchmark.SceneMeasurement;
 import com.aryston.aervium.debug.benchmark.SceneResult;
 import com.aryston.aervium.debug.route.CameraPath;
@@ -45,6 +48,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.client.server.IntegratedServer;
+import org.lwjgl.sdl.SDLVideo;
 
 public final class BenchmarkDriver {
     private static final String PROPERTY = "aervium.benchmark";
@@ -54,7 +58,6 @@ public final class BenchmarkDriver {
     private static final DateTimeFormatter STARTED_AT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final int FRAME_CAPACITY = 1 << 17;
     private static final int VRAM_SAMPLE_INTERVAL_TICKS = 20;
-    private static final int MAX_PREPARE_TICKS = 600;
 
     private final GcPauseRecorder gcPauses;
     private final JobSystem jobs;
@@ -63,13 +66,16 @@ public final class BenchmarkDriver {
     private final boolean quitWhenDone = Boolean.getBoolean(QUIT_PROPERTY);
     private final boolean gpuTimings = Boolean.getBoolean(GPU_TIMINGS_PROPERTY);
     private final FrameTimeRecorder frames = new FrameTimeRecorder(FRAME_CAPACITY);
+    private final MotionErrorRecorder motion = new MotionErrorRecorder(FRAME_CAPACITY);
     private final BenchmarkCamera camera = new BenchmarkCamera();
     private final List<SceneResult> results = new ArrayList<>();
     private final List<long[]> allFrames = new ArrayList<>();
     private final List<long[]> allTicks = new ArrayList<>();
     private Stage stage = Stage.CREATE_WORLD;
     private CompletableFuture<BenchmarkAnchors> pendingAnchors;
-    private CompletableFuture<Boolean> pendingCrowd;
+    private CompletableFuture<Boolean> pendingBuild;
+    private boolean siteBuilt;
+    private BlockPoint site;
     private BenchmarkAnchors anchors;
     private String startedAt;
     private boolean pauseOnLostFocus;
@@ -105,12 +111,21 @@ public final class BenchmarkDriver {
         }
     }
 
+    public void motionSampled(long nanoTime, double simulatedMillis) {
+        if (stage == Stage.SCENE) {
+            motion.framePresented(nanoTime, simulatedMillis);
+        }
+    }
+
+    public void motionInterrupted() {
+        motion.interrupted();
+    }
+
     public void clientTick(Minecraft minecraft) {
         switch (stage) {
             case CREATE_WORLD -> createWorld(minecraft);
             case WAIT_FOR_PLAYER -> waitForPlayer(minecraft);
             case LOCATE -> locate(minecraft);
-            case PREPARE -> prepare(minecraft);
             case WARMUP -> warmUp(minecraft);
             case SCENE -> runScene(minecraft);
             case FINISHED -> {
@@ -123,6 +138,7 @@ public final class BenchmarkDriver {
             return;
         }
         options.apply(minecraft.options);
+        SDLVideo.SDL_RaiseWindow(minecraft.getWindow().handle());
         try {
             BenchmarkWorld.createFresh(minecraft, minecraft.gui.screen());
             Aervium.LOGGER.info("Aervium benchmark: creating a fresh world with seed {}", BenchmarkWorld.SEED);
@@ -156,35 +172,10 @@ public final class BenchmarkDriver {
             abort(minecraft, "the benchmark locations could not be found", failure);
             return;
         }
-        Aervium.LOGGER.info("Aervium benchmark: spawn {}, village {} (found: {}), redstone {}", anchors.spawn(), anchors.village(), anchors.villageFound(), anchors.redstone());
+        Aervium.LOGGER.info("Aervium benchmark: spawn {}, scene sites {}", anchors.spawn(), anchors.sites());
         path = BenchmarkRoute.path(BenchmarkScene.values()[0], anchors);
         tick = 0;
-        BenchmarkWorld.loadCrowdArea(minecraft.getSingleplayerServer(), anchors);
-        stage = Stage.PREPARE;
-    }
-
-    private void prepare(Minecraft minecraft) {
-        if (leftWorld(minecraft)) {
-            return;
-        }
-        holdInputActive(minecraft);
-        camera.place(minecraft.player, minecraft.level, path, 0);
-        tick++;
-        if (pendingCrowd == null) {
-            pendingCrowd = BenchmarkWorld.summonCrowdWhenLoaded(minecraft.getSingleplayerServer(), anchors);
-            return;
-        }
-        if (!pendingCrowd.isDone()) {
-            return;
-        }
-        boolean summoned = pendingCrowd.join();
-        pendingCrowd = null;
-        if (summoned) {
-            tick = 0;
-            stage = Stage.WARMUP;
-        } else if (tick > MAX_PREPARE_TICKS) {
-            abort(minecraft, "the village area did not load", new IllegalStateException("village chunks not loaded after " + tick + " ticks"));
-        }
+        stage = Stage.WARMUP;
     }
 
     private void warmUp(Minecraft minecraft) {
@@ -206,7 +197,10 @@ public final class BenchmarkDriver {
         tick = 0;
         camera.reset();
         settleMark = frames.frameTimes().recorded();
-        BenchmarkWorld.setUpScene(minecraft.getSingleplayerServer(), scene, anchors);
+        site = anchors.site(scene);
+        siteBuilt = !scene.setup().usesSite();
+        pendingBuild = null;
+        BenchmarkWorld.loadSite(minecraft.getSingleplayerServer(), scene, site);
         stage = Stage.SCENE;
         Aervium.LOGGER.info("Aervium benchmark: scene {} ({})", scene.id(), scene.description());
     }
@@ -218,14 +212,16 @@ public final class BenchmarkDriver {
         holdInputActive(minecraft);
         LocalPlayer player = minecraft.player;
         camera.place(player, minecraft.level, path, tick);
+        driveScene(minecraft.getSingleplayerServer());
         tick++;
         if (tick == BenchmarkRoute.SETTLE_TICKS) {
+            warnIfSiteMissing();
             CullingStatistics.SHARED.takeCameraHiddenPercent();
             CullingStatistics.SHARED.takeFaceSkippedPercent();
             CullingStatistics.SHARED.takeShadowHiddenPercent();
             CullingStatistics.SHARED.takeCameraResults();
             logSettling(BenchmarkScene.values()[sceneIndex].id());
-            measurement = new SceneMeasurement(BenchmarkScene.values()[sceneIndex], frames.frameTimes(), TickTimeRecorder.SERVER.mark(), gcPauses.mark(), System.nanoTime());
+            measurement = new SceneMeasurement(BenchmarkScene.values()[sceneIndex], frames.frameTimes(), motion.errors(), TickTimeRecorder.SERVER.mark(), gcPauses.mark(), System.nanoTime());
             lastVramBytes = vramProbe.get().usedBytes();
             meshMeter = MeshWorkers.meter(System.nanoTime());
             queuedSum = 0;
@@ -241,6 +237,36 @@ public final class BenchmarkDriver {
         }
         if (tick == BenchmarkRoute.SETTLE_TICKS + BenchmarkRoute.MEASURE_TICKS) {
             finishScene(minecraft);
+        }
+    }
+
+    private void driveScene(IntegratedServer server) {
+        BenchmarkScene scene = BenchmarkScene.values()[sceneIndex];
+        if (!siteBuilt) {
+            buildSite(server, scene);
+            return;
+        }
+        BenchmarkWorld.tickScene(server, scene, site, tick);
+        if (scene == BenchmarkScene.SERVER) {
+            SimulatedPlayers.step(server, anchors.spawn(), tick);
+        }
+    }
+
+    private void buildSite(IntegratedServer server, BenchmarkScene scene) {
+        if (pendingBuild == null) {
+            pendingBuild = BenchmarkWorld.buildWhenLoaded(server, scene, site);
+            return;
+        }
+        if (pendingBuild.isDone()) {
+            siteBuilt = pendingBuild.join();
+            pendingBuild = null;
+        }
+    }
+
+    private void warnIfSiteMissing() {
+        if (!siteBuilt) {
+            Aervium.LOGGER.warn("Aervium benchmark: the {} site at {} did not load while settling; the scene is measured without it",
+                BenchmarkScene.values()[sceneIndex].id(), site);
         }
     }
 
@@ -298,7 +324,7 @@ public final class BenchmarkDriver {
         long[] frameNanos = measurement.frameTimes(frames.frameTimes());
         long recordedFrames = measurement.framesRecordedSince(frames.frameTimes());
         long[] tickNanos = TickTimeRecorder.SERVER.since(measurement.tickMark());
-        SceneResult result = measurement.finish(frameNanos, recordedFrames, tickNanos, gcPauses.since(measurement.gcMark()), System.nanoTime());
+        SceneResult result = measurement.finish(frameNanos, measurement.motionErrors(motion.errors()), recordedFrames, tickNanos, gcPauses.since(measurement.gcMark()), System.nanoTime());
         results.add(result);
         allFrames.add(frameNanos);
         allTicks.add(tickNanos);
@@ -309,6 +335,7 @@ public final class BenchmarkDriver {
         logChunkBuilds(result.scene());
         logCameraResults(result.scene());
         logGpuStages(result.scene());
+        BenchmarkWorld.clearSite(minecraft.getSingleplayerServer(), BenchmarkScene.values()[sceneIndex], site);
         if (sceneIndex + 1 < BenchmarkScene.values().length) {
             startScene(minecraft, sceneIndex + 1);
             return;
@@ -317,13 +344,14 @@ public final class BenchmarkDriver {
     }
 
     private void finish(Minecraft minecraft) {
+        BenchmarkEnvironment environment = BenchmarkEnvironmentProbe.capture(minecraft);
         end(minecraft);
         long[] overallFrames = concatenate(allFrames);
         long[] overallTicks = concatenate(allTicks);
         BenchmarkReport report = new BenchmarkReport(
             BenchmarkReport.FORMAT_VERSION,
             startedAt,
-            BenchmarkEnvironmentProbe.capture(minecraft),
+            environment,
             anchors,
             List.copyOf(results),
             FrameTimeSummary.of(overallFrames, overallFrames.length),
@@ -383,7 +411,6 @@ public final class BenchmarkDriver {
         CREATE_WORLD,
         WAIT_FOR_PLAYER,
         LOCATE,
-        PREPARE,
         WARMUP,
         SCENE,
         FINISHED
