@@ -3,6 +3,8 @@ package com.aryston.aervium.client;
 import com.aryston.aervium.client.chunk.MeshWorkers;
 import com.aryston.aervium.client.culling.HelionShadowCasters;
 import com.aryston.aervium.client.culling.TerrainOcclusion;
+import com.aryston.aervium.client.lod.DistantTerrain;
+import com.aryston.aervium.client.lod.DistantTerrainRenderer;
 import com.aryston.aervium.core.culling.CullingStatistics;
 import com.aryston.aervium.core.job.JobLoadMeter.JobLoad;
 import com.aryston.aervium.core.telemetry.ByteSizes;
@@ -41,6 +43,9 @@ final class OverlayLines {
         lines.add(gcLine(snapshot.gcPauses()));
         lines.add(new Line(memoryText(snapshot), MUTED));
         lines.add(cullingLine(CullingStatistics.SHARED));
+        if (DistantTerrain.enabled()) {
+            lines.add(distantTerrainLine(DistantTerrain.statistics()));
+        }
         if (MeshWorkers.active()) {
             lines.add(meshLine(MeshWorkers.overlayLoad(System.nanoTime())));
         }
@@ -48,7 +53,6 @@ final class OverlayLines {
         if (!passiveRendererMods.isEmpty()) {
             lines.add(new Line("Optimizations off: " + String.join(", ", passiveRendererMods) + " installed", WARNING));
         }
-        lines.add(new Line(AerviumKeys.TOGGLE_OVERLAY.getTranslatedKeyMessage().getString() + " hides this overlay, " + AerviumKeys.TOGGLE_CULLING.getTranslatedKeyMessage().getString() + " switches occlusion culling", MUTED));
         return lines;
     }
 
@@ -68,7 +72,7 @@ final class OverlayLines {
 
     private static Line cullingLine(CullingStatistics culling) {
         if (!TerrainOcclusion.enabled()) {
-            return new Line("Culling off (F6)", WARNING);
+            return new Line("Culling off in settings", WARNING);
         }
         String camera = TerrainOcclusion.cameraPaused()
             ? "Culling camera resting: under 15% hidden here"
@@ -85,6 +89,10 @@ final class OverlayLines {
         }
         return new Line(camera + format("  shadows %d of %d (%d%%)", culling.shadowHidden(), culling.shadowCasters(),
             CullingStatistics.percent(culling.shadowHidden(), culling.shadowCasters())), MUTED);
+    }
+
+    private static Line distantTerrainLine(DistantTerrain.Statistics terrain) {
+        return new Line(format("Distant terrain %d chunks recorded  %d tiles generated  %d tiles  %.0f MB  %d meshes  %d drawn", terrain.chunks(), terrain.generated(), terrain.tiles(), ByteSizes.megabytes(terrain.bytes()), DistantTerrainRenderer.meshCount(), DistantTerrainRenderer.drawnCount()), MUTED);
     }
 
     private static Line meshLine(JobLoad load) {

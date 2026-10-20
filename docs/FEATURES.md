@@ -4,7 +4,7 @@ What the latest version of Aervium can do. Written for players and ready to reus
 
 ## Summary
 
-Aervium makes Minecraft run smoother on the Vulkan renderer: steadier frame times, fewer stutters and a server that keeps 20 ticks per second, while redstone, farms and mobs behave exactly as in vanilla. It skips terrain, mobs and particles hidden behind blocks, lets the graphics card build its own terrain draw list, caches shaders so games start faster without hitches, opens single player worlds with the land around you already built, speeds up villagers, mobs, hoppers and world generation on the server, and measures all of it with a built-in overlay and benchmark. Every optimization can be switched off on its own.
+Aervium makes Minecraft run smoother on the Vulkan renderer: steadier frame times, fewer stutters and a server that keeps 20 ticks per second, while redstone, farms and mobs behave exactly as in vanilla. It draws terrain far beyond the normal render distance, computing unvisited land from the world seed in single player, skips terrain, mobs and particles hidden behind blocks, lets the graphics card build its own terrain draw list, caches shaders so games start faster without hitches, opens single player worlds with the land around you already built, speeds up villagers, mobs, hoppers and world generation on the server, and measures all of it with a built-in overlay and benchmark. Every optimization can be switched off on its own.
 
 ## At a Glance
 
@@ -18,15 +18,39 @@ Aervium makes Minecraft run smoother on the Vulkan renderer: steadier frame time
 
 ## Features
 
-### Performance Overlay
-See exactly how smooth your game runs, not just how fast.
+### Distant Terrain
+The landscape stays visible far past Minecraft's normal render distance, including places you have never visited.
 
-- Shows the frame rate together with the 1% and 0.1% lows, the average frame time and how much it varies, and the longest frame
-- Shows hitches and average, p99 and maximum motion error, so uneven motion is visible even when frame rate looks steady
-- A live frame time graph draws every frame as a bar: green within your target frame rate, yellow when slower, red for spikes that take twice as long
-- The graph is drawn as one piece, so showing the overlay no longer costs a noticeable part of the frame
-- Shows the server tick time (MSPT) of your single player world with the number of ticks over 50 ms, garbage collector pauses, RAM and video memory, and how long each part of the game takes per frame
-- Press F7 to show or hide it; its last line names the keys that hide it and switch occlusion culling, and changes when you bind them to other keys in Controls; the target frame rate is set in the Aervium settings (Mods, Aervium, Config)
+- Draws simplified terrain up to 512 chunks away and caches seed results on disk for later visits
+- In single player, land you have not visited is computed from the world seed in the background (heights and biome colours, without creating, loading or saving chunks): the whole horizon appears coarse first, then the area near you gets finer
+- Chunks you see replace the computed land with their real look, and block or light changes refresh them
+- Keeps up to eight vertical layers for seen chunks, so canopies, ground and overhangs stay apart, with texture-average colours, biome tint and light; distant water is drawn solid
+- On servers the seed is unknown, so only terrain seen in the current session is drawn
+- Works on both Minecraft's normal renderer and Helion, matching the fog beyond the real terrain
+- Fog stretches with the distant terrain distance, so even 512 chunks stay visible; real terrain below you stays drawn when you fly high above it
+- Distant Terrain is on by default; set its distance from 64 to 512 chunks in the Aervium settings or with the 64, 128, 256 and 512 chunk preset buttons, with 256 chunks as the default
+- Quality (Low, Medium, High, Ultra) sets how fine the terrain near you is: High and Ultra reach full block detail near you with denser computed heights, and Ultra adds block texture detail to the terrain; CPU Usage (Low, Balanced, High, Extreme) limits generation threads, with extra idle time on Low and Balanced to leave room for the game
+- Complete coarse terrain stays until its finer replacement is uploaded; uploaded detail survives sample-memory cleanup. Changes dissolve over a short transition and actual uploaded real-chunk coverage controls masking without waiting for full layered capture. Neighboring height differences get deeper edge walls, and flat surfaces use fewer triangles
+- Capturing and uploading share work over frames. Sample/layer storage is periodically trimmed toward 128 MiB; shared geometry pages are capped at 128 MiB, and queues/staging have separate limits. These are component limits, not total memory measurements
+- Rejects tiles outside the camera view and batches shared GPU buffers into indirect draws; resource reloads rebuild colours and discard stale work
+- The F3 debug screen and overlay show recorded chunks, generated tiles, tiles, sample memory, meshes and drawn tiles
+- Since: 0.1
+
+### Smooth Zoom
+Focus on distant terrain and structures with a smooth, controllable zoom.
+
+- Hold `C` to smoothly zoom in; release to return to normal field of view
+- Scroll the mouse wheel while holding `C` to dynamically zoom closer or further away (from 1.2x up to 30x) without changing your hotbar slot
+- Mouse sensitivity scales proportionally with zoom level for steady and accurate aiming
+- Hand and viewmodel remain at normal field of view
+- Since: 0.1
+
+### Performance Diagnostics & F3 Screen
+See exactly how smooth your game runs, directly in the F3 debug screen without cluttering your view.
+
+- Displays compact, non-intrusive performance lines in the F3 screen: frame rate, 1% lows, frame time, MSPT, memory, occlusion culling stats, and distant terrain metrics
+- Shows hitches, motion error, garbage collector pauses, RAM and video memory
+- Full telemetry overlay can also be enabled in the Aervium configuration
 - Since: 0.1
 
 ### Built-in Benchmark
@@ -38,6 +62,7 @@ A repeatable test run so changes can be measured instead of guessed.
 - Measures every scene for 30 seconds after 10 seconds of settling: frame rate, 1% and 0.1% lows, frame time deviation, median, p99 and p99.9 frame time, frames over 33 and 50 ms, server tick time distribution, garbage collector pauses, peak RAM and video memory
 - Writes `aervium/benchmarks/benchmark-<date>.json` and a readable `.txt` report into the game folder and compares format 2 reports with the previous run
 - Start it with the JVM argument `-Daervium.benchmark=true`; add `-Daervium.benchmark.quit=true` to close the game when it is done
+- Add `-Daervium.benchmark.screenshots=true` to save a screenshot at the end of every scene
 - Every run gives Minecraft all the power: no frame limit and no vsync while it runs (your settings come back afterwards); `-Daervium.benchmark.renderDistance=N` and `-Daervium.benchmark.simulationDistance=N` set the distances for the run, and `-Daervium.modules=off` turns every Aervium optimization off for that start, to measure vanilla without editing `aervium-modules.properties`
 - Since: 0.1
 
@@ -99,7 +124,7 @@ Prepares the list of chunks to draw with much less work every frame.
 Chunks are prepared for drawing on Aervium's own worker threads.
 
 - In single player, vanilla prepares chunks on the same threads that generate and save the world, so new chunks wait behind world generation when you fly or run into new land; Aervium gives chunk building its own threads (all cores but two, up to eight), one priority step below normal so they never hold back the graphics driver and the window compositor; this cut the long freezes underground and in the elytra flight by two thirds and lifted the 0.1% low from about 157 to 205 FPS over the whole benchmark, with chunks built just as fast
-- The overlay (F7) shows chunk builds per second, how busy the workers are and how many builds are waiting; the benchmark log prints the same per scene
+- The F3 screen shows chunk builds per second, how busy the workers are and how many builds are waiting; the benchmark log prints the same per scene
 - The overlay and the benchmark log also show how long uploading new chunks to the graphics card takes and how long the game waits for the chunk builders
 - Since: 0.1
 
@@ -216,7 +241,7 @@ Skips terrain you cannot see because solid blocks are in the way.
 - Stretching a result costs the main thread no extra visibility tests: the background thread already measured how far each hidden chunk stays hidden
 - Where nothing is hidden, for example on flat land, culling rests and costs nothing; it checks again every second, so it starts working as soon as you enter a cave or walk behind a hill. The overlay shows when it rests
 - In open scenes, particles and entities skip their visibility test when the terrain test hid nothing, so Aervium spends no time asking whether they are behind a wall
-- F6 turns it on and off in game to compare; the overlay (F7) shows how many chunks, entities and particles were skipped
+- It can be turned off in the settings to compare; the F3 screen shows how many chunks, entities and particles were skipped
 - Since: 0.1
 
 ### Face Culling
@@ -268,4 +293,12 @@ Every optimization can be turned off.
 
 - `config/aervium-modules.properties` lists each optimization (`shaderCache`, `pipelineCache`, `pipelineWarmup`, `compactChunkLocks`, `sectionSliceCache`, `lightSnapshots`, `occlusionCulling`, `meshWorkers`, `faceCulling`, `poiSearch`, `entityCollisions`, `hopperSearch`, `compactVertices`, `networkCompression`, `parallelFeatures`, `blockEntitySections`, `directDraws`, `dirtySections`, `gpuCulling`, `sectionGridMoves`, `lockFreeSections`, `swapchainImages`, `chunkPacketDecoding`, `spawnPregeneration`, `joinWarmup`, `preciseFrameTime`, `particleCollisions`, `modelCorners`, `teamlessPushing`) with `true` or `false`; changes apply at the next start; every module starts on
 - Render optimizations stay off by themselves when Iris is installed, or next to Sodium in the benchmark
+- Since: 0.1
+
+### Settings Screen with Arkea
+When Arkea is installed, Aervium's settings use the same organized screen style as Helion.
+
+- The sidebar shows distant-terrain memory live: recorded chunks, tiles and MB; Configuration pages offer Performance, Balanced and Quality presets, overlay and frame-rate controls, distant terrain, rendering culling and world pregeneration
+- The System Modules page lets you switch every optimization and saves it to `config/aervium-modules.properties`; module changes apply after a restart
+- Without Arkea installed, Aervium keeps the normal NeoForge settings list
 - Since: 0.1

@@ -36,6 +36,12 @@ public final class ModuleSettings {
         return enabled.get(module);
     }
 
+    public ModuleSettings with(OptimizationModule module, boolean value) {
+        Map<OptimizationModule, Boolean> changed = new EnumMap<>(enabled);
+        changed.put(module, value);
+        return new ModuleSettings(changed);
+    }
+
     public List<String> lines() {
         return Arrays.stream(OptimizationModule.values())
             .map(module -> module.key() + ASSIGNMENT + (isEnabled(module) ? ENABLED : DISABLED))

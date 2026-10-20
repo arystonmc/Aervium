@@ -32,6 +32,8 @@ public final class BenchmarkRoute {
     private static final double EXPLOSION_HEIGHT = 32.0;
     private static final double SERVER_RADIUS = 64.0;
     private static final double SERVER_HEIGHT = 48.0;
+    private static final double OVERLOOK_RADIUS = 24.0;
+    private static final double OVERLOOK_HEIGHT = 300.0;
     private static final int TICKS_PER_TURN = SETTLE_TICKS + MEASURE_TICKS;
 
     private BenchmarkRoute() {
@@ -50,6 +52,7 @@ public final class BenchmarkRoute {
             case REDSTONE -> orbit(center, REDSTONE_RADIUS, REDSTONE_HEIGHT);
             case EXPLOSION -> orbit(center, EXPLOSION_RADIUS, EXPLOSION_HEIGHT);
             case SERVER -> orbit(spawn, SERVER_RADIUS, SERVER_HEIGHT);
+            case OVERLOOK -> orbit(spawn, OVERLOOK_RADIUS, OVERLOOK_HEIGHT);
         };
     }
 

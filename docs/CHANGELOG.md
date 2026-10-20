@@ -7,6 +7,13 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Added
+- Distant terrain draws land far beyond the render distance, with normal Minecraft rendering and Helion; in single player, unvisited land is computed from the world seed in the background, coarse horizon first, without creating or saving chunks
+- Distant terrain settings: distance from 64 to 512 chunks (default 256) with 64, 128, 256 and 512 chunk buttons, Low to Ultra quality and Low to Extreme CPU usage
+- With Arkea installed, Aervium has an organized settings screen with presets, live distant-terrain memory, configuration pages and restart-required module switches; without Arkea, the NeoForge settings list remains available
+- Aervium's performance details (frame rate and lows, server tick time, memory, culling, distant terrain and chunk builds) appear on the F3 debug screen
+- Smooth camera zoom while holding `C`, adjusted with the mouse wheel
+- High distant terrain quality now reaches full block detail near you, and Ultra adds block texture detail to distant terrain
+- `-Daervium.benchmark.screenshots=true` saves a screenshot at the end of every benchmark scene, and a new overlook scene circles high above the spawn looking down
 - Faster entity and block entity model rendering by transforming each cube corner once
 - Faster pushing in dense teamless crowds by skipping unused scoreboard team checks
 - Faster particles in open air by skipping empty block collision searches
@@ -22,7 +29,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Join check (`-Daervium.joinCheck=true`): opens a world, logs every loading phase with its slow frames, the missing chunks at entry and the first 10 s in game
 - The benchmark runs with no frame limit and no vsync, can set render and simulation distance, can turn every optimization off for vanilla runs, and counts frames over 33 and 50 ms
 - Aervium refuses to start next to Sodium and explains why on the loading screen; only its benchmark still runs next to Sodium to compare the two
-- Occlusion culling: terrain, mobs, chests, signs and particles hidden behind solid blocks are no longer drawn; the tests run on background threads and rest where they would hide little (F6 to compare)
+- Occlusion culling: terrain, mobs, chests, signs and particles hidden behind solid blocks are no longer drawn; the tests run on background threads and rest where they would hide little
 - With Helion, chunks the sun cannot see are left out of the shadow maps; shadows look the same
 - Graphics cards that support it build their own terrain draw list and skip block faces turned away from the camera; other cards keep a fast CPU path
 - Faster chunk drawing: draw commands go straight into GPU memory, chunks that need rebuilding are found from a compact list, and crossing a chunk border updates only the columns that move
@@ -40,8 +47,21 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Dynamic frame rate in the background and while paused
 - Optional leaf culling for faster forests (off by default)
 - On first launch Aervium sorts the PC into low, medium or high and lightens settings on weak machines
-- Performance overlay with frame rate, 1% and 0.1% lows, a frame time graph, server tick time, garbage collector pauses, memory use and chunk build statistics (F7); its last line names the keys that hide it and switch occlusion culling; its text is prepared only when its numbers change
+- Performance details on the F3 screen with frame rate, 1% and 0.1% lows, server tick time, garbage collector pauses, memory use and chunk build statistics; their text is prepared only when the numbers change
 - Built-in benchmark that flies a fixed route through a fixed-seed world and writes a JSON and a readable report
 - The log suggests Java settings for smoother frames
 - Crash reports name the Aervium module whose code was in the crash and how to test without it
 - Every optimization can be switched off in `config/aervium-modules.properties`, and all render optimizations stay off when Iris is installed
+
+### Changed
+- Updated the Aervium logo on the mod list and settings screen
+
+### Fixed
+- Distant terrain is no longer hidden by fog beyond 64 chunks; fog now stretches with the distant terrain distance
+- Real terrain below the camera no longer disappears when you fly far above it
+- Distant water no longer shows a grid of tile edges or blue patches over land
+- Distant water reflects the sky by view angle and ripples gently instead of being one flat colour
+- Distant terrain no longer reads saved chunks or runs hidden world generation, which could freeze the integrated server for seconds
+
+### Removed
+- The F6 culling and F7 overlay keys; occlusion culling is set in the settings and the performance details live on the F3 screen

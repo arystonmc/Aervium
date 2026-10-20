@@ -24,7 +24,7 @@ import org.spongepowered.asm.mixin.extensibility.IMixinConfigPlugin;
 import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 public final class MixinModules implements IMixinConfigPlugin {
-    private static final String SETTINGS_FILE = "aervium-modules.properties";
+    public static final String SETTINGS_FILE = "aervium-modules.properties";
     private static final String ALL_MODULES_PROPERTY = "aervium.modules";
     private static final String ALL_OFF = "off";
     private static final char PACKAGE_SEPARATOR = '.';
@@ -92,6 +92,13 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("ParticleCollisionMixin", OptimizationModule.PARTICLE_COLLISIONS),
         Map.entry("ModelCubeCornersMixin", OptimizationModule.MODEL_CORNERS),
         Map.entry("EntitySelectorPushMixin", OptimizationModule.TEAMLESS_PUSHING),
+        Map.entry("LevelRendererDistantTerrainMixin", OptimizationModule.DISTANT_TERRAIN),
+        Map.entry("RenderSectionDistantTerrainMixin", OptimizationModule.DISTANT_TERRAIN),
+        Map.entry("SectionOcclusionGraphDistantTerrainMixin", OptimizationModule.DISTANT_TERRAIN),
+        Map.entry("SectionUpdateTrackerDistantTerrainMixin", OptimizationModule.DISTANT_TERRAIN),
+        Map.entry("CameraDistantTerrainMixin", OptimizationModule.DISTANT_TERRAIN),
+        Map.entry("HelionDistantTerrainMixin", OptimizationModule.DISTANT_TERRAIN),
+        Map.entry("HelionDistantWaterMixin", OptimizationModule.DISTANT_TERRAIN),
         Map.entry("LevelLoadTrackerPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),
         Map.entry("LevelExtractorPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),
         Map.entry("PacketProcessorPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),

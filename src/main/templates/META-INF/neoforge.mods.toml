@@ -40,3 +40,11 @@ file="META-INF/accesstransformer.cfg"
     versionRange="*"
     ordering="NONE"
     side="CLIENT"
+
+[[dependencies.${mod_id}]]
+    modId="arkea"
+    type="optional"
+    reason="With Arkea installed, Aervium's settings use the same screen as Helion."
+    versionRange="${arkea_version_range}"
+    ordering="AFTER"
+    side="CLIENT"

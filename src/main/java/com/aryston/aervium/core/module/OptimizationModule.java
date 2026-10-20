@@ -29,7 +29,8 @@ public enum OptimizationModule {
     PRECISE_FRAME_TIME("preciseFrameTime", false),
     PARTICLE_COLLISIONS("particleCollisions", false),
     MODEL_CORNERS("modelCorners", true),
-    TEAMLESS_PUSHING("teamlessPushing", false);
+    TEAMLESS_PUSHING("teamlessPushing", false),
+    DISTANT_TERRAIN("distantTerrain", true);
 
     private final String key;
     private final boolean renderer;

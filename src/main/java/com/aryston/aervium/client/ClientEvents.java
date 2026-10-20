@@ -7,6 +7,9 @@ import com.aryston.aervium.client.chunk.DirectDraws;
 import com.aryston.aervium.client.chunk.LeafCulling;
 import com.aryston.aervium.client.gpu.GpuCulling;
 import com.aryston.aervium.client.gpu.GpuStageTimer;
+import com.aryston.aervium.client.lod.DistantTerrain;
+import com.aryston.aervium.client.lod.DistantTerrainFog;
+import com.aryston.aervium.client.lod.DistantTerrainRenderer;
 import com.aryston.aervium.client.culling.TerrainOcclusion;
 import com.aryston.aervium.client.pipeline.PipelineWarmup;
 import com.aryston.aervium.client.pipeline.ShaderCaches;
@@ -17,13 +20,13 @@ import com.aryston.aervium.core.budget.TimedSystem;
 import com.aryston.aervium.core.module.OptimizationModule;
 import com.aryston.aervium.core.telemetry.GarbageCollector;
 import com.aryston.aervium.core.telemetry.GcAdvice;
+import com.aryston.aervium.core.telemetry.TelemetrySnapshot;
 import com.aryston.aervium.integration.CompatibilityGuard;
 import com.aryston.aervium.integration.MixinModules;
 import com.aryston.aervium.world.spawn.SpawnPregenerationSettings;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.event.config.ModConfigEvent;
@@ -32,10 +35,13 @@ import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.FlipFrameEvent;
+import net.neoforged.neoforge.client.event.RegisterDebugEntriesEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RenderFrameEvent;
+import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.GameShuttingDownEvent;
+import net.neoforged.neoforge.event.level.ChunkEvent;
 
 final class ClientEvents {
     private static final String CACHE_FOLDER = "aervium/cache";
@@ -55,6 +61,7 @@ final class ClientEvents {
     private static long clientTickStart;
     private static double frameSimulatedMillis = MotionSampler.NOT_SAMPLED;
     private static boolean startupReported;
+    private static volatile TelemetrySnapshot latestSnapshot;
 
     private ClientEvents() {
     }
@@ -68,7 +75,10 @@ final class ClientEvents {
         modBus.addListener(ClientEvents::onConfigLoading);
         modBus.addListener(ClientEvents::onConfigReloading);
         modBus.addListener(AerviumKeys::register);
+        modBus.addListener((RegisterDebugEntriesEvent event) -> AerviumDebugEntry.register(event, PASSIVE_RENDERER_MODS));
         modBus.addListener(ClientEvents::onRegisterGuiLayers);
+        modBus.addListener(ClientEvents::onModelsReloaded);
+        ZoomController.register();
         NeoForge.EVENT_BUS.addListener(ClientEvents::onFrameStart);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onFrameEnd);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onFlipFrame);
@@ -77,6 +87,9 @@ final class ClientEvents {
         NeoForge.EVENT_BUS.addListener(ClientEvents::onLoggingIn);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onLoggingOut);
         NeoForge.EVENT_BUS.addListener(ClientEvents::onShutdown);
+        NeoForge.EVENT_BUS.addListener(ClientEvents::onChunkLoaded);
+        NeoForge.EVENT_BUS.addListener(ClientEvents::onChunkUnloaded);
+        NeoForge.EVENT_BUS.addListener(DistantTerrainFog::apply);
     }
 
     private static void onClientSetup(FMLClientSetupEvent event) {
@@ -101,10 +114,15 @@ final class ClientEvents {
     }
 
     private static void applyConfig() {
-        OVERLAY.setVisible(AerviumConfig.OVERLAY_VISIBLE.getAsBoolean());
+        OVERLAY.setVisible(BENCHMARK.isPresent());
         OVERLAY.setBudget(AerviumConfig.frameBudget());
         TerrainOcclusion.setEnabled(AerviumConfig.OCCLUSION_CULLING.getAsBoolean());
         LeafCulling.setEnabled(AerviumConfig.LEAF_CULLING.getAsBoolean());
+        DistantTerrain.setDistanceChunks(AerviumConfig.DISTANT_TERRAIN_DISTANCE.getAsInt());
+        DistantTerrain.setQuality(AerviumConfig.DISTANT_TERRAIN_QUALITY.get());
+        DistantTerrain.setPower(AerviumConfig.DISTANT_TERRAIN_POWER.get());
+        DistantTerrain.setEnabled(AerviumConfig.DISTANT_TERRAIN.getAsBoolean() && PASSIVE_RENDERER_MODS.isEmpty()
+            && MixinModules.activeModules().getOrDefault(OptimizationModule.DISTANT_TERRAIN.key(), false));
         SpawnPregenerationSettings.apply(AerviumConfig.PREGENERATE.getAsBoolean() && BENCHMARK.isEmpty(), AerviumConfig.PREGENERATION_RADIUS.getAsInt());
         if (PASSIVE_RENDERER_MODS.isEmpty()) {
             FrameRateGovernor.apply(AerviumConfig.frameRatePolicy());
@@ -118,6 +136,7 @@ final class ClientEvents {
         GpuStageTimer.frameStarted();
         FrameTrace.renderStarted();
         TELEMETRY.frameStarted(now);
+        DistantTerrainRenderer.prepareFrame(Minecraft.getInstance());
         frameSimulatedMillis = MotionSampler.simulatedFrameMillis(Minecraft.getInstance(), event.getPartialTick());
         if (BENCHMARK.isPresent()) {
             BENCHMARK.get().frameStarted(now);
@@ -151,6 +170,7 @@ final class ClientEvents {
         FrameTrace.presented();
         sampleMotion(System.nanoTime());
         DirectDraws.endFrame();
+        DistantTerrainRenderer.endFrame();
     }
 
     private static void onClientTickStart(ClientTickEvent.Pre event) {
@@ -159,6 +179,7 @@ final class ClientEvents {
     }
 
     private static void onClientTickEnd(ClientTickEvent.Post event) {
+        DistantTerrain.clientTick(Minecraft.getInstance());
         FrameTrace.tickFinished();
         SystemTimings.SHARED.end(TimedSystem.CLIENT_TICK, clientTickStart);
         Minecraft minecraft = Minecraft.getInstance();
@@ -169,17 +190,18 @@ final class ClientEvents {
             HardwareSetup.onGameLoaded(minecraft, BENCHMARK.isPresent());
             warmUpForJoining();
         }
-        while (AerviumKeys.TOGGLE_OVERLAY.consumeClick()) {
-            toggleOverlay();
-        }
-        while (AerviumKeys.TOGGLE_CULLING.consumeClick()) {
-            toggleCulling(minecraft);
-        }
-        if (OVERLAY.isVisible()) {
-            TELEMETRY.clientTick(OVERLAY.budget(), snapshot -> OVERLAY.publish(snapshot, PASSIVE_RENDERER_MODS));
-        }
+        TELEMETRY.clientTick(OVERLAY.budget(), snapshot -> {
+            latestSnapshot = snapshot;
+            if (OVERLAY.isVisible()) {
+                OVERLAY.publish(snapshot, PASSIVE_RENDERER_MODS);
+            }
+        });
         BENCHMARK.ifPresent(benchmark -> benchmark.clientTick(minecraft));
         JOIN_CHECK.ifPresent(check -> check.clientTick(minecraft));
+    }
+
+    static TelemetrySnapshot latestSnapshot() {
+        return latestSnapshot;
     }
 
     private static void warmUpForJoining() {
@@ -197,33 +219,35 @@ final class ClientEvents {
         GcAdvice.forThisJvm().ifPresent(advice -> Aervium.LOGGER.warn("Aervium: for smoother frames, {}", advice));
     }
 
-    private static void toggleOverlay() {
-        boolean visible = !OVERLAY.isVisible();
-        OVERLAY.setVisible(visible);
-        AerviumConfig.OVERLAY_VISIBLE.set(visible);
-        AerviumConfig.OVERLAY_VISIBLE.save();
-    }
-
-    private static void toggleCulling(Minecraft minecraft) {
-        boolean enabled = !TerrainOcclusion.enabled();
-        TerrainOcclusion.setEnabled(enabled);
-        AerviumConfig.OCCLUSION_CULLING.set(enabled);
-        AerviumConfig.OCCLUSION_CULLING.save();
-        if (minecraft.player != null) {
-            minecraft.player.sendOverlayMessage(Component.translatable(enabled ? "aervium.culling.on" : "aervium.culling.off"));
-        }
-    }
-
     private static void onLoggingIn(ClientPlayerNetworkEvent.LoggingIn event) {
         TELEMETRY.resetFrames();
     }
 
     private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         JoinPregeneration.reset();
+        DistantTerrain.reset();
+    }
+
+    private static void onChunkLoaded(ChunkEvent.Load event) {
+        if (event.getLevel().isClientSide()) {
+            DistantTerrain.chunkLoaded(event.getChunk());
+        }
     }
 
     private static void onShutdown(GameShuttingDownEvent event) {
+        DistantTerrain.shutdown();
         ShaderCaches.shutdown();
         TELEMETRY.close();
+    }
+
+    private static void onModelsReloaded(ModelEvent.BakingCompleted event) {
+        Minecraft.getInstance().execute(DistantTerrain::resourcesReloaded);
+    }
+
+    private static void onChunkUnloaded(ChunkEvent.Unload event) {
+        if (event.getLevel().isClientSide()) {
+            var pos = event.getChunk().getPos();
+            DistantTerrain.chunkUnloaded(pos.x(), pos.z());
+        }
     }
 }

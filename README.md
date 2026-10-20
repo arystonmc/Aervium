@@ -25,13 +25,13 @@ It replaces a stack of separate performance mods with built-in modules that can 
 
 ## Features
 
-- 🧱 **Occlusion culling:** Caves, rooms and terrain hidden behind solid blocks are no longer drawn, and neither are the mobs, chests and particles behind them. The tests run on background threads. F6 compares it in game.
+- 🧱 **Occlusion culling:** Caves, rooms and terrain hidden behind solid blocks are no longer drawn, and neither are the mobs, chests and particles behind them. The tests run on background threads.
 - 🛰️ **GPU-driven terrain:** On graphics cards that support it, the card builds its own list of terrain to draw and skips block faces turned away from you. Other cards keep a fast CPU path.
 - 📉 **Lighter frames:** Draw lists without per-frame garbage, a compact check for chunks that need rebuilding, smaller terrain vertices (20 to 32 % less video memory) and its own chunk build threads.
 - ⚡ **No shader hitches:** Shader and pipeline caches make later starts faster and stop the stutter of shaders compiling mid-game.
 - 🌍 **Faster worlds and servers:** Faster villager, mob collision and hopper searches with identical results, parallel world generation on dedicated servers, faster packet compression.
 - 🔋 **Dynamic frame rate:** Lower frame rates in the background and while paused.
-- 📈 **Performance overlay (F7):** Frame rate with 1% and 0.1% lows, a live frame time graph, server tick time, garbage collector pauses, RAM and video memory.
+- 📈 **Performance details on F3:** Frame rate with 1% and 0.1% lows, server tick time, garbage collector pauses, RAM and video memory.
 - 🧪 **Built-in benchmark:** A repeatable flight through a fixed world (walk, elytra, village crowd, caves, redstone) that writes a readable report and compares it with the last run.
 - 🧩 **One performance mod at a time:** Aervium replaces Sodium, so it refuses to start next to it with a clear message (except in its own benchmark, to measure Sodium). With Iris installed it keeps every optimization off and only measures.
 

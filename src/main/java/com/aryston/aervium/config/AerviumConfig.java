@@ -2,6 +2,9 @@ package com.aryston.aervium.config;
 
 import com.aryston.aervium.core.budget.FrameBudget;
 import com.aryston.aervium.core.budget.FrameRatePolicy;
+import com.aryston.aervium.core.lod.DistantTerrainLimits;
+import com.aryston.aervium.core.lod.GenerationPower;
+import com.aryston.aervium.core.lod.LodQuality;
 import com.aryston.aervium.world.spawn.SpawnPregenerationSettings;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
@@ -17,7 +20,7 @@ public final class AerviumConfig {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
     public static final ModConfigSpec.BooleanValue OVERLAY_VISIBLE = BUILDER
-        .define("overlayVisible", false);
+        .define("overlayVisible", true);
 
     public static final ModConfigSpec.IntValue TARGET_FPS = BUILDER
         .defineInRange("targetFps", DEFAULT_TARGET_FPS, MIN_TARGET_FPS, MAX_TARGET_FPS);
@@ -36,6 +39,18 @@ public final class AerviumConfig {
 
     public static final ModConfigSpec.BooleanValue LEAF_CULLING = BUILDER
         .define("leafCulling", false);
+
+    public static final ModConfigSpec.BooleanValue DISTANT_TERRAIN = BUILDER
+        .define("distantTerrain", true);
+
+    public static final ModConfigSpec.IntValue DISTANT_TERRAIN_DISTANCE = BUILDER
+        .defineInRange("distantTerrainDistance", DistantTerrainLimits.DEFAULT_CHUNKS, DistantTerrainLimits.MIN_CHUNKS, DistantTerrainLimits.MAX_CHUNKS);
+
+    public static final ModConfigSpec.EnumValue<LodQuality> DISTANT_TERRAIN_QUALITY = BUILDER
+        .defineEnum("distantTerrainQuality", LodQuality.HIGH);
+
+    public static final ModConfigSpec.EnumValue<GenerationPower> DISTANT_TERRAIN_POWER = BUILDER
+        .defineEnum("distantTerrainPower", GenerationPower.BALANCED);
 
     public static final ModConfigSpec.BooleanValue PREGENERATE = BUILDER
         .define("pregenerate", true);

@@ -19,9 +19,18 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(java_version as int)
 
 repositories {
     mavenCentral()
+    maven {
+        name = 'Arkea'
+        url = uri("https://raw.githubusercontent.com/arystonmc/Arkea/maven")
+        content {
+            includeGroup 'com.aryston.arkea'
+        }
+    }
 }
 
 dependencies {
+    compileOnly "com.aryston.arkea:arkea-neoforge-${minecraft_version}:${arkea_version}"
+
     testImplementation platform("org.junit:junit-bom:${junit_version}")
     testImplementation "org.junit.jupiter:junit-jupiter"
     testRuntimeOnly "org.junit.platform:junit-platform-launcher"
@@ -32,6 +41,7 @@ sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
 
 tasks.named("test", Test) {
     useJUnitPlatform()
+    jvmArgs '--enable-native-access=ALL-UNNAMED', '--sun-misc-unsafe-memory-access=allow'
     testLogging {
         events "skipped", "failed"
     }
@@ -74,6 +84,7 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
     var replaceProperties = [
             minecraft_version_range: minecraft_version_range,
             neo_version_range      : neo_version_range,
+            arkea_version_range    : arkea_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
             mod_license            : mod_license,
@@ -128,7 +139,7 @@ var setUpParityWorld = tasks.register('setUpParityWorld') {
         new File(config, 'aervium-modules.properties').text = [
                 'shaderCache', 'pipelineCache', 'pipelineWarmup', 'compactChunkLocks', 'sectionSliceCache',
                 'lightSnapshots', 'occlusionCulling', 'meshWorkers', 'faceCulling', 'poiSearch', 'entityCollisions',
-                'hopperSearch', 'compactVertices', 'networkCompression', 'parallelFeatures', 'blockEntitySections', 'directDraws', 'dirtySections', 'gpuCulling', 'sectionGridMoves', 'lockFreeSections', 'swapchainImages', 'chunkPacketDecoding', 'preciseFrameTime', 'particleCollisions', 'modelCorners', 'teamlessPushing',
+                'hopperSearch', 'compactVertices', 'networkCompression', 'parallelFeatures', 'blockEntitySections', 'directDraws', 'dirtySections', 'gpuCulling', 'sectionGridMoves', 'lockFreeSections', 'swapchainImages', 'chunkPacketDecoding', 'preciseFrameTime', 'particleCollisions', 'modelCorners', 'teamlessPushing', 'distantTerrain',
         ].collect { it + '=' + (modulesOff.contains(it) ? 'false' : value) }.join('\n') + '\n'
     }
 }

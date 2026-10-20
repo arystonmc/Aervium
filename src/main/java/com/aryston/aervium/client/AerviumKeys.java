@@ -10,19 +10,11 @@ import net.neoforged.neoforge.client.settings.KeyConflictContext;
 final class AerviumKeys {
     private static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Identifier.fromNamespaceAndPath(Aervium.MOD_ID, Aervium.MOD_ID));
 
-    static final KeyMapping TOGGLE_OVERLAY = new KeyMapping(
-        "key.aervium.overlay",
+    static final KeyMapping ZOOM = new KeyMapping(
+        "key.aervium.zoom",
         KeyConflictContext.IN_GAME,
         InputConstants.Type.KEYBOARD,
-        InputConstants.KEY_F7,
-        CATEGORY
-    );
-
-    static final KeyMapping TOGGLE_CULLING = new KeyMapping(
-        "key.aervium.culling",
-        KeyConflictContext.IN_GAME,
-        InputConstants.Type.KEYBOARD,
-        InputConstants.KEY_F6,
+        InputConstants.KEY_C,
         CATEGORY
     );
 
@@ -31,7 +23,6 @@ final class AerviumKeys {
 
     static void register(RegisterKeyMappingsEvent event) {
         event.registerCategory(CATEGORY);
-        event.register(TOGGLE_OVERLAY);
-        event.register(TOGGLE_CULLING);
+        event.register(ZOOM);
     }
 }

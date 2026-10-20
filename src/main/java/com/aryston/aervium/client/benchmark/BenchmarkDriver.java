@@ -45,6 +45,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Screenshot;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.client.server.IntegratedServer;
@@ -54,6 +55,8 @@ public final class BenchmarkDriver {
     private static final String PROPERTY = "aervium.benchmark";
     private static final String QUIT_PROPERTY = "aervium.benchmark.quit";
     private static final String GPU_TIMINGS_PROPERTY = "aervium.benchmark.gpuTimings";
+    private static final String SCREENSHOTS_PROPERTY = "aervium.benchmark.screenshots";
+    private static final int SCREENSHOT_SCALE = 1;
     private static final String REPORT_FOLDER = "aervium/benchmarks";
     private static final DateTimeFormatter STARTED_AT = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
     private static final int FRAME_CAPACITY = 1 << 17;
@@ -65,6 +68,7 @@ public final class BenchmarkDriver {
     private final Supplier<VramUsage> vramProbe;
     private final boolean quitWhenDone = Boolean.getBoolean(QUIT_PROPERTY);
     private final boolean gpuTimings = Boolean.getBoolean(GPU_TIMINGS_PROPERTY);
+    private final boolean screenshots = Boolean.getBoolean(SCREENSHOTS_PROPERTY);
     private final FrameTimeRecorder frames = new FrameTimeRecorder(FRAME_CAPACITY);
     private final MotionErrorRecorder motion = new MotionErrorRecorder(FRAME_CAPACITY);
     private final BenchmarkCamera camera = new BenchmarkCamera();
@@ -335,6 +339,9 @@ public final class BenchmarkDriver {
         logChunkBuilds(result.scene());
         logCameraResults(result.scene());
         logGpuStages(result.scene());
+        if (screenshots) {
+            Screenshot.grab(minecraft.gameDirectory, "benchmark_" + result.scene() + ".png", minecraft.gameRenderer.mainRenderTarget(), SCREENSHOT_SCALE, message -> { });
+        }
         BenchmarkWorld.clearSite(minecraft.getSingleplayerServer(), BenchmarkScene.values()[sceneIndex], site);
         if (sceneIndex + 1 < BenchmarkScene.values().length) {
             startScene(minecraft, sceneIndex + 1);

@@ -9,7 +9,8 @@ public enum BenchmarkScene {
     PARTICLES("particles", ParticleStormSetup.SIZE * ParticleStormSetup.SIZE + " campfires under a storm of " + ParticleStormSetup.particlesPerTick() + " particles per tick", new ParticleStormSetup(), new SceneSite(-96, 96, 40)),
     REDSTONE("redstone", RedstoneSetup.clockCount() + " observer clocks with sticky pistons and lamps", new RedstoneSetup(), new SceneSite(96, -96, 24)),
     EXPLOSION("explosion", "Chain reaction of " + ExplosionSetup.tntCount() + " TNT on the ground", new ExplosionSetup(), new SceneSite(160, 64, 0)),
-    SERVER("server", SimulatedPlayerRoutes.PLAYERS + " simulated players exploring away from the spawn", SceneSetup.NONE, SceneSite.SPAWN);
+    SERVER("server", SimulatedPlayerRoutes.PLAYERS + " simulated players exploring away from the spawn", SceneSetup.NONE, SceneSite.SPAWN),
+    OVERLOOK("overlook", "Circling high above the spawn and looking down at the terrain", SceneSetup.NONE, SceneSite.SPAWN);
 
     private final String id;
     private final String description;

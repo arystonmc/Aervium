@@ -47,17 +47,18 @@ Every class and source file of Aervium with its purpose. Find the right file her
 | Dirty section scan (clean sections answered from an array) | `DirtySectionMirror`, `DirtySectionIndex`, `SectionDirtyStateMirrorMixin`, `SectionUpdateTrackerMirrorMixin`, `LevelExtractorDirtySectionsMixin` |
 | GPU culling (advanced terrain path: the GPU builds the solid and cutout draw lists) | `GpuCulling`, `GpuSections`, `GpuSectionTable`, `GpuSectionEntry`, `TerrainGroups`, `GpuDrawList`, `CullPipeline`, `VulkanAccess`, `IndirectCountFeature`, `GpuBufferUsage`, `ChunkSectionsToRenderIndirectCountMixin`, `VulkanFeatureSetsMixin`, `VulkanConstStorageMixin`, `shaders/culling/terrain_draws.csh` |
 | Section grid moves (only the edge columns when the camera enters another chunk) | `RotatingSectionStorageEdgeMixin` |
-| Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `MixinModules`, `DeltaTrackerTimerPrecisionMixin` |
+| Switching modules on and off | `OptimizationModule`, `ModuleSettings`, `ModuleFile`, `MixinModules`, `DeltaTrackerTimerPrecisionMixin` |
 | Sodium and Iris detection | `CompatibilityGuard` |
 | Pregeneration on join (everything within the radius generated, sent, lit and built before the loading screen closes) | `SpawnPregeneration`, `SpawnPregenerationSettings`, `PrepareSpawnTaskPreparingMixin`, `PrepareSpawnTaskPregenerationMixin`, `JoinPregeneration`, `TerrainReadiness`, `PregenerationHold`, `TerrainProgress`, `JoinProgress`, `LevelLoadTrackerPregenerationMixin`, `LevelExtractorPregenerationMixin`, `PacketProcessorPregenerationMixin`, `ClientLevelPregenerationMixin`, `ServerGamePacketListenerTerrainWaitMixin`, `OwnerTerrainWait` |
 | Join warm-up (classes, network and the GPU culling pipeline ready before the first join) | `JoinWarmup`, `assets/aervium/warmup/join_classes.txt`, `GpuCulling.warmUp` |
 | Join check (frame gaps per loading phase, terrain missing at entry, first 10 s in game) | `JoinCheck`, `JoinShots`, `JoinTimeline`, `FreshWorld` |
-| Settings | `AerviumConfig`, `lang/*.json` |
+| Settings with Arkea installed | `ArkeaSettings`, `AerviumConfigScreen`, `AerviumOptions`, `AerviumPresets`, `DistantTerrainMeter`, `ModuleFile` |
+| Settings without Arkea installed | `AerviumClient`, `AerviumConfig` |
 | Key bindings | `AerviumKeys` |
 | Event wiring | `CommonEvents` (both sides), `ClientEvents` (client) |
 | Mod name, version, loader versions, license, authors | `gradle.properties` |
 | Mod list metadata and dependencies | `neoforge.mods.toml` |
-| Mod logo | `branding/logo.png` (temporary placeholder) |
+| Mod logo | `branding/logo.png`, `assets/aervium/textures/gui/logo.png` |
 | Build setup, run configurations | `build.gradle` |
 | Vanilla parity check (same world after N ticks with modules on and off) | `ParityHarness`, `ParityScenario`, `WorldgenCheck`, `ChunkStatusTasksTerrainMixin`, `StateHash`, `LevelRandomAccessor`, `runParity` in `build.gradle` |
 | Unit tests | `src/test/java/`, see Tests below |
@@ -366,7 +367,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### ModuleSettings
 - Path: `src/main/java/com/aryston/aervium/core/module/ModuleSettings.java`
-- Role: Reads `key=true|false` lines (unknown lines are ignored, a missing line takes the module default) and writes every module back so players see all switches.
+- Role: Reads `key=true|false` lines (unknown lines are ignored, a missing line takes the module default), creates changed immutable settings with `with`, and writes every module back so players see all switches.
 - Depends on: `OptimizationModule`.
 
 ### `com.aryston.aervium.core.collection`
@@ -528,7 +529,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### BenchmarkScene
 - Path: `src/main/java/com/aryston/aervium/debug/benchmark/BenchmarkScene.java`
-- Role: The stress scenes in route order: walk, flight, underground, crowd, storage, particles, redstone, explosion and server, each with a setup and site.
+- Role: The stress scenes in route order: walk, flight, underground, crowd, storage, particles, redstone, explosion, server and overlook (circling 300 blocks above the spawn and looking down), each with a setup and site.
 - Depends on: `SceneSetup`, `SceneSite`.
 
 #### BenchmarkRoute
@@ -660,7 +661,8 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### MixinModules
 - Path: `src/main/java/com/aryston/aervium/integration/MixinModules.java`
-- Role: Mixin config plugin: reads and rewrites `config/aervium-modules.properties` before any mixin applies, skips the mixins of switched-off modules, skips renderer modules when Sodium or Iris is in the mod list, keeps `compactVertices` off when Helion is installed without its `CompactTerrainVertices` class (Helion 0.1) and skips mixins into Helion classes when Helion is not installed. `-Daervium.modules=off` keeps every module off for that start without touching the file.
+- Distant terrain hooks: gates uploaded-section coverage, dirty-chunk recapture and optional Helion water alongside the terrain/camera hooks.
+- Role: Mixin config plugin: reads and rewrites `config/aervium-modules.properties` before any mixin applies, skips the mixins of switched-off modules, skips renderer modules when Sodium or Iris is in the mod list, keeps `compactVertices` off when Helion is installed without its `CompactTerrainVertices` class (Helion 0.1) and skips mixins into Helion classes when Helion is not installed. `-Daervium.modules=off` keeps every module off for that start without touching the file. Its public `SETTINGS_FILE` identifies the module file for the settings screen.
 - Depends on: `ModuleSettings`, `OptimizationModule`, `CompatibilityGuard`.
 - Notes: Runs before mods are constructed, so it reads the mod list through `FMLLoader.getCurrent().getLoadingModList()`. Also keeps, for the crash report, the active state of every module (`activeModules`), the module of each mixin (`moduleOf`) and which Aervium mixins were applied to each class with their method names (`mixinsDeclaring`, filled in `postApply`).
 
@@ -673,20 +675,21 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### AerviumConfig
 - Path: `src/main/java/com/aryston/aervium/config/AerviumConfig.java`
-- Role: Client config: overlay visibility (saved when F7 toggles it), the target frame rate of the frame budget, dynamic frame rate (on by default, 30 FPS in the background, 60 FPS while paused), occlusion culling (on), leaf culling (off), pregeneration on join (on) and its radius (32 chunks, 6 to 32).
-- Depends on: `FrameBudget`, `FrameRatePolicy`, `SpawnPregenerationSettings`.
+- Role: Client config: Aervium details on the F3 screen (on), the target frame rate of the frame budget, dynamic frame rate (on by default, 30 FPS in the background, 60 FPS while paused), occlusion culling (on), leaf culling (off), pregeneration on join (on) and its radius (32 chunks, 6 to 32), distant terrain (on) and its distance (64 to 512 chunks, default 256).
+- Depends on: `FrameBudget`, `FrameRatePolicy`, `SpawnPregenerationSettings`, `DistantTerrainLimits`.
 
 ### `com.aryston.aervium.client`
 
 #### AerviumClient
 - Path: `src/main/java/com/aryston/aervium/client/AerviumClient.java`
-- Role: Client entry point (`@Mod` with `Dist.CLIENT`): registers the client config, the NeoForge config screen and the client events.
-- Depends on: `AerviumConfig`, `ClientEvents`.
+- Role: Client entry point (`@Mod` with `Dist.CLIENT`): registers the client config and events, then checks `ModList` for Arkea. With Arkea it delegates the settings-screen factory to `ArkeaSettings`; without Arkea it keeps NeoForge's `ConfigurationScreen`.
+- Depends on: `AerviumConfig`, `ArkeaSettings`, `ClientEvents`.
 
 #### ClientEvents
 - Path: `src/main/java/com/aryston/aervium/client/ClientEvents.java`
-- Role: Client adapter: frame start and end (`RenderFrameEvent`), client tick scopes, the F7 key, the overlay layer, the end of every frame for `DirectDraws` (`FlipFrameEvent`), config loading (overlay, budget, dynamic frame rate, pregeneration; pregeneration stays off during the benchmark), Sodium and Iris check, installing the shader caches and the pipeline warm-up (only without Sodium and Iris), the startup report, the join warm-up and the GPU culling pipeline compile once the game has loaded, the join check, world joins, leaving a world (ends a terrain wait) and shutdown (saves the pipeline cache before the job system stops).
-- Depends on: `ClientTelemetry`, `TelemetryOverlay`, `BenchmarkDriver`, `JoinCheck`, `JoinWarmup`, `JoinPregeneration`, `GpuCulling`, `AerviumKeys`, `AerviumConfig`, `SpawnPregenerationSettings`, `MixinModules`, `CompatibilityGuard`, `SystemTimings`, `ShaderCaches`, `PipelineWarmup`, `FrameRateGovernor`.
+- Distant terrain lifecycle: live/module enable gates, chunk load/unload, model-reload invalidation, indirect staging retirement and worker/GPU shutdown before device destruction.
+- Role: Client adapter: frame start and end (`RenderFrameEvent`), client tick scopes, the F3 debug entry, the benchmark-only overlay layer, the end of every frame for `DirectDraws` (`FlipFrameEvent`), config loading (overlay, budget, dynamic frame rate, pregeneration and distant terrain; pregeneration stays off during the benchmark), loaded chunks for distant-terrain capture, fog extension, Sodium and Iris check, installing the shader caches and the pipeline warm-up (only without Sodium and Iris), the startup report, the join warm-up and the GPU culling pipeline compile once the game has loaded, the join check, world joins, leaving a world (ends a terrain wait) and shutdown (saves the pipeline cache before the job system stops).
+- Depends on: `ClientTelemetry`, `TelemetryOverlay`, `BenchmarkDriver`, `JoinCheck`, `JoinWarmup`, `JoinPregeneration`, `DistantTerrain`, `DistantTerrainFog`, `DistantTerrainRenderer`, `GpuCulling`, `AerviumKeys`, `AerviumConfig`, `SpawnPregenerationSettings`, `MixinModules`, `CompatibilityGuard`, `SystemTimings`, `ShaderCaches`, `PipelineWarmup`, `FrameRateGovernor`.
 
 #### JoinWarmup
 - Path: `src/main/java/com/aryston/aervium/client/JoinWarmup.java`
@@ -711,7 +714,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### TelemetryOverlay
 - Path: `src/main/java/com/aryston/aervium/client/TelemetryOverlay.java`
-- Role: GUI layer in the top right corner: text lines and a 240 frame time graph (0 to 50 ms) with the budget line; bars are green, yellow over budget and red over twice the budget. Reads frames into a preallocated array and submits all bars as one `FrameGraphRenderState`, because vanilla checks every new GUI element against the elements before it, which made 240 single bars cost about 7 % of the render thread. The visual order of the text lines is built when a snapshot arrives, not every frame: the bidirectional reordering of the plain strings was about 5 % of the render thread with the overlay open.
+- Role: GUI layer in the top right corner, shown only during benchmark runs (players see the same lines in F3): text lines and a 240 frame time graph (0 to 50 ms) with the budget line; bars are green, yellow over budget and red over twice the budget. Reads frames into a preallocated array and submits all bars as one `FrameGraphRenderState`, because vanilla checks every new GUI element against the elements before it, which made 240 single bars cost about 7 % of the render thread. The visual order of the text lines is built when a snapshot arrives, not every frame: the bidirectional reordering of the plain strings was about 5 % of the render thread with the overlay open.
 - Depends on: `ClientTelemetry`, `OverlayLines`, `FrameBudget`, `SystemTimings`, `FrameGraphRenderState`.
 
 #### FrameTrace
@@ -726,13 +729,23 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### OverlayLines
 - Path: `src/main/java/com/aryston/aervium/client/OverlayLines.java`
-- Role: Turns a `TelemetrySnapshot` into colored text lines; rebuilt only when a snapshot arrives. Shows hitches and motion error, yellow when the p99 motion error exceeds 0.5 ms or a hitch occurred, culling counts and, with module `meshWorkers`, chunk builds per second, busy workers and queued builds.
-- Depends on: `TelemetrySnapshot`, `ByteSizes`, `CullingStatistics`, `MeshWorkers`.
+- Role: Turns a `TelemetrySnapshot` into colored text lines; rebuilt only when a snapshot arrives. Shows hitches and motion error, yellow when the p99 motion error exceeds 0.5 ms or a hitch occurred, culling counts, distant terrain recorded chunks, tiles, sample memory, meshes and drawn tiles, and, with module `meshWorkers`, chunk builds per second, busy workers and queued builds.
+- Depends on: `TelemetrySnapshot`, `ByteSizes`, `CullingStatistics`, `MeshWorkers`, `DistantTerrain`, `DistantTerrainRenderer`.
 
 #### AerviumKeys
 - Path: `src/main/java/com/aryston/aervium/client/AerviumKeys.java`
-- Role: Key binding category and the overlay toggle (F7).
+- Role: Key binding category and the zoom key mapping (`C`).
 - Depends on: `Aervium`.
+
+#### ZoomController
+- Path: `src/main/java/com/aryston/aervium/client/ZoomController.java`
+- Role: Handles smooth in-game FOV zoom while holding `C`, exponential zoom smoothing, mouse wheel magnification adjustments, and turn sensitivity scaling.
+- Depends on: `AerviumKeys`.
+
+#### AerviumDebugEntry
+- Path: `src/main/java/com/aryston/aervium/client/AerviumDebugEntry.java`
+- Role: F3 debug screen entry (shown only while F3 is open) with every performance overlay line: frame rate and lows, smoothness, MSPT, GC, memory, culling, distant terrain, chunk builds and system timings; hidden when the F3 performance details setting is off.
+- Depends on: `ClientEvents`, `OverlayLines`, `AerviumConfig`.
 
 #### HardwareSetup
 - Path: `src/main/java/com/aryston/aervium/client/HardwareSetup.java`
@@ -743,6 +756,38 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Path: `src/main/java/com/aryston/aervium/client/VulkanMemoryProbe.java`
 - Role: Reads used and budgeted device-local memory from the game's Vulkan memory allocator (`vmaGetHeapBudgets`), and the total size of the device-local heaps for the hardware class.
 - Depends on: `FrontendGpuDeviceAccessor`, `VramUsage`.
+
+### `com.aryston.aervium.client.config`
+
+#### ArkeaSettings
+- Path: `src/main/java/com/aryston/aervium/client/config/ArkeaSettings.java`
+- Role: Registers Aervium's Arkea-backed config-screen factory only after `AerviumClient` has confirmed that Arkea is installed.
+- Depends on: `AerviumConfigScreen`.
+
+#### AerviumConfigScreen
+- Path: `src/main/java/com/aryston/aervium/client/config/AerviumConfigScreen.java`
+- Role: Builds the Arkea settings screen with the Aervium brand, a live distant-terrain memory meter, Configuration pages for Overview, Distant Terrain, Rendering and World, and a System Modules page.
+- Depends on: `AerviumOptions`, `AerviumPresets`, `DistantTerrainMeter`.
+
+#### AerviumOptions
+- Path: `src/main/java/com/aryston/aervium/client/config/AerviumOptions.java`
+- Role: Binds Arkea controls to the NeoForge client config and to module-file switches, including option descriptions, icons, dependencies and restart requirements.
+- Depends on: `AerviumConfig`, `DistantTerrainLimits`, `SpawnPregenerationSettings`, `ModuleFile`, `OptimizationModule`.
+
+#### AerviumPresets
+- Path: `src/main/java/com/aryston/aervium/client/config/AerviumPresets.java`
+- Role: Creates the Performance, Balanced and Quality presets for distant-terrain distance, pregeneration radius, occlusion culling and leaf culling.
+- Depends on: `AerviumOptions`.
+
+#### DistantTerrainMeter
+- Path: `src/main/java/com/aryston/aervium/client/config/DistantTerrainMeter.java`
+- Role: Supplies the live settings-sidebar meter for the megabytes of stored distant terrain.
+- Depends on: `DistantTerrain`, `ByteSizes`.
+
+#### ModuleFile
+- Path: `src/main/java/com/aryston/aervium/client/config/ModuleFile.java`
+- Role: Reads and writes `config/aervium-modules.properties` for the module switches, using immutable `ModuleSettings` updates and logging file failures.
+- Depends on: `ModuleSettings`, `OptimizationModule`, `MixinModules`.
 
 ### `com.aryston.aervium.client.pregeneration`
 
@@ -886,7 +931,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 #### TerrainOcclusion
 - Path: `src/main/java/com/aryston/aervium/client/culling/TerrainOcclusion.java`
 - Role: Occlusion culling for terrain and the camera raster that entity culling shares. `prepareCamera` runs once per frame before entities are extracted and never waits: it takes the camera pass the worker finished (`OcclusionPipeline`), stamps every section that pass hid with the pass generation (`CameraOcclusionHolder`), uses the result this frame unless it is both more than 6 frames and more than 60 ms old (so high frame rates do not age results out early) and while the eye is still within its reach (or widens it to the eye, up to 8 blocks, with `Frame.widen` instead of drawing every section), and then copies the visible sections (origin, computed from the section node instead of the origin object, occluder boxes, fully faded in) into the free frame and submits it. The reach is 0.125 blocks plus three times the distance the eye moved since the last frame, at most 4 blocks; test boxes grow by it. The camera raster uses a projection 25 % wider than the screen and treats boxes reaching past its edge as visible, so turning the camera cannot reveal a section the pass hid. `cullsCameraSections` and `hiddenFromCamera` let `SectionDrawLists` skip hidden sections; sections not in the pass are never hidden. The frame counter advances at `RenderFrameEvent.Post`, because vanilla extracts a frame before `RenderFrameEvent.Pre` fires. `beginTerrainPass` marks a `prepareChunkRenders` call as the camera pass when its matrix equals the camera's view rotation (vanilla and Helion both pass a copy of it; Helion's shadow cascades pass the light view). `filterShadowCasters` removes casters the light cannot reach, one orthographic pass per shadow cascade in light space (up to 8 cascades). Each cascade is a `ShadowCascadeCulling` on the `Aervium Shadow Culling` worker, matched by section position so results stay usable while the camera moves.
-- Notes: Sections still fading in never occlude. The camera pass and the shadow pass each rest for a second (`CullingYield`) after 20 results in a row hid less than 15 % of what they tested, then probe again; `cameraPaused` and `shadowsPaused` tell the overlay. The camera pass runs on the single `Aervium Culling` worker; the render thread part (copies, stamps, cascade hashes) shows as `Occlusion culling` in the overlay, the worker time as `worker` in the culling line. F6 and `occlusionCulling` in the client config switch it at runtime; switching it off drops the result in flight.
+- Notes: Sections still fading in never occlude. The camera pass and the shadow pass each rest for a second (`CullingYield`) after 20 results in a row hid less than 15 % of what they tested, then probe again; `cameraPaused` and `shadowsPaused` tell the overlay. The camera pass runs on the single `Aervium Culling` worker; the render thread part (copies, stamps, cascade hashes) shows as `Occlusion culling` in the overlay, the worker time as `worker` in the culling line. `occlusionCulling` in the client config switches it at runtime; switching it off drops the result in flight.
 - Depends on: `OcclusionPipeline`, `OcclusionPass`, `DepthRaster`, `ClipMatrix`, `CullingStatistics`, `JobSystem`, `CameraOcclusionHolder`, `OccluderHolder`, `CompiledSectionMeshVisibilityAccessor`, `ShadowCascadeCulling`, `CameraResult`.
 
 #### ShadowCascadeCulling
@@ -988,6 +1033,83 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: When vanilla installs a new pipeline cache after a resource reload, compiles on the job system every built-in pipeline of `RenderPipelines` that vanilla did not register (variants that share a location, such as the three `pipeline/item_cutout` pipelines) and inserts them on the main thread through the budgeted `MainThreadQueue`, so they are never compiled in the middle of a game frame.
 - Depends on: `PipelineCacheAccessor`, `JobSystem`, `MainThreadQueue`.
 
+### `com.aryston.aervium.client.lod`
+
+#### ColumnSampler
+- Path: `src/main/java/com/aryston/aervium/client/lod/ColumnSampler.java`
+- Role: Creates client-owned column views for budgeted surface, layer, material and live-light capture; no client chunk is handed to a worker.
+- Depends on: Minecraft client chunk, block and biome-colour classes.
+
+#### DistantTerrain
+- Path: `src/main/java/com/aryston/aervium/client/lod/DistantTerrain.java`
+- Role: Captures client surfaces/layers within a 1 ms column budget and 32 pending chunks, queues lightweight real-mesh requirements on load/discovery, recaptures dirtiness, manages sources, trim/statistics, reload epochs and shutdown. Disabled ticks skip material/source work.
+- Depends on: `ColumnSampler`, `TerrainWorker`, `TileMeshing`, `LodStore`, `DistantTerrainLimits`.
+
+#### TerrainGenerator
+- Path: `src/main/java/com/aryston/aervium/client/lod/TerrainGenerator.java`
+- Role: Plans coarse-first seed previews on workers, applies CPU concurrency and idle targets, cancellation, retries and shutdown cleanup.
+- Depends on: `GeneratedColumns`, `TerrainWorker`, `TileMeshing`, `LodPlanner`, `LodStore`, `GenerationPower`, `LodQuality`.
+
+#### GeneratedColumns
+- Path: `src/main/java/com/aryston/aervium/client/lod/GeneratedColumns.java`
+- Role: Computes seed tiles from sparse noise heights and biome colours, using the disk cache when a tile was computed before; never reads saved chunks or runs world generation stages, so the server thread and its chunk storage stay untouched.
+- Depends on: `TerrainCache`, `LodSample`, `LodTile`, vanilla `ChunkGenerator`, `RandomState`, `BiomeResolver`.
+
+#### SavedColumnView
+- Path: `src/main/java/com/aryston/aervium/client/lod/SavedColumnView.java`
+- Role: Samples client chunk sections on the main thread, retaining up to eight surface/overhang spans while clamping continuous ground to the level floor, top/side materials, water, provenance and light.
+- Depends on: `LodSample`, `LodStore`, vanilla section palettes and `BlockAndTintGetter`.
+
+#### TerrainWorker
+- Path: `src/main/java/com/aryston/aervium/client/lod/TerrainWorker.java`
+- Role: Single minimum-priority daemon that exclusively owns the store; gracefully drains accepted cleanup on shutdown and rejects late shutdown submissions without waiting.
+- Depends on: `LodStore`.
+
+#### TileMeshing
+- Path: `src/main/java/com/aryston/aervium/client/lod/TileMeshing.java`
+- Role: Meshes changed tile versions/borders on the store worker, bounds ready data at 48 meshes and 32 MiB under one publication lock, rejects stale epochs and releases evicted metadata.
+- Depends on: `TerrainWorker`, `LodStore`, `LodBorders`, `LodMesher`, `LodMesh`.
+
+#### DistantTerrainRenderer
+- Path: `src/main/java/com/aryston/aervium/client/lod/DistantTerrainRenderer.java`
+- Role: Selects uploaded coverage while marking all visited quadtree ancestors and waiting children as used, budgets uploads by 12 meshes/4 MiB/1.5 ms, retires replaced GPU allocations after in-flight frames complete, tests vertical frustum bounds, and batches pooled geometry into indirect opaque/sorted-water draws. Real-chunk masking uses uploaded surface sections. Handles pressure eviction, epochs, one-time inactive resource release and GPU shutdown.
+- Depends on: `DistantTerrain`, `TileMeshing`, `LodSelection`, `DistantTerrainPipeline`, RenderPearl buffers and passes.
+
+#### DistantTerrainPipeline
+- Path: `src/main/java/com/aryston/aervium/client/lod/DistantTerrainPipeline.java`
+- Role: Builds instanced forward opaque and water pipelines and the four-target Helion geometry pipeline, binding coverage and lightmap samplers; distant water is opaque so tile edges never show through it.
+- Depends on: RenderPearl pipeline API, `distant_terrain` shaders.
+
+#### DistantTerrainFog
+- Path: `src/main/java/com/aryston/aervium/client/lod/DistantTerrainFog.java`
+- Role: On `ViewportEvent.RenderFog`, stretches the atmospheric environmental fog (1024 blocks by default) and the render-distance fog to the distant terrain range, so distant terrain stays visible up to 512 chunks.
+- Depends on: `DistantTerrain`, NeoForge viewport events.
+
+#### TerrainCache
+- Path: `src/main/java/com/aryston/aervium/client/lod/TerrainCache.java`
+- Role: Lazily fingerprints generation revision, seed, world/dimension, generator, structures option, data version, quality, mods, the immutable resolved palette and server/client resources on workers; revision 4 invalidates older cached tiles that retained deep underground cave intervals. Adapts the bounded disk cache and disables failing cache I/O for the level.
+- Depends on: `LodDiskCache`, `LodData`.
+
+#### TerrainMaterials
+- Path: `src/main/java/com/aryston/aervium/client/lod/TerrainMaterials.java`
+- Role: Builds an immutable top/side texture-average and tint-index palette under a 1 ms/256-state tick budget and supplies a frozen fingerprint snapshot. Samples alpha-weighted linear colours on an eight-square grid; workers use copied integers, never native images or live models. Unsupported isolated tint callbacks use the base colour.
+- Depends on: `LodColor`, `SavedColumnView`.
+
+#### DistantTerrainCoverage
+- Path: `src/main/java/com/aryston/aervium/client/lod/DistantTerrainCoverage.java`
+- Role: Coalesces mesh readiness notifications, queues heightmap-only requirements on load/discovery/upload independently of layered capture, processes at most 64 columns/1 ms per frame, seeds existing meshes and uploads a 256-square R8 mask at most every 25 ms; clears unloaded/world state and closes its texture before device shutdown.
+- Depends on: `LodCoverage`, `DistantTerrain`.
+
+#### TerrainGeometry
+- Path: `src/main/java/com/aryston/aervium/client/lod/TerrainGeometry.java`
+- Role: Suballocates immutable tile geometry in up to eight 16 MiB GPU pages, uploads only changed ranges and returns released ranges for reuse.
+- Depends on: `LodAllocator`, `LodMesher`.
+
+#### TerrainDraws
+- Path: `src/main/java/com/aryston/aervium/client/lod/TerrainDraws.java`
+- Role: Writes 20-byte indexed indirect commands and 36-byte draw instances, groups consecutive shared pages and recycles staging slots only after zero-timeout fence polls. Caps staging at 32 MiB and defers submissions on exhaustion instead of waiting.
+- Depends on: `TerrainGeometry`, `LodAllocator`.
+
 ### `com.aryston.aervium.client.benchmark`
 
 #### BenchmarkOptions
@@ -997,7 +1119,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### BenchmarkDriver
 - Path: `src/main/java/com/aryston/aervium/client/benchmark/BenchmarkDriver.java`
-- Role: Benchmark state machine on the client tick: creates the world from the first screen, prepares and locates, warms up, runs every scene, measures, writes the report on a worker and quits when asked. Turns pause on lost focus off for the run and restores it.
+- Role: Benchmark state machine on the client tick: creates the world from the first screen, prepares and locates, warms up, runs every scene, measures, writes the report on a worker and quits when asked. Turns pause on lost focus off for the run and restores it; `-Daervium.benchmark.screenshots=true` saves a screenshot at the end of every scene.
 - Members:
   - `requested(...)`: present when `-Daervium.benchmark=true` is set; `-Daervium.benchmark.quit=true` closes the game afterwards.
   - `frameStarted(long)`: records frames into its own 131072 frame ring while scenes run.
@@ -1482,9 +1604,189 @@ Every class and source file of Aervium with its purpose. Find the right file her
 - Role: Returns the teamless pushable predicate from `EntitySelector.pushableBy` when the level scoreboard has no teams.
 - Notes: Module `teamlessPushing`. No API avoids the team lookups inside `EntitySelector.pushableBy`.
 
+### `com.aryston.aervium.core.lod`
+
+#### DistantTerrainLimits
+- Path: `src/main/java/com/aryston/aervium/core/lod/DistantTerrainLimits.java`
+- Role: Shared distances and periodic residency targets of 4096 tiles and 256 MiB including vertical layers.
+- Depends on: nothing.
+
+#### LodSample
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodSample.java`
+- Role: Packs height, RGB24, sky/block light, water depth and provenance/coverage into eight bytes. Orders client, saved, seeded and preview sources and encodes four sky/three block light bits plus water in the vertex metadata byte.
+- Depends on: nothing.
+
+#### LodTile
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodTile.java`
+- Role: Holds 64-square samples, optional immutable vertical layers, version, completeness/exactness counters and payload byte accounting.
+- Depends on: `LodSample`.
+
+#### LodStore
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodStore.java`
+- Role: Six-level store that prioritizes complete footprints before source authority, keeps complete preview and seeded samples stable against equal-priority rewrites, preserves complete client edits, near layers, mixed-level borders and periodic tile/byte residency trimming.
+- Depends on: `LodTile`, `LodBorders`, `LodSelection`, `LodCombine`, `LodSample`.
+
+#### LodCombine
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodCombine.java`
+- Role: Combines highest visible height, averaged colour/skylight, strongest block light and majority water while propagating source/partial/void coverage.
+- Depends on: `LodSample`.
+
+#### LodMesher
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodMesher.java`
+- Role: Merges heightfield surfaces/walls, delegates optional layers, emits opaque then water ranges with unshaded RGB and packed light in 16-byte vertices, retains vertical bounds and falls back to heightfields above 65536 layered quads.
+- Depends on: `LodTile`, `LodSample`, `LodBorders`, `LodMesh`.
+
+#### LodBorders
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodBorders.java`
+- Role: Immutable worker-owned snapshot of the lowest known neighbor tops at all four tile edges, with exact array comparison for border-change remeshing.
+- Depends on: `LodTile`.
+
+#### LodMesh
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodMesh.java`
+- Role: Worker-owned mesh snapshot with source version, vertices, opaque/total quad counts, vertical bounds and build-time completeness.
+- Depends on: nothing.
+
+#### LodPlanner
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodPlanner.java`
+- Role: Plans coarse-first horizon previews, nearest first within a level, without requiring stored tiles.
+- Depends on: `LodSelection`, `LodStore`, `LodQuality`.
+
+#### LodQuality
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodQuality.java`
+- Role: Distant terrain quality levels, each with a split factor, the finest tile level that is drawn and generated, the height grid used for generated tiles and whether block texture detail is drawn (Ultra). High and Ultra reach one block per sample near the player.
+- Depends on: nothing.
+
+#### GenerationPower
+- Path: `src/main/java/com/aryston/aervium/core/lod/GenerationPower.java`
+- Role: CPU usage levels mapped to worker counts with reserved processors and idle durations; Low targets one worker at 25% activity and Balanced targets 50% activity per allowed worker.
+- Depends on: nothing.
+
+#### LodSelection
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodSelection.java`
+- Role: Quadtree selection by distance and quality; uploaded detail remains selectable after CPU sample eviction, parents stay until complete uploaded children are ready, missing multiplayer areas are optional and wanted/drawn tiles respect the real-terrain clip box.
+- Depends on: `LodStore`.
+
+#### LodLayers
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodLayers.java`
+- Role: Owns validated column offsets and up to eight descending nonoverlapping spans per column, each with packed surface, signed bottom and side RGB; builder transfers owned arrays across worker boundaries.
+
+#### LodData
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodData.java`
+- Role: Owns one complete-sized sample array and optional matching layer snapshot, with exactness validation for cache separation.
+
+#### LodLayerMesher
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodLayerMesher.java`
+- Role: Merges layer tops/undersides and wall runs, subtracts neighboring occupied intervals, preserves air gaps and underwater ground, and emits separate side colours and water ranges.
+
+#### LodColor
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodColor.java`
+- Role: Multiplies texture RGB by biome/material tint without affecting metadata.
+
+#### LodDiskCache
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodDiskCache.java`
+- Role: Versioned keyed CRC-checked DEFLATE cache with bounded inflation, atomic publication, concurrent-writer tolerance, corrupt-entry repair and a periodic 512 MiB per-identity trim.
+
+#### LodAllocator
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodAllocator.java`
+- Role: Aligns shared-page allocations, coalesces freed intervals and enforces the page count limit.
+
+#### LodTransitions
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodTransitions.java`
+- Role: Partitions incoming tile regions against previous coverage, fills previously missing areas and retains complementary parent/child transitions for 250 ms before releasing old keys.
+
+#### LodCoverage
+- Path: `src/main/java/com/aryston/aervium/core/lod/LodCoverage.java`
+- Role: Tracks known height requirements and uploaded surface sections independently from layered capture, delays then fades coverage, handles negative ring coordinates and removes unloaded/distant state.
+
+### `com.aryston.aervium.mixin`
+
+#### CameraDistantTerrainMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/CameraDistantTerrainMixin.java`
+- Role: Extends the camera far plane to 1.5 times the distant terrain distance while distant terrain draws.
+- Notes: Module `distantTerrain`, renderer module. No camera far-plane API exists.
+
+#### LevelRendererDistantTerrainMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/LevelRendererDistantTerrainMixin.java`
+- Role: Draws distant terrain at the return of `LevelRenderer.executeSolid` in the vanilla main pass.
+- Notes: Module `distantTerrain`, renderer module. No event exposes this open vanilla render pass.
+
+#### HelionDistantTerrainMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/HelionDistantTerrainMixin.java`
+- Role: `@Pseudo` Helion hook for opaque LOD after `renderOpaque` and `renderOpaqueGeometry`; water is submitted after deferred lighting through its own optional hook.
+- Notes: Module `distantTerrain`, renderer module. Helion offers no hook, so this preserves Helion lighting, TAA jitter and fog.
+
+#### HelionDistantWaterMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/HelionDistantWaterMixin.java`
+- Role: Optional one-target water pass at the start of Helion's transparent stage, after deferred opaque lighting, including its order-independent path.
+- Notes: Module `distantTerrain`; `@Pseudo`, `require = 0`. No Helion event exposes this stage; no Helion classes are linked by the adapter.
+
+#### RenderSectionDistantTerrainMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/RenderSectionDistantTerrainMixin.java`
+- Role: Reports `RenderSection.setSectionMesh` completion and reset to the distant coverage mask.
+- Notes: Module `distantTerrain`. No NeoForge event exposes uploaded section replacement/reset; hooks only enqueue coordinate/readiness values.
+
+#### SectionOcclusionGraphDistantTerrainMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/SectionOcclusionGraphDistantTerrainMixin.java`
+- Role: Removes vanilla's vertical render-distance limit from the section graph while distant terrain draws, so real terrain below a camera high above it is still drawn instead of leaving a hole where distant terrain is clipped.
+- Notes: Module `distantTerrain`.
+
+#### SectionUpdateTrackerDistantTerrainMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/SectionUpdateTrackerDistantTerrainMixin.java`
+- Role: Queues client chunk recapture from section dirtiness, including block and light updates.
+- Notes: Module `distantTerrain`. Chunk load events do not cover later edits; there is no general equivalent notification API.
+
 ## Tests
 
 Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI. Each test class sits in the package of the class it checks.
+
+### `com.aryston.aervium.core.lod`
+
+#### LodStoreTest
+- Path: `src/test/java/com/aryston/aervium/core/lod/LodStoreTest.java`
+- Role: Checks packed fields, coordinates, downsampling, client/saved/seed precedence, complete preview repair of sparse client ancestors, partial/void coverage and distance/detail/byte residency including layers.
+- Depends on: `LodStore`.
+
+#### LodMesherTest
+- Path: `src/test/java/com/aryston/aervium/core/lod/LodMesherTest.java`
+- Role: Checks top rectangle area/height/colour separation, five-quad flat tiles, complete void meshes, uploaded-child selection, stable uploaded detail after CPU eviction and skirts across detail levels and negative coordinates.
+- Depends on: `LodMesher`, `LodTile`, `LodSample`.
+
+#### GenerationPowerTest
+- Path: `src/test/java/com/aryston/aervium/core/lod/GenerationPowerTest.java`
+- Role: Checks worker limits and monotonic concurrency across processor counts, plus Low/Balanced idle targets.
+- Depends on: `GenerationPower`.
+
+#### LodLayersTest
+- Path: `src/test/java/com/aryston/aervium/core/lod/LodLayersTest.java`
+- Role: Checks canopy gaps/undersides, hidden faces, underwater ground, opaque/water ranges, layer validation, near-only propagation, light metadata, tint multiplication and pathological mesh byte limits.
+
+#### LodDiskCacheTest
+- Path: `src/test/java/com/aryston/aervium/core/lod/LodDiskCacheTest.java`
+- Role: Checks lossless compression, identity separation, corrupt/truncated entry repair and concurrent Windows publication without temporary debris.
+
+#### LodAllocatorTest
+- Path: `src/test/java/com/aryston/aervium/core/lod/LodAllocatorTest.java`
+- Role: Checks alignment, coalescing, page/size limits and double-release rejection.
+
+#### LodTransitionsTest
+- Path: `src/test/java/com/aryston/aervium/core/lod/LodTransitionsTest.java`
+- Role: Checks subdivision weights, negative coordinates, sparse-to-coarse coverage and eventual release of old keys.
+
+#### LodCoverageTest
+- Path: `src/test/java/com/aryston/aervium/core/lod/LodCoverageTest.java`
+- Role: Checks that loaded chunks cannot hide LOD before required meshes arrive, negative mask coordinates, fade preservation and known-requirement/unload/trim clearing.
+
+#### LodPlannerTest
+- Path: `src/test/java/com/aryston/aervium/core/lod/LodPlannerTest.java`
+- Role: Checks that coarse previews come before finer levels.
+
+### `com.aryston.aervium.client.lod`
+
+#### LodShaderTest
+- Path: `src/test/java/com/aryston/aervium/client/lod/LodShaderTest.java`
+- Role: Compiles both fragment paths and the vertex shader to SPIR-V with actual transitive game/resource includes, without starting the game or a GPU device.
+
+### Other engine and adapter tests
 
 | File | What it checks |
 |---|---|
@@ -1556,26 +1858,31 @@ Plain JUnit 5 tests without a running game, run by `./gradlew build` and the CI.
 
 | File | Purpose |
 |---|---|
-| `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, mixin config. |
+| `src/main/templates/META-INF/neoforge.mods.toml` | Mod metadata template filled from `gradle.properties`: NeoForge and Minecraft on both sides, `IGNORE_ALL_VERSION` so either side works alone, discouraged Sodium and Iris, optional client-side Arkea dependency for the settings screen, mixin config. |
 | `src/main/resources/META-INF/accesstransformer.cfg` | Makes `LevelRenderer$ChunkDrawGroup` and its constructor public for `SectionDrawLists`; declared in `neoforge.mods.toml`. |
 | `src/main/resources/aervium.mixins.json` | Mixin configuration with the `MixinModules` plugin: `BlockDataLayerStorageMapMixin`, `ChunkStatusTasksTerrainMixin`, `CompressionEncoderLevelMixin`, `CrashReportMixin`, `DataLayerStorageMapMixin`, `EntityCapabilityAccessor`, `EntitySectionCollidableMixin`, `EntitySectionHopperMixin`, `HopperBlockEntityItemSearchMixin`, `HopperEntityContainerSearchMixin`, `LevelRandomAccessor`, `PalettedContainerMixin`, `PersistentEntitySectionManagerAccessor`, `PoiManagerColumnSearchMixin`, `ServerLevelEntityCollisionsMixin`, `ServerLevelEntityManagerAccessor`, `SectionStorageAccessor`, `SectionStoragePoiIndexMixin`, `SkyDataLayerStorageMapMixin` and `ThreadedLevelLightEngineTimingMixin` on both sides; `ChunkStatusTasksFeaturesMixin` on dedicated servers only (module `parallelFeatures`); `CompiledSectionMeshFacingMixin`, `CompiledSectionMeshMixin`, `CompiledSectionMeshVisibilityAccessor`, `HelionShadowCastersMixin`, `LevelExtractorBlockEntitiesMixin`, `LevelExtractorOcclusionMixin`, `LevelRendererFaceCullingMixin`, `LevelRendererMeshWorkersMixin`, `LevelRendererOcclusionMixin`, `LevelRendererSectionSliceMixin`, `RenderSectionBlockEntityMixin`, `RenderSectionMeshVersionMixin`, `RenderSectionMixin`, `RenderSectionOcclusionMixin`, `SectionRenderDispatcherTimingMixin`, `UberGpuBufferMixin`, `VisGraphMixin`, `VisibilitySetMixin`, `FramerateLimitTrackerMixin`, `ModelBlockRendererLeafCullingMixin`, `FrontendGpuDeviceAccessor`, `GlslCompilerMixin`, `ParticleAccessor`, `PipelineCacheAccessor`, `PipelineCacheMixin`, `QuadParticleGroupOcclusionMixin`, `RenderSystemMixin` `VulkanRenderPipelineMixin`, the frame and GPU timing mixins (`ClientLevelLightTimingMixin`, `ClientPacketListenerChunkTimingMixin`, `FrameGraphBuilderTimingMixin`, `FrontendCommandEncoderTimingMixin`, `FrontendRenderPassTimingMixin`, `LevelRendererMainPassTimingMixin`, `UberGpuBufferHeapTraceMixin`, `VulkanCommandEncoderTimingMixin`, `VulkanGpuSurfaceTimingMixin`, `VulkanMemoryTraceMixin`, `VulkanTransientMemoryTraceMixin`, `VulkanQueryPoolAccessor`), the section ownership mixins (`CompileTaskOwnershipMixin`, `RenderSectionAccessor`, `RenderSectionOwnershipMixin`, `ResortTransparencyTaskOwnershipMixin`, `SectionRenderDispatcherOwnershipMixin`, module `lockFreeSections`) and `VulkanGpuSurfaceImageCountMixin` (module `swapchainImages`) on the client, plus `ChunkSectionsToRenderCompactMixin`, `CompileTaskCompactMixin`, `MeshDataCompactMixin`, `RenderPipelineBuilderCompactMixin` and `SectionCompilerCompactMixin` (module `compactVertices`) and `ClientLevelPregenerationMixin`, `LevelExtractorPregenerationMixin`, `LevelLoadTrackerPregenerationMixin`, `PacketProcessorPregenerationMixin`, `PrepareSpawnTaskPregenerationMixin`, `PrepareSpawnTaskPreparingMixin` and `ServerGamePacketListenerTerrainWaitMixin` (module `spawnPregeneration`, physical client only, so the integrated server but never a dedicated one). |
 
-| `src/main/resources/aervium.mixins.json` | Client-side `DeltaTrackerTimerPrecisionMixin` for module `preciseFrameTime` and `ModelCubeCornersMixin` for module `modelCorners`; both-side `EntitySelectorPushMixin` for module `teamlessPushing`. |
+| `src/main/resources/aervium.mixins.json` | Client-side precise frame time and model corners, both-side teamless pushing, and distant-terrain camera/draw/mesh-readiness/dirty-section/optional Helion water hooks. |
 
 ## Asset Folders
 
 | Folder | Contents |
 |---|---|
-| `src/main/resources/assets/aervium/lang/` | `en_us.json` and `tr_tr.json`: key binding and config texts. |
+| `src/main/resources/assets/aervium/lang/` | `en_us.json` and `tr_tr.json`: key binding, NeoForge config and `aervium.config.*` Arkea settings-screen texts. |
+| `src/main/resources/assets/aervium/shaders/lod/` | Instanced 16-byte geometry with packed light/water metadata; forward lightmap shading and Helion normal/light/unshaded-albedo output. |
+| `src/main/resources/assets/aervium/shaders/include/` | `lod_common.glsl`: uploaded-chunk coverage clipping, tile bounds, lightmap/cardinal lighting, render-distance fog, Ultra block texture detail (16 world-space pixels per block, fading out once a pixel gets smaller than the screen pixel) and water shading (sky reflection by view angle and gentle ripples). |
+| `src/main/resources/assets/aervium/textures/gui/` | `logo.png`: Aervium brand logo for its settings screen; `logo.png.mcmeta`: enables linear filtering for that logo. |
 | `src/main/resources/assets/aervium/shaders/terrain/` | `compact.vsh`: the vanilla `core/terrain` vertex shader reading the compact vertex format (module `compactVertices`); the fragment shader stays vanilla. |
 | `src/main/resources/assets/aervium/warmup/` | `join_classes.txt`: classes `JoinWarmup` loads ahead of the first world join, one name per line, sorted; generated from a JFR recording of joins on Minecraft 26.3 (render thread class loads, without hidden and lambda classes and without other Aryston mods). |
 
 ## Build Files
 
+The `build.gradle` test task enables JDK 25 native access and the supported legacy native memory access needed by the shader compiler test; these flags apply only to tests.
+
 | File | Purpose |
 |---|---|
-| `build.gradle` | ModDevGradle setup, JUnit 5 for `src/test/java` with the Minecraft classpath of `main`, `client` run forced to Vulkan, `server` run without GUI, `parity` dedicated server run in `runs/parity` (`setUpParityWorld` writes the flat world settings, or normal terrain with `-PparityWorld=normal`, EULA and module switches from `-PparityModules` and `-PparityOff` and deletes the old world first), metadata expansion, packs `branding/logo.png` into the jar as `aervium.png`, jar name `aervium-neoforge-<minecraft_version>-<version>.jar`. |
-| `gradle.properties` | Single place for versions and mod metadata. |
+| `build.gradle` | ModDevGradle setup, the Arkea Maven repository and compile-only Arkea dependency for the optional client settings screen, JUnit 5 for `src/test/java` with the Minecraft classpath of `main`, `client` run forced to Vulkan, `server` run without GUI, `parity` dedicated server run in `runs/parity` (`setUpParityWorld` writes the flat world settings, or normal terrain with `-PparityWorld=normal`, EULA and module switches from `-PparityModules` and `-PparityOff` and deletes the old world first), metadata expansion, packs `branding/logo.png` into the jar as `aervium.png`, jar name `aervium-neoforge-<minecraft_version>-<version>.jar`. |
+| `gradle.properties` | Single place for versions and mod metadata, including the Arkea version and compatible version range. |
 | `settings.gradle` | Plugin repositories, Java toolchain resolver, project name. |
 | `.github/workflows/build.yml` | CI on every push and pull request: JDK 25, `./gradlew build`, the vanilla parity check with every module on and off (the hash lines must match), uploads the jar. |
 | `.github/workflows/release.yml` | On a `v*` tag: checks the tag against `mod_version`, builds, creates the GitHub release with the changelog section, and uploads to Modrinth and CurseForge when their secrets exist. |
