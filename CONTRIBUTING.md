@@ -28,8 +28,8 @@ The game client automatically runs with the `--graphicsBackend vulkan` argument.
 If the client closes immediately upon startup, open `run/config/fml.toml` and verify `earlyWindowControl = false`. The NeoForge loading screen uses OpenGL, and handoff to Vulkan can fail on certain display configurations.
 
 ## Architecture and Guidelines
-- Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layers, the performance rules and the phase plan before proposing changes.
-- Read [docs/CODEMAP.md](docs/CODEMAP.md) for a map of every class. Update this document whenever adding, modifying, or removing files.
+- Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the invariants and the section index, then the sections in `docs/architecture/` on the layers, the performance rules and the phase plan, before proposing changes.
+- Read [docs/CODEMAP.md](docs/CODEMAP.md), the code map index, to find a class, then open only its package file in `docs/codemap/`. Update that package file whenever adding, modifying, or removing files.
 - Every change must keep vanilla game behavior identical: redstone, farms and mob behavior work exactly as without Aervium.
 - Never copy code from other performance mods. Techniques are implemented from public descriptions only.
 - Code style: clean, intention-revealing, no dead code, and no comments in code files.
