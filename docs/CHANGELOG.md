@@ -6,6 +6,8 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 
 ## Unreleased
 
+## [1.0] - 2026-10-21
+
 ### Added
 - Distant terrain draws land far beyond the render distance, with normal Minecraft rendering and Helion; in single player, unvisited land is computed from the world seed in the background, coarse horizon first, without creating or saving chunks
 - Distant terrain settings: distance from 64 to 512 chunks (default 256) with 64, 128, 256 and 512 chunk buttons, Low to Ultra quality and Low to Extreme CPU usage
@@ -37,7 +39,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Chunk builders run one priority step below normal, so they no longer hold back the graphics driver: about two thirds fewer freezes of 15 to 25 ms underground and in fast flight, 0.1% low up by about 30 %
 - New chunks are unpacked on background threads before the main thread places them, with exactly the same result (1% low in fast flight up by about 6 %)
 - The game asks for two more swapchain images, so short presentation hiccups no longer stall the next frame (1% low underground up by about 15 %)
-- Compact chunk vertices: terrain takes 16 instead of 28 bytes per vertex, for less video memory and faster drawing (off by itself with Helion 0.1)
+- Compact chunk vertices: terrain takes 16 instead of 28 bytes per vertex, for less video memory and faster drawing (off by itself with older Helion builds)
 - Chunks are prepared on Aervium's own threads instead of waiting behind world generation in single player
 - Shader and pipeline caches make later starts faster, and built-in item pipelines compile while the game loads instead of causing a hitch in game
 - Lighter chunk section locks and light updates that copy only the changed parts: less memory and fewer garbage collector pauses

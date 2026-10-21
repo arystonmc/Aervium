@@ -74,7 +74,7 @@ Every optimization is a module listed in `config/aervium-modules.properties` wit
 ./gradlew build
 ```
 
-- **Output:** The jar is written to `build/libs/aervium-neoforge-<minecraft_version>-<mod_version>.jar`, currently `build/libs/aervium-neoforge-26.3-0.1.jar`.
+- **Output:** The jar is written to `build/libs/aervium-neoforge-<minecraft_version>-<mod_version>.jar`, currently `build/libs/aervium-neoforge-26.3-1.0.jar`.
 
 ## Changelog
 
