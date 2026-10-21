@@ -9,7 +9,7 @@ import com.mojang.renderpearl.api.commands.RenderPass;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
-import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import java.util.Arrays;
 import it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +25,10 @@ import org.jspecify.annotations.Nullable;
 public final class DistantTerrainCoverage {
     private static final int UPDATES_PER_FRAME = 1024;
     private static final int REQUIREMENTS_PER_FRAME = 64;
+    private static final int REFRESHES_PER_FRAME = 16;
+    private static final int SECTION_SLOTS = 256;
+    private static final int SECTION_OFFSET = SECTION_SLOTS / 2;
+    private static final boolean[] SEEN_SECTIONS = new boolean[SECTION_SLOTS];
     private static final long REQUIREMENT_BUDGET_NANOS = 1_000_000L;
     private static final long UPLOAD_INTERVAL_NANOS = 25_000_000L;
     private static final LodCoverage COVERAGE = new LodCoverage();
@@ -35,6 +39,7 @@ public final class DistantTerrainCoverage {
     private static @Nullable GpuTexture texture;
     private static @Nullable GpuTextureView view;
     private static long uploaded;
+    private static int refreshCursor;
 
     private DistantTerrainCoverage() {
     }
@@ -49,10 +54,10 @@ public final class DistantTerrainCoverage {
         long now = System.nanoTime();
         var area = Minecraft.getInstance().levelRenderer.viewArea();
         if (area != null) {
-            IntOpenHashSet seen = new IntOpenHashSet();
+            Arrays.fill(SEEN_SECTIONS, false);
             for (long sample : samples) {
                 int y = Math.floorDiv(LodSample.height(sample), LodStore.CHUNK_SIZE);
-                if (LodSample.visible(sample) && seen.add(y)) {
+                if (LodSample.visible(sample) && firstVisit(y)) {
                     var section = area.getRenderSectionAt(new BlockPos(x * LodStore.CHUNK_SIZE, y * LodStore.CHUNK_SIZE, z * LodStore.CHUNK_SIZE));
                     COVERAGE.compiled(x, y, z, section != null && section.getSectionNode() == SectionPos.asLong(x, y, z)
                         && section.getSectionMesh() != CompiledSectionMesh.UNCOMPILED, now);
@@ -60,6 +65,16 @@ public final class DistantTerrainCoverage {
             }
         }
         COVERAGE.require(x, z, samples, now);
+    }
+
+    private static boolean firstVisit(int sectionY) {
+        int slot = sectionY + SECTION_OFFSET;
+        if (slot < 0 || slot >= SECTION_SLOTS) {
+            return true;
+        }
+        boolean first = !SEEN_SECTIONS[slot];
+        SEEN_SECTIONS[slot] = true;
+        return first;
     }
 
     static void loaded(long position) {
@@ -127,20 +142,29 @@ public final class DistantTerrainCoverage {
         }
         var area = Minecraft.getInstance().levelRenderer.viewArea();
         long now = System.nanoTime();
-        for (int dz = -radius; dz <= radius; dz++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                int cx = cameraChunkX + dx;
-                int cz = cameraChunkZ + dz;
-                if (!COVERAGE.known(cx, cz)) {
-                    REQUIREMENTS.add(ChunkPos.pack(cx, cz));
-                } else if (area != null && COVERAGE.value(cx, cz, now) == 0) {
-                    LevelChunk chunk = level.getChunkSource().getChunk(cx, cz, false);
-                    if (chunk != null) {
-                        require(chunk);
-                    }
+        int side = 2 * radius + 1;
+        int cells = side * side;
+        int start = Math.floorMod(refreshCursor, cells);
+        int refreshed = 0;
+        for (int step = 0; step < cells; step++) {
+            int cell = (start + step) % cells;
+            int cx = cameraChunkX + cell % side - radius;
+            int cz = cameraChunkZ + cell / side - radius;
+            if (!COVERAGE.known(cx, cz)) {
+                REQUIREMENTS.add(ChunkPos.pack(cx, cz));
+            } else if (area != null && COVERAGE.value(cx, cz, now) == 0) {
+                if (refreshed >= REFRESHES_PER_FRAME) {
+                    refreshCursor = cell;
+                    return;
+                }
+                LevelChunk chunk = level.getChunkSource().getChunk(cx, cz, false);
+                if (chunk != null) {
+                    require(chunk);
+                    refreshed++;
                 }
             }
         }
+        refreshCursor = start;
     }
 
     static void bind(RenderPass pass) {

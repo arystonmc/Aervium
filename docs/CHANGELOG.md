@@ -61,6 +61,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - Real terrain below the camera no longer disappears when you fly far above it
 - Distant water no longer shows a grid of tile edges or blue patches over land
 - Distant water reflects the sky by view angle and ripples gently instead of being one flat colour
+- Distant terrain costs far less render-thread time: chunks not yet covered by real terrain are rechecked a few per frame instead of all every frame
 - Distant terrain no longer reads saved chunks or runs hidden world generation, which could freeze the integrated server for seconds
 
 ### Removed

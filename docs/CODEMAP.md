@@ -1097,7 +1097,7 @@ Every class and source file of Aervium with its purpose. Find the right file her
 
 #### DistantTerrainCoverage
 - Path: `src/main/java/com/aryston/aervium/client/lod/DistantTerrainCoverage.java`
-- Role: Coalesces mesh readiness notifications, queues heightmap-only requirements on load/discovery/upload independently of layered capture, processes at most 64 columns/1 ms per frame, seeds existing meshes and uploads a 256-square R8 mask at most every 25 ms; clears unloaded/world state and closes its texture before device shutdown.
+- Role: Coalesces mesh readiness notifications, queues heightmap-only requirements on load/discovery/upload independently of layered capture, processes at most 64 columns/1 ms per frame, rechecks at most 16 not-yet-covered chunks per frame round robin (rechecking every one each frame took about 29 % of the render thread), seeds existing meshes and uploads a 256-square R8 mask at most every 25 ms; clears unloaded/world state and closes its texture before device shutdown.
 - Depends on: `LodCoverage`, `DistantTerrain`.
 
 #### TerrainGeometry
