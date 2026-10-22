@@ -13,12 +13,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(targets = "com.aryston.helion.render.geometry.OpaqueGeometryStage")
 abstract class HelionDistantTerrainMixin {
     @Inject(
-        method = "render(Lcom/mojang/blaze3d/pipeline/RenderTarget;Ljava/util/Optional;)V",
-        at = @At(
-            value = "INVOKE",
-            target = "Lcom/aryston/helion/render/geometry/TerrainSource;renderOpaque(Lcom/mojang/renderpearl/api/commands/RenderPass;)V",
-            shift = At.Shift.AFTER
-        ),
+        method = "render",
+        at = @At(value = "INVOKE", target = "Lcom/aryston/helion/render/geometry/TerrainSource;renderOpaque", shift = At.Shift.AFTER),
         require = 0
     )
     private void aervium$drawDistantTerrain(CallbackInfo callback, @Local RenderPass pass) {
@@ -26,12 +22,8 @@ abstract class HelionDistantTerrainMixin {
     }
 
     @Inject(
-        method = "renderGeometry(Lcom/mojang/blaze3d/pipeline/RenderTarget;Lcom/aryston/helion/render/geometry/GeometryBuffer$Targets;)V",
-        at = @At(
-            value = "INVOKE",
-            target = "Lcom/aryston/helion/render/geometry/TerrainSource;renderOpaqueGeometry(Lcom/mojang/renderpearl/api/commands/RenderPass;)V",
-            shift = At.Shift.AFTER
-        ),
+        method = "renderGeometry",
+        at = @At(value = "INVOKE", target = "Lcom/aryston/helion/render/geometry/TerrainSource;renderOpaqueGeometry", shift = At.Shift.AFTER),
         require = 0
     )
     private void aervium$drawDistantTerrainGeometry(CallbackInfo callback, @Local RenderPass pass) {

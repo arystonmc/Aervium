@@ -127,7 +127,7 @@ Part of the [Aervium code map](../CODEMAP.md). The package is split by topic; th
 #### HelionShadowCastersMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/HelionShadowCastersMixin.java`
 - Role: Pseudo mixin on Helion's `VanillaShadowCasterSource.collectSections`; filters the returned per-cascade caster lists with `HelionShadowCasters`.
-- Notes: Module `occlusionCulling`. Optional (`require = 0`): without Helion nothing is applied. Lossless: a caster the light cannot see is behind other casters in the same cascade, which already write a nearer depth into that shadow map.
+- Notes: Module `occlusionCulling`. Optional (`require = 0`): without Helion nothing is applied. Selected by name, arguments through `@Local(argsOnly = true)` (lesson L-145). Lossless: a caster the light cannot see is behind other casters in the same cascade, which already write a nearer depth into that shadow map.
 
 #### ModelCubeCornersMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/ModelCubeCornersMixin.java`

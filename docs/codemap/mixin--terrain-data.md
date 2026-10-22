@@ -52,12 +52,12 @@ Part of the [Aervium code map](../CODEMAP.md). The package is split by topic; th
 #### HelionDistantTerrainMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/HelionDistantTerrainMixin.java`
 - Role: `@Pseudo` Helion hook for opaque LOD after `renderOpaque` and `renderOpaqueGeometry`; water is submitted after deferred lighting through its own optional hook.
-- Notes: Module `distantTerrain`, renderer module. Helion offers no hook, so this preserves Helion lighting, TAA jitter and fog.
+- Notes: Module `distantTerrain`, renderer module. Helion offers no hook, so this preserves Helion lighting, TAA jitter and fog. Selects Helion methods and invoke targets by name only (lesson L-145), so a changed Helion signature does not silently skip the hook.
 
 #### HelionDistantWaterMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/HelionDistantWaterMixin.java`
 - Role: Optional one-target water pass at the start of Helion's transparent stage, after deferred opaque lighting, including its order-independent path.
-- Notes: Module `distantTerrain`; `@Pseudo`, `require = 0`. No Helion event exposes this stage; no Helion classes are linked by the adapter.
+- Notes: Module `distantTerrain`; `@Pseudo`, `require = 0`. No Helion event exposes this stage; no Helion classes are linked by the adapter. Selects `render` by name and reads the target with `@Local(argsOnly = true)` (lesson L-145).
 
 #### RenderSectionDistantTerrainMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/RenderSectionDistantTerrainMixin.java`
