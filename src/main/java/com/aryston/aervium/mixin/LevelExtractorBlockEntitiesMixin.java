@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.At;
 
 @Mixin(LevelExtractor.class)
 abstract class LevelExtractorBlockEntitiesMixin {
-    @WrapOperation(method = "extractVisibleBlockEntities(Lnet/minecraft/client/Camera;FLnet/minecraft/client/renderer/state/level/LevelRenderState;Lnet/minecraft/client/renderer/culling/Frustum;)V", at = @At(value = "INVOKE",
+    @WrapOperation(method = "extractVisibleBlockEntities", at = @At(value = "INVOKE",
         target = "Lnet/minecraft/client/renderer/chunk/SectionRenderDispatcher$RenderSection;getSectionMesh()Lnet/minecraft/client/renderer/chunk/SectionMesh;"))
     private SectionMesh aervium$skipSectionsWithoutBlockEntities(SectionRenderDispatcher.RenderSection section, Operation<SectionMesh> original) {
         return ((BlockEntitySectionHolder) section).aervium$mayHaveBlockEntities() ? original.call(section) : CompiledSectionMesh.EMPTY;

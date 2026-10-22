@@ -6,6 +6,13 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 
 ## Unreleased
 
+### Fixed
+- No longer crashes on NeoForge 26.3.0.95 and newer
+- Distant terrain and distant water draw again with newer Helion versions
+
+### Changed
+- Needs NeoForge 26.3.0.95 or newer
+
 ## [1.0] - 2026-10-21
 
 ### Added

@@ -60,7 +60,7 @@ Every optimization is a module listed in `config/aervium-modules.properties` wit
 | Requirement | Supported Version |
 |---|---|
 | **Minecraft** | 26.3 |
-| **Loader** | NeoForge 26.3.0.51-beta or newer |
+| **Loader** | NeoForge 26.3.0.95 or newer |
 | **Java** | 25 |
 | **Graphics API** | Vulkan (`Video Settings` → `Graphics API` → `Prefer Vulkan`) |
 | **Side** | Client and server, each optional |
