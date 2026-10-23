@@ -16,7 +16,7 @@ Part of the [Aervium code map](../CODEMAP.md). Every class of this package has i
 
 #### TerrainGenerator
 - Path: `src/main/java/com/aryston/aervium/client/lod/TerrainGenerator.java`
-- Role: Plans coarse-first seed previews on workers, applies CPU concurrency and idle targets, cancellation, retries and shutdown cleanup.
+- Role: Plans coarse-first seed previews on workers, applies CPU concurrency and idle targets (Balanced uses the High targets while more than 32 tiles are missing), cancellation, retries and shutdown cleanup. Logs progress every 10 s and when everything within 512 blocks and every tile are generated.
 - Depends on: `GeneratedColumns`, `TerrainWorker`, `TileMeshing`, `LodPlanner`, `LodStore`, `GenerationPower`, `LodQuality`.
 
 #### GeneratedColumns

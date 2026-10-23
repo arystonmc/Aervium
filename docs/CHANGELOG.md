@@ -12,6 +12,8 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 
 ### Changed
 - Needs NeoForge 26.3.0.95 or newer
+- Distant terrain fills in about three times faster after joining a world or teleporting: with the Balanced CPU usage it runs like High until fewer than 32 tiles are missing, then slows down again
+- The log reports distant terrain progress every 10 seconds and when the area within 512 blocks and the whole distance are generated
 
 ## [1.0] - 2026-10-21
 

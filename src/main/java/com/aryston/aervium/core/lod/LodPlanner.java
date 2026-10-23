@@ -11,10 +11,20 @@ public final class LodPlanner {
 
     private final LongArrayList keys = new LongArrayList();
     private final DoubleArrayList scores = new DoubleArrayList();
+    private int incomplete;
+    private double nearestIncomplete;
 
     public long[] plan(double cameraX, double cameraZ, double maxDistance, LodSelection.ClipBox clip, LodQuality quality, LongPredicate needed, int limit) {
+        return plan(cameraX, cameraZ, maxDistance, clip, quality, needed, needed, limit);
+    }
+
+    public long[] plan(
+        double cameraX, double cameraZ, double maxDistance, LodSelection.ClipBox clip, LodQuality quality, LongPredicate needed, LongPredicate missing, int limit
+    ) {
         keys.clear();
         scores.clear();
+        incomplete = 0;
+        nearestIncomplete = Double.POSITIVE_INFINITY;
         int topSize = LodSelection.tileBlocks(TOP_LEVEL);
         int minTileX = (int) Math.floor((cameraX - maxDistance) / topSize);
         int maxTileX = (int) Math.floor((cameraX + maxDistance) / topSize);
@@ -22,13 +32,24 @@ public final class LodPlanner {
         int maxTileZ = (int) Math.floor((cameraZ + maxDistance) / topSize);
         for (int tileX = minTileX; tileX <= maxTileX; tileX++) {
             for (int tileZ = minTileZ; tileZ <= maxTileZ; tileZ++) {
-                visit(TOP_LEVEL, tileX, tileZ, cameraX, cameraZ, maxDistance, clip, quality, needed);
+                visit(TOP_LEVEL, tileX, tileZ, cameraX, cameraZ, maxDistance, clip, quality, needed, missing);
             }
         }
         return best(limit);
     }
 
-    private void visit(int level, int tileX, int tileZ, double cameraX, double cameraZ, double maxDistance, LodSelection.ClipBox clip, LodQuality quality, LongPredicate needed) {
+    public int incomplete() {
+        return incomplete;
+    }
+
+    public double nearestIncomplete() {
+        return nearestIncomplete;
+    }
+
+    private void visit(
+        int level, int tileX, int tileZ, double cameraX, double cameraZ, double maxDistance, LodSelection.ClipBox clip, LodQuality quality,
+        LongPredicate needed, LongPredicate missing
+    ) {
         int size = LodSelection.tileBlocks(level);
         double minX = (double) tileX * size;
         double minZ = (double) tileZ * size;
@@ -40,6 +61,10 @@ public final class LodPlanner {
             return;
         }
         long key = LodStore.key(level, tileX, tileZ);
+        if (missing.test(key)) {
+            incomplete++;
+            nearestIncomplete = Math.min(nearestIncomplete, distance);
+        }
         if (needed.test(key)) {
             keys.add(key);
             scores.add(distance - level * LEVEL_PRIORITY_BLOCKS);
@@ -47,7 +72,7 @@ public final class LodPlanner {
         if (level > quality.finestLevel() && distance < quality.splitFactor() * size) {
             for (int dz = 0; dz < CHILDREN_PER_SIDE; dz++) {
                 for (int dx = 0; dx < CHILDREN_PER_SIDE; dx++) {
-                    visit(level - 1, tileX * CHILDREN_PER_SIDE + dx, tileZ * CHILDREN_PER_SIDE + dz, cameraX, cameraZ, maxDistance, clip, quality, needed);
+                    visit(level - 1, tileX * CHILDREN_PER_SIDE + dx, tileZ * CHILDREN_PER_SIDE + dz, cameraX, cameraZ, maxDistance, clip, quality, needed, missing);
                 }
             }
         }

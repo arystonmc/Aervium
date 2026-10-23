@@ -46,7 +46,7 @@ Part of the [Aervium code map](../CODEMAP.md). Every class of this package has i
 
 #### LodPlanner
 - Path: `src/main/java/com/aryston/aervium/core/lod/LodPlanner.java`
-- Role: Plans coarse-first horizon previews, nearest first within a level, without requiring stored tiles.
+- Role: Plans coarse-first horizon previews, nearest first within a level, without requiring stored tiles; also counts the missing tiles and the distance of the nearest one.
 - Depends on: `LodSelection`, `LodStore`, `LodQuality`.
 
 #### LodQuality

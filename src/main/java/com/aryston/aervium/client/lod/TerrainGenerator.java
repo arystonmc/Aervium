@@ -23,6 +23,10 @@ final class TerrainGenerator {
     private static final int POOL_THREADS = GenerationPower.EXTREME.threads(CORES);
     private static final long FAILURE_RETRY_NANOS = 5_000_000_000L;
     private static final long IDLE_SLICE_NANOS = 10_000_000L;
+    private static final double NEAR_BLOCKS = 512.0;
+    private static final int CATCH_UP_TILES = 32;
+    private static final double NANOS_PER_SECOND = 1_000_000_000.0;
+    private static final long PROGRESS_INTERVAL_NANOS = 10_000_000_000L;
 
     private static final LodPlanner PLANNER = new LodPlanner();
     private static final LongOpenHashSet REQUESTED = new LongOpenHashSet();
@@ -41,6 +45,11 @@ final class TerrainGenerator {
     private static volatile @Nullable GeneratedColumns source;
     private static volatile GenerationPower power = GenerationPower.BALANCED;
     private static volatile long retryAfter;
+    private static volatile long boundAt = System.nanoTime();
+    private static boolean nearDone;
+    private static volatile boolean catchingUp = true;
+    private static boolean completeReported;
+    private static long lastProgress;
 
     private TerrainGenerator() {
     }
@@ -50,7 +59,13 @@ final class TerrainGenerator {
         EPOCH.incrementAndGet();
         GENERATED.set(0);
         retryAfter = 0L;
-        TerrainWorker.submit(store -> REQUESTED.clear());
+        boundAt = System.nanoTime();
+        TerrainWorker.submit(store -> {
+            REQUESTED.clear();
+            nearDone = false;
+            catchingUp = true;
+            completeReported = false;
+        });
     }
 
     static void shutdown() {
@@ -77,7 +92,7 @@ final class TerrainGenerator {
 
     static void request(double cameraX, double cameraZ, double distance, LodSelection.ClipBox clip, LodQuality quality) {
         GeneratedColumns columns = source;
-        int capacity = power.threads(CORES) - IN_FLIGHT.get();
+        int capacity = effectivePower().threads(CORES) - IN_FLIGHT.get();
         if (columns == null || capacity <= 0 || System.nanoTime() < retryAfter || !PLAN_PENDING.compareAndSet(false, true)) {
             return;
         }
@@ -87,11 +102,15 @@ final class TerrainGenerator {
                 if (EPOCH.get() != epoch) {
                     return;
                 }
-                int available = Math.min(capacity, power.threads(CORES) - IN_FLIGHT.get());
+                int available = Math.min(capacity, effectivePower().threads(CORES) - IN_FLIGHT.get());
                 if (available <= 0) {
                     return;
                 }
-                long[] keys = PLANNER.plan(cameraX, cameraZ, distance, clip, quality, key -> !REQUESTED.contains(key) && !store.complete(key), available);
+                long[] keys = PLANNER.plan(
+                    cameraX, cameraZ, distance, clip, quality, key -> !REQUESTED.contains(key) && !store.complete(key), key -> !store.complete(key), available
+                );
+                catchingUp = PLANNER.incomplete() > CATCH_UP_TILES;
+                reportProgress();
                 for (long key : keys) {
                     REQUESTED.add(key);
                     IN_FLIGHT.incrementAndGet();
@@ -109,6 +128,36 @@ final class TerrainGenerator {
                 PLAN_PENDING.set(false);
             }
         });
+    }
+
+    private static GenerationPower effectivePower() {
+        return power == GenerationPower.BALANCED && catchingUp ? GenerationPower.HIGH : power;
+    }
+
+    private static void reportProgress() {
+        double seconds = (System.nanoTime() - boundAt) / NANOS_PER_SECOND;
+        int threads = effectivePower().threads(CORES);
+        if (!completeReported && System.nanoTime() - lastProgress > PROGRESS_INTERVAL_NANOS) {
+            lastProgress = System.nanoTime();
+            Aervium.LOGGER.info(
+                "Aervium distant terrain progress after {} s: {} tiles generated, {} missing, nearest missing {} blocks away, {} in flight",
+                String.format("%.1f", seconds), GENERATED.get(), PLANNER.incomplete(), (int) Math.min(PLANNER.nearestIncomplete(), Integer.MAX_VALUE), IN_FLIGHT.get()
+            );
+        }
+        if (!nearDone && PLANNER.nearestIncomplete() > NEAR_BLOCKS) {
+            nearDone = true;
+            Aervium.LOGGER.info(
+                "Aervium distant terrain: everything within {} blocks generated after {} s ({} tiles, {} generator threads, power {})",
+                (int) NEAR_BLOCKS, String.format("%.1f", seconds), GENERATED.get(), threads, power
+            );
+        }
+        if (!completeReported && PLANNER.incomplete() == 0 && IN_FLIGHT.get() == 0) {
+            completeReported = true;
+            Aervium.LOGGER.info(
+                "Aervium distant terrain: every tile generated after {} s ({} tiles, {} generator threads, power {})",
+                String.format("%.1f", seconds), GENERATED.get(), threads, power
+            );
+        }
     }
 
     private static void generate(GeneratedColumns columns, long key, int grid, int epoch) {
@@ -150,7 +199,7 @@ final class TerrainGenerator {
     }
 
     private static void idle(long started, int epoch) {
-        long deadline = System.nanoTime() + power.idleNanos(System.nanoTime() - started);
+        long deadline = System.nanoTime() + effectivePower().idleNanos(System.nanoTime() - started);
         while (EPOCH.get() == epoch && !Thread.currentThread().isInterrupted()) {
             long remaining = deadline - System.nanoTime();
             if (remaining <= 0L) {
