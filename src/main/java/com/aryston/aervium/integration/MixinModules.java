@@ -99,6 +99,7 @@ public final class MixinModules implements IMixinConfigPlugin {
         Map.entry("CameraDistantTerrainMixin", OptimizationModule.DISTANT_TERRAIN),
         Map.entry("HelionDistantTerrainMixin", OptimizationModule.DISTANT_TERRAIN),
         Map.entry("HelionDistantWaterMixin", OptimizationModule.DISTANT_TERRAIN),
+        Map.entry("HelionDistantWaterSurfaceMixin", OptimizationModule.DISTANT_TERRAIN),
         Map.entry("LevelLoadTrackerPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),
         Map.entry("LevelExtractorPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),
         Map.entry("PacketProcessorPregenerationMixin", OptimizationModule.SPAWN_PREGENERATION),

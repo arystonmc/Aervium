@@ -159,6 +159,10 @@ public final class DistantTerrainRenderer {
         draw(pass, null, DistantTerrainPipeline.WATER_PIPELINE);
     }
 
+    public static void drawWaterSurface(RenderPass pass) {
+        draw(pass, null, DistantTerrainPipeline.WATER_SURFACE_PIPELINE);
+    }
+
     public static void endFrame() {
         DRAWS.endFrame();
     }

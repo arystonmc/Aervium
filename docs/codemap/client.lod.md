@@ -46,7 +46,7 @@ Part of the [Aervium code map](../CODEMAP.md). Every class of this package has i
 
 #### DistantTerrainPipeline
 - Path: `src/main/java/com/aryston/aervium/client/lod/DistantTerrainPipeline.java`
-- Role: Builds instanced forward opaque and water pipelines and the four-target Helion geometry pipeline, binding coverage and lightmap samplers; distant water is opaque so tile edges never show through it.
+- Role: Builds instanced forward opaque and water pipelines and the four-target Helion geometry pipeline, binding coverage and lightmap samplers; distant water is opaque so tile edges never show through it. `WATER_SURFACE_PIPELINE` (`lod/distant_water_surface`) writes Helion's water surface targets (RGBA16F surface: octahedral up normal, a fixed 6 block thickness, sky light; RGBA8 tint: the water color) and discards behind Helion's `SceneDepthSampler`.
 - Depends on: RenderPearl pipeline API, `distant_terrain` shaders.
 
 #### DistantTerrainFog

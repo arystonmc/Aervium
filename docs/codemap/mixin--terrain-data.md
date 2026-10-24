@@ -54,6 +54,11 @@ Part of the [Aervium code map](../CODEMAP.md). The package is split by topic; th
 - Role: `@Pseudo` Helion hook for opaque LOD after `renderOpaque` and `renderOpaqueGeometry`; water is submitted after deferred lighting through its own optional hook.
 - Notes: Module `distantTerrain`, renderer module. Helion offers no hook, so this preserves Helion lighting, TAA jitter and fog. Selects Helion methods and invoke targets by name only (lesson L-145), so a changed Helion signature does not silently skip the hook.
 
+#### HelionDistantWaterSurfaceMixin
+- Path: `src/main/java/com/aryston/aervium/mixin/HelionDistantWaterSurfaceMixin.java`
+- Role: `` Helion hook inside Helion's `water_surface` pass, after its own water: draws distant water into Helion's water surface targets, so Helion's realistic water composite (reflection, sun glint, refraction, depth color, fog) shades distant water like near water instead of the flat forward water.
+- Notes: Module `distantTerrain`. Target method and invoke selected by name only (lesson L-145), `require = 0`.
+
 #### HelionDistantWaterMixin
 - Path: `src/main/java/com/aryston/aervium/mixin/HelionDistantWaterMixin.java`
 - Role: Optional one-target water pass at the start of Helion's transparent stage, after deferred opaque lighting, including its order-independent path.

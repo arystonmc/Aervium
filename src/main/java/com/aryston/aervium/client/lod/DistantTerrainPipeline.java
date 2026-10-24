@@ -3,11 +3,13 @@ package com.aryston.aervium.client.lod;
 import com.aryston.aervium.Aervium;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.pipeline.BindGroupLayout;
 import com.mojang.renderpearl.api.pipeline.ColorTargetState;
 import com.mojang.renderpearl.api.pipeline.CompareOp;
 import com.mojang.renderpearl.api.pipeline.DepthStencilState;
 import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.pipeline.UniformType;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
 import java.util.Optional;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -17,6 +19,10 @@ import net.minecraft.resources.Identifier;
 final class DistantTerrainPipeline {
     private static final Identifier SHADER = Identifier.fromNamespaceAndPath(Aervium.MOD_ID, "lod/distant_terrain");
     private static final Identifier GEOMETRY_SHADER = Identifier.fromNamespaceAndPath(Aervium.MOD_ID, "lod/distant_terrain_geometry");
+    private static final Identifier WATER_SURFACE_SHADER = Identifier.fromNamespaceAndPath(Aervium.MOD_ID, "lod/distant_water_surface");
+    private static final String SCENE_DEPTH_SAMPLER = "SceneDepthSampler";
+    private static final int SURFACE_TARGET = 0;
+    private static final int TINT_TARGET = 1;
     private static final int NORMAL_TARGET = 1;
     private static final int LIGHT_TARGET = 2;
     private static final int ALBEDO_TARGET = 3;
@@ -33,6 +39,13 @@ final class DistantTerrainPipeline {
         .withColorTargetState(NORMAL_TARGET, target(GpuFormat.RGB10A2_UNORM))
         .withColorTargetState(LIGHT_TARGET, target(GpuFormat.RGBA8_UNORM))
         .withColorTargetState(ALBEDO_TARGET, target(GpuFormat.RGBA8_UNORM))
+        .build();
+
+    static final RenderPipeline WATER_SURFACE_PIPELINE = base("pipeline/distant_terrain_water_surface")
+        .withFragmentShader(WATER_SURFACE_SHADER)
+        .withBindGroupLayout(BindGroupLayout.builder().withUniform(SCENE_DEPTH_SAMPLER, UniformType.COMBINED_IMAGE_SAMPLER).build())
+        .withColorTargetState(SURFACE_TARGET, target(GpuFormat.RGBA16_FLOAT))
+        .withColorTargetState(TINT_TARGET, target(GpuFormat.RGBA8_UNORM))
         .build();
 
     private DistantTerrainPipeline() {

@@ -59,6 +59,7 @@
     "CompiledSectionMeshVisibilityAccessor",
     "HelionDistantTerrainMixin",
     "HelionDistantWaterMixin",
+    "HelionDistantWaterSurfaceMixin",
     "HelionShadowCastersMixin",
     "LevelExtractorBlockEntitiesMixin",
     "LevelExtractorDirtySectionsMixin",
