@@ -7,6 +7,7 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 ## Unreleased
 
 ### Fixed
+- With Helion's realistic water, distant water no longer shows as a bright turquoise band with a dotted edge; it matches the deep water near you
 - No longer crashes on NeoForge 26.3.0.95 and newer
 - Distant terrain and distant water draw again with newer Helion versions
 

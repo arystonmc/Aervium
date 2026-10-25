@@ -52,13 +52,9 @@ float terrainNoise() {
     return float(value & HASH_MASK) / HASH_RANGE;
 }
 
-void terrainClip() {
+void terrainCoverageClip() {
     vec2 position = cameraRelativePosition.xz;
     if (position.x < terrainBounds.x || position.y < terrainBounds.y || position.x > terrainBounds.z || position.y > terrainBounds.w) {
-        discard;
-    }
-    float noise = terrainNoise();
-    if (noise < terrainFade.x || noise >= terrainFade.y) {
         discard;
     }
     vec4 clip = TextureMat[0];
@@ -68,6 +64,14 @@ void terrainClip() {
         if (texelFetch(Sampler0, cell, 0).r > 0.0) {
             discard;
         }
+    }
+}
+
+void terrainClip() {
+    terrainCoverageClip();
+    float noise = terrainNoise();
+    if (noise < terrainFade.x || noise >= terrainFade.y) {
+        discard;
     }
 }
 
