@@ -1,11 +1,11 @@
-# Aervium Code Map: `com.aryston.aervium.world`
+# Kinetic Code Map: `com.aryston.kinetic.world`
 
-Part of the [Aervium code map](../CODEMAP.md). Every class of this package has its entry here and nowhere else (rule D1).
+Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has its entry here and nowhere else (rule D1).
 
-### `com.aryston.aervium.world`
+### `com.aryston.kinetic.world`
 
 #### TickTimeRecorder
-- Path: `src/main/java/com/aryston/aervium/world/TickTimeRecorder.java`
+- Path: `src/main/java/com/aryston/kinetic/world/TickTimeRecorder.java`
 - Role: Records the duration of every server tick of the integrated or dedicated server into a ring buffer and the `SERVER_TICK` timing scope.
 - Members:
   - `SERVER`: the instance the server events write to.

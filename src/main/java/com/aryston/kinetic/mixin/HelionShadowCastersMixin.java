@@ -1,0 +1,22 @@
+package com.aryston.kinetic.mixin;
+
+import com.aryston.kinetic.client.culling.HelionShadowCasters;
+import com.llamalad7.mixinextras.sugar.Local;
+import java.util.List;
+import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Pseudo
+@Mixin(targets = "com.aryston.helion.integration.vanilla.VanillaShadowCasterSource")
+abstract class HelionShadowCastersMixin {
+    @Inject(method = "collectSections", at = @At("RETURN"), require = 0)
+    private void kinetic$cullHiddenCasters(
+        CallbackInfoReturnable<List<List<SectionRenderDispatcher.RenderSection>>> callback, @Local(argsOnly = true) List<?> cascades
+    ) {
+        HelionShadowCasters.filter(cascades, callback.getReturnValue());
+    }
+}

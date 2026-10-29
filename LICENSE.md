@@ -33,7 +33,7 @@ Without explicit, prior written permission from Aryston, you may NOT:
 - **No Redistribution or Mirroring:** Re-upload, mirror, or distribute the software, in whole or in part, in binary or source form, on any website, launcher, or distribution platform outside the official project pages.
 - **No Derivative Forks:** Publish, release, or distribute modified copies, clones, or forks of this software.
 - **No Plagiarism or Extraction:** Copy, extract, or incorporate source code, shaders, algorithms, textures, user interface layouts, or proprietary assets into other projects or mods.
-- **No Trademark or Brand Misuse:** Use the names **"Aryston"**, **"Helion"**, **"Arkea"**, **"Aervium"**, or their associated logos and branding in a way that implies official endorsement, affiliation, or to brand a separate project.
+- **No Trademark or Brand Misuse:** Use the names **"Aryston"**, **"Helion"**, **"Arkea"**, **"Kinetic"**, or their associated logos and branding in a way that implies official endorsement, affiliation, or to brand a separate project.
 
 ---
 

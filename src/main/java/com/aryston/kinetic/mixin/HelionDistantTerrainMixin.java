@@ -1,0 +1,32 @@
+package com.aryston.kinetic.mixin;
+
+import com.aryston.kinetic.client.lod.DistantTerrainRenderer;
+import com.llamalad7.mixinextras.sugar.Local;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+
+@Pseudo
+@Mixin(targets = "com.aryston.helion.render.geometry.OpaqueGeometryStage")
+abstract class HelionDistantTerrainMixin {
+    @Inject(
+        method = "render",
+        at = @At(value = "INVOKE", target = "Lcom/aryston/helion/render/geometry/TerrainSource;renderOpaque", shift = At.Shift.AFTER),
+        require = 0
+    )
+    private void kinetic$drawDistantTerrain(CallbackInfo callback, @Local RenderPass pass) {
+        DistantTerrainRenderer.drawOpaque(pass);
+    }
+
+    @Inject(
+        method = "renderGeometry",
+        at = @At(value = "INVOKE", target = "Lcom/aryston/helion/render/geometry/TerrainSource;renderOpaqueGeometry", shift = At.Shift.AFTER),
+        require = 0
+    )
+    private void kinetic$drawDistantTerrainGeometry(CallbackInfo callback, @Local RenderPass pass) {
+        DistantTerrainRenderer.drawGeometry(pass);
+    }
+}

@@ -1,6 +1,6 @@
-# Aervium Architecture: Mixins
+# Kinetic Architecture: Mixins
 
-Part of the [Aervium architecture](../ARCHITECTURE.md).
+Part of the [Kinetic architecture](../ARCHITECTURE.md).
 
 ## Mixins
 

@@ -1,12 +1,12 @@
-# Aervium Architecture: Frame and Tick Flow
+# Kinetic Architecture: Frame and Tick Flow
 
-Part of the [Aervium architecture](../ARCHITECTURE.md).
+Part of the [Kinetic architecture](../ARCHITECTURE.md).
 
 ## Frame and Tick Flow
 
 ```
 RenderFrameEvent.Pre   frame start: FrameTimeRecorder (overlay), BenchmarkDriver (when running), FRAME scope begins
-GameRenderer.render    vanilla, Helion or later Aervium draw path
+GameRenderer.render    vanilla, Helion or later Kinetic draw path
 GUI layers             TelemetryOverlay draws text and the frame graph (OVERLAY scope)
 RenderFrameEvent.Post  FRAME scope ends, MainThreadQueue drains job results within 0.5 ms
 

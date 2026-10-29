@@ -1,0 +1,38 @@
+package com.aryston.kinetic.world.light;
+
+import com.aryston.kinetic.core.budget.StallMeter;
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
+
+public final class ServerLightTimings {
+    private static final ThreadMXBean THREADS = ManagementFactory.getThreadMXBean();
+    private static final StallMeter BATCHES = new StallMeter();
+    private static long cpuNanos;
+
+    private ServerLightTimings() {
+    }
+
+    public static long threadCpuNanos() {
+        return THREADS.isCurrentThreadCpuTimeSupported() ? THREADS.getCurrentThreadCpuTime() : 0L;
+    }
+
+    public static void batchFinished(long startNanos, long startCpuNanos) {
+        long nanos = System.nanoTime() - startNanos;
+        long cpu = threadCpuNanos() - startCpuNanos;
+        synchronized (BATCHES) {
+            BATCHES.record(nanos);
+            cpuNanos += cpu;
+        }
+    }
+
+    public static Totals take() {
+        synchronized (BATCHES) {
+            Totals totals = new Totals(BATCHES.take(), cpuNanos / 1.0E6);
+            cpuNanos = 0;
+            return totals;
+        }
+    }
+
+    public record Totals(StallMeter.Totals wall, double cpuMs) {
+    }
+}

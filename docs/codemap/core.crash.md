@@ -1,10 +1,10 @@
-# Aervium Code Map: `com.aryston.aervium.core.crash`
+# Kinetic Code Map: `com.aryston.kinetic.core.crash`
 
-Part of the [Aervium code map](../CODEMAP.md). Every class of this package has its entry here and nowhere else (rule D1).
+Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has its entry here and nowhere else (rule D1).
 
-### `com.aryston.aervium.core.crash`
+### `com.aryston.kinetic.core.crash`
 
 #### CrashSummary
-- Path: `src/main/java/com/aryston/aervium/core/crash/CrashSummary.java`
-- Role: Finds Aervium code in a crash stack (merged mixin handlers by their `aervium$` name, frames in `com.aryston.aervium`) and builds the lines of the crash report entry: version, module states, the code found or "Aervium code in crash: none", one fixed `Aervium module in crash: <key>` line per module and how to test without it.
+- Path: `src/main/java/com/aryston/kinetic/core/crash/CrashSummary.java`
+- Role: Finds Kinetic code in a crash stack (merged mixin handlers by their `kinetic$` name, frames in `com.aryston.kinetic`) and builds the lines of the crash report entry: version, module states, the code found or "Kinetic code in crash: none", one fixed `Kinetic module in crash: <key>` line per module and how to test without it.
 - Depends on: nothing; the mixin lookup and module map come in as functions.

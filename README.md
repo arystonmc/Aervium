@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="branding/logo.png" alt="Aervium logo" width="160">
+  <img src="branding/logo.png" alt="Kinetic logo" width="160">
 </p>
 
-<h1 align="center">Aervium</h1>
+<h1 align="center">Kinetic</h1>
 
 <p align="center">
   <strong>Smooth, stutter-free Minecraft on the Vulkan renderer, with vanilla game behavior kept exactly.</strong>
@@ -19,7 +19,7 @@
 
 ## Overview
 
-Aervium is the performance engine of the Aryston series. Its goal is not only a high frame rate but steady frame times: higher 1% and 0.1% lows, fewer stutters, and a server that keeps 20 ticks per second. Redstone, farms, mobs and world generation behave exactly as in vanilla; Aervium only changes how fast the game computes, never what it computes.
+Kinetic is the performance engine of the Aryston series. Its goal is not only a high frame rate but steady frame times: higher 1% and 0.1% lows, fewer stutters, and a server that keeps 20 ticks per second. Redstone, farms, mobs and world generation behave exactly as in vanilla; Kinetic only changes how fast the game computes, never what it computes.
 
 It replaces a stack of separate performance mods with built-in modules that can each be switched off, and it is the only optimizer that works together with [Helion](https://github.com/arystonmc/Helion).
 
@@ -33,9 +33,9 @@ It replaces a stack of separate performance mods with built-in modules that can 
 - 🔋 **Dynamic frame rate:** Lower frame rates in the background and while paused.
 - 📈 **Performance details on F3:** Frame rate with 1% and 0.1% lows, server tick time, garbage collector pauses, RAM and video memory.
 - 🧪 **Built-in benchmark:** A repeatable flight through a fixed world (walk, elytra, village crowd, caves, redstone) that writes a readable report and compares it with the last run.
-- 🧩 **One performance mod at a time:** Aervium replaces Sodium, so it refuses to start next to it with a clear message (except in its own benchmark, to measure Sodium). With Iris installed it keeps every optimization off and only measures.
+- 🧩 **One performance mod at a time:** Kinetic replaces Sodium, so it refuses to start next to it with a clear message (except in its own benchmark, to measure Sodium). With Iris installed it keeps every optimization off and only measures.
 
-See the [Aervium Feature Guide](docs/FEATURES.md) for every module and its measured effect.
+See the [Kinetic Feature Guide](docs/FEATURES.md) for every module and its measured effect.
 
 ## Benchmark
 
@@ -43,17 +43,17 @@ The built-in benchmark on one PC (RTX 4050 Laptop GPU, 16 threads, 1920x1009 win
 
 | Setup | Average FPS | 1% low | 0.1% low |
 |---|---|---|---|
-| Aervium | 326 | 130 | 71 |
+| Kinetic | 326 | 130 | 71 |
 | Sodium 0.9.3 | 296 | 124 | 67 |
 | Vanilla | 218 | 65 | 43 |
-| Aervium with Helion | 143 | 65 | 41 |
+| Kinetic with Helion | 143 | 65 | 41 |
 | Vanilla with Helion | 112 | 39 | 25 |
 
-Run it yourself with the JVM property `-Daervium.benchmark=true`; reports land in `aervium/benchmarks/` in the game folder.
+Run it yourself with the JVM property `-Dkinetic.benchmark=true`; reports land in `kinetic/benchmarks/` in the game folder.
 
 ## Modules
 
-Every optimization is a module listed in `config/aervium-modules.properties` with `true` or `false`. Changes apply at the next start. If something looks wrong, switch the module named in the crash report or the one you suspect off and try again.
+Every optimization is a module listed in `config/kinetic-modules.properties` with `true` or `false`. Changes apply at the next start. If something looks wrong, switch the module named in the crash report or the one you suspect off and try again.
 
 ## Requirements
 
@@ -74,7 +74,7 @@ Every optimization is a module listed in `config/aervium-modules.properties` wit
 ./gradlew build
 ```
 
-- **Output:** The jar is written to `build/libs/aervium-neoforge-<minecraft_version>-<mod_version>.jar`, currently `build/libs/aervium-neoforge-26.3-1.0.jar`.
+- **Output:** The jar is written to `build/libs/kinetic-neoforge-<minecraft_version>-<mod_version>.jar`, currently `build/libs/kinetic-neoforge-26.3-1.0.jar`.
 
 ## Changelog
 

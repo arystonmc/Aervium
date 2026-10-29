@@ -1,6 +1,6 @@
-# Aervium Architecture: Layers
+# Kinetic Architecture: Layers
 
-Part of the [Aervium architecture](../ARCHITECTURE.md).
+Part of the [Kinetic architecture](../ARCHITECTURE.md).
 
 ## Layers
 

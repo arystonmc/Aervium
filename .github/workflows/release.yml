@@ -46,7 +46,7 @@ jobs:
       - name: Write release notes
         run: |
           if [ "${{ steps.version.outputs.version }}" = "0.1" ]; then
-            echo "Initial release of Aervium 0.1 Alpha for Minecraft 26.3 on NeoForge." > build/release-notes.md
+            echo "Initial release of Kinetic 0.1 Alpha for Minecraft 26.3 on NeoForge." > build/release-notes.md
           else
             notes=$(awk -v version="${{ steps.version.outputs.version }}" '$0 == "## " version || index($0, "## [" version "]") == 1 {found = 1; next} found && /^## / {exit} found {print}' docs/CHANGELOG.md)
             if [ -z "$notes" ]; then
@@ -59,7 +59,7 @@ jobs:
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
-          name: Aervium ${{ steps.version.outputs.version }}
+          name: Kinetic ${{ steps.version.outputs.version }}
           body_path: build/release-notes.md
           files: build/libs/*.jar
 
@@ -67,12 +67,12 @@ jobs:
         if: github.ref_type == 'tag' && (env.MODRINTH_TOKEN != '' || env.CURSEFORGE_TOKEN != '')
         uses: Kir-Antipov/mc-publish@v3.3
         with:
-          modrinth-id: ${{ vars.MODRINTH_ID || 'aervium' }}
+          modrinth-id: ${{ vars.MODRINTH_ID || 'kinetic' }}
           modrinth-token: ${{ env.MODRINTH_TOKEN }}
           curseforge-id: ${{ vars.CURSEFORGE_ID }}
           curseforge-token: ${{ env.CURSEFORGE_TOKEN }}
-          files: build/libs/aervium-neoforge-${{ steps.version.outputs.minecraft }}-${{ steps.version.outputs.version }}.jar
-          name: Aervium ${{ steps.version.outputs.version }}
+          files: build/libs/kinetic-neoforge-${{ steps.version.outputs.minecraft }}-${{ steps.version.outputs.version }}.jar
+          name: Kinetic ${{ steps.version.outputs.version }}
           version: ${{ steps.version.outputs.version }}
           version-type: alpha
           changelog-file: build/release-notes.md

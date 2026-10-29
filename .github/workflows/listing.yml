@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
-      MODRINTH_ID: ${{ vars.MODRINTH_ID || 'aervium' }}
+      MODRINTH_ID: ${{ vars.MODRINTH_ID || 'kinetic' }}
       SITE_URL: https://lureid.com
       SUMMARY: "Smoother Minecraft on the Vulkan renderer: steadier frame times, fewer stutters and a built-in benchmark, with vanilla game behavior kept exactly."
       CATEGORIES: "optimization"

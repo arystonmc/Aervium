@@ -1,6 +1,6 @@
 # Distant Terrain Review (historical): Verification and remaining work
 
-Historical record, kept unchanged: the distant terrain review of 2026-10-19 and its follow-up of 2026-10-20. Part of the [Aervium architecture](../ARCHITECTURE.md); the current design is in [the distant terrain section](engine-systems--terrain-and-join.md).
+Historical record, kept unchanged: the distant terrain review of 2026-10-19 and its follow-up of 2026-10-20. Part of the [Kinetic architecture](../ARCHITECTURE.md); the current design is in [the distant terrain section](engine-systems--terrain-and-join.md).
 
 ## Verification and remaining work
 
@@ -51,68 +51,68 @@ Repair validation: `gradlew.bat build` passed with 222 tests, zero failures, err
 
 ### Files changed in this task
 
-Paths in the table are relative to `C:/Users/Can/Desktop/Aryston/mods/aervium/`, except the explicitly named workspace document. Other uncommitted Phase 6 and settings work was already present at entry and is not attributed to this task.
+Paths in the table are relative to `C:/Users/Can/Desktop/Aryston/mods/kinetic/`, except the explicitly named workspace document. Other uncommitted Phase 6 and settings work was already present at entry and is not attributed to this task.
 
 | File | Change |
 |---|---|
 | `build.gradle` | Native shader compiler test access flags. |
-| `src/main/java/com/aryston/aervium/core/lod/DistantTerrainLimits.java` | Tile and layer-byte residency targets. |
-| `src/main/java/com/aryston/aervium/core/lod/LodAllocator.java` | New bounded, coalescing shared-page allocator. |
-| `src/main/java/com/aryston/aervium/core/lod/LodColor.java` | New texture/tint RGB multiplication. |
-| `src/main/java/com/aryston/aervium/core/lod/LodCoverage.java` | New uploaded-surface readiness, known-requirement checks and ring-mask logic. |
-| `src/main/java/com/aryston/aervium/core/lod/LodData.java` | New owned tile payload and exactness checks. |
-| `src/main/java/com/aryston/aervium/core/lod/LodDiskCache.java` | New compressed, validated, repaired and periodically trimmed cache. |
-| `src/main/java/com/aryston/aervium/core/lod/LodLayers.java` | New capped vertical intervals and side material snapshots. |
-| `src/main/java/com/aryston/aervium/core/lod/LodLayerMesher.java` | New greedy layered surfaces and exposed interval walls. |
-| `src/main/java/com/aryston/aervium/core/lod/LodPlanner.java` | Fine-first exact refinement alongside coarse-first previews. |
-| `src/main/java/com/aryston/aervium/core/lod/LodTransitions.java` | New complementary transition region partitioning. |
-| `src/main/java/com/aryston/aervium/core/lod/GenerationPower.java` | Reserved processors and idle targets. |
-| `src/main/java/com/aryston/aervium/core/lod/LodBorders.java` | New immutable edge snapshot. |
-| `src/main/java/com/aryston/aervium/core/lod/LodCombine.java` | Provenance, partial/void coverage and light aggregation. |
-| `src/main/java/com/aryston/aervium/core/lod/LodMesh.java` | Coverage, opaque/water ranges and vertical bounds. |
-| `src/main/java/com/aryston/aervium/core/lod/LodMesher.java` | Merged geometry, adaptive skirts, packed light and byte fallback. |
-| `src/main/java/com/aryston/aervium/core/lod/LodSample.java` | Coverage/source flags, light and vertex metadata. |
-| `src/main/java/com/aryston/aervium/core/lod/LodSelection.java` | Uploaded-child completeness gate and selection independent of CPU eviction. |
-| `src/main/java/com/aryston/aervium/core/lod/LodStore.java` | Completeness before source precedence, coverage-safe aggregation, edge sampling and residency trimming. |
-| `src/main/java/com/aryston/aervium/core/lod/LodTile.java` | Exact/complete counters, layers and byte accounting. |
-| `src/main/java/com/aryston/aervium/client/ClientEvents.java` | Reload/unload/frame/shutdown lifecycle wiring. |
-| `src/main/java/com/aryston/aervium/client/lod/ColumnSampler.java` | Main-thread client view construction. |
-| `src/main/java/com/aryston/aervium/client/lod/DistantTerrain.java` | Budgeted layered capture, independent readiness queues on load/discovery, edits, epochs and lifecycle. |
-| `src/main/java/com/aryston/aervium/client/lod/DistantTerrainCoverage.java` | New upload readiness adapter, independently budgeted height requirements and mask texture. |
-| `src/main/java/com/aryston/aervium/client/lod/DistantTerrainPipeline.java` | Instanced opaque/water/geometry pipelines and samplers. |
-| `src/main/java/com/aryston/aervium/client/lod/DistantTerrainRenderer.java` | Pooled indirect draws, frustum bounds, coverage, fades, water and pressure limits. |
-| `src/main/java/com/aryston/aervium/client/lod/GeneratedColumns.java` | Preview provenance, cancellation and saved overlays. |
-| `src/main/java/com/aryston/aervium/client/lod/IsolatedTerrainRegion.java` | New private generation region, detached feature block entities and holders without live writes or entity activation. |
-| `src/main/java/com/aryston/aervium/client/lod/SavedColumnView.java` | Private/client layers, material/tint and dimension-aware light sampling. |
-| `src/main/java/com/aryston/aervium/client/lod/SavedTerrain.java` | Asynchronous saved source and private old-tag upgrading. |
-| `src/main/java/com/aryston/aervium/client/lod/SeedTerrain.java` | New isolated actual terrain/structure/feature generation. |
-| `src/main/java/com/aryston/aervium/client/lod/TerrainCache.java` | New worker-only identity/resource fingerprint adapter; generation revision 3 invalidates earlier feature output. |
-| `src/main/java/com/aryston/aervium/client/lod/TerrainDraws.java` | New bounded, nonblocking indirect/instance staging. |
-| `src/main/java/com/aryston/aervium/client/lod/TerrainGeometry.java` | New shared vertex pages and changed-range uploads. |
-| `src/main/java/com/aryston/aervium/client/lod/TerrainMaterials.java` | New budgeted texture-average/tint palette. |
-| `src/main/java/com/aryston/aervium/client/lod/TerrainGenerator.java` | Preview/refinement/refresh planning without refresh starvation, cancellation, power and shutdown. |
-| `src/main/java/com/aryston/aervium/client/lod/TerrainWorker.java` | Graceful store cleanup and late-submission handling. |
-| `src/main/java/com/aryston/aervium/client/lod/TileMeshing.java` | Epoch-tagged count/byte-bounded ready queue and border remeshing. |
-| `src/main/java/com/aryston/aervium/integration/MixinModules.java` | Gate new distant hooks with the existing module. |
-| `src/main/java/com/aryston/aervium/mixin/HelionDistantTerrainMixin.java` | Keep opaque draws separate from post-lighting water. |
-| `src/main/java/com/aryston/aervium/mixin/HelionDistantWaterMixin.java` | New optional transparent-stage water hook. |
-| `src/main/java/com/aryston/aervium/mixin/RenderSectionDistantTerrainMixin.java` | New uploaded/reset section notifications. |
-| `src/main/java/com/aryston/aervium/mixin/SectionUpdateTrackerDistantTerrainMixin.java` | New block/light edit capture notifications. |
-| `src/main/resources/aervium.mixins.json` | Register new client/optional hooks. |
-| `src/main/resources/assets/aervium/shaders/include/lod_common.glsl` | New shared coverage/dither/light/fog/water logic. |
-| `src/main/resources/assets/aervium/shaders/lod/distant_terrain.vsh` | Instanced offsets/fades and packed metadata decoding. |
-| `src/main/resources/assets/aervium/shaders/lod/distant_terrain.fsh` | Lightmap-lit forward distant terrain. |
-| `src/main/resources/assets/aervium/shaders/lod/distant_terrain_geometry.fsh` | Unshaded albedo and retained light for Helion. |
-| `src/test/java/com/aryston/aervium/core/lod/GenerationPowerTest.java` | New CPU-setting tests. |
-| `src/test/java/com/aryston/aervium/core/lod/LodMesherTest.java` | Geometry, void, child coverage, uploaded detail after sample eviction and mixed-level edge tests. |
-| `src/test/java/com/aryston/aervium/core/lod/LodStoreTest.java` | Provenance, complete preview repair of sparse ancestors, void coverage and residency tests. |
-| `src/test/java/com/aryston/aervium/core/lod/LodAllocatorTest.java` | New allocation/coalescing/limits tests. |
-| `src/test/java/com/aryston/aervium/core/lod/LodCoverageTest.java` | New readiness, known-requirement, mask-coordinate and lifetime tests. |
-| `src/test/java/com/aryston/aervium/core/lod/LodDiskCacheTest.java` | New compression, corruption, identity and concurrent-write tests. |
-| `src/test/java/com/aryston/aervium/core/lod/LodLayersTest.java` | New overhang, water, light, propagation and mesh-budget tests. |
-| `src/test/java/com/aryston/aervium/core/lod/LodPlannerTest.java` | New coarse-preview/fine-refinement ordering test. |
-| `src/test/java/com/aryston/aervium/core/lod/LodTransitionsTest.java` | New region completeness and fade-lifetime tests. |
-| `src/test/java/com/aryston/aervium/client/lod/LodShaderTest.java` | New actual-include SPIR-V compilation test. |
+| `src/main/java/com/aryston/kinetic/core/lod/DistantTerrainLimits.java` | Tile and layer-byte residency targets. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodAllocator.java` | New bounded, coalescing shared-page allocator. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodColor.java` | New texture/tint RGB multiplication. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodCoverage.java` | New uploaded-surface readiness, known-requirement checks and ring-mask logic. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodData.java` | New owned tile payload and exactness checks. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodDiskCache.java` | New compressed, validated, repaired and periodically trimmed cache. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodLayers.java` | New capped vertical intervals and side material snapshots. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodLayerMesher.java` | New greedy layered surfaces and exposed interval walls. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodPlanner.java` | Fine-first exact refinement alongside coarse-first previews. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodTransitions.java` | New complementary transition region partitioning. |
+| `src/main/java/com/aryston/kinetic/core/lod/GenerationPower.java` | Reserved processors and idle targets. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodBorders.java` | New immutable edge snapshot. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodCombine.java` | Provenance, partial/void coverage and light aggregation. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodMesh.java` | Coverage, opaque/water ranges and vertical bounds. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodMesher.java` | Merged geometry, adaptive skirts, packed light and byte fallback. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodSample.java` | Coverage/source flags, light and vertex metadata. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodSelection.java` | Uploaded-child completeness gate and selection independent of CPU eviction. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodStore.java` | Completeness before source precedence, coverage-safe aggregation, edge sampling and residency trimming. |
+| `src/main/java/com/aryston/kinetic/core/lod/LodTile.java` | Exact/complete counters, layers and byte accounting. |
+| `src/main/java/com/aryston/kinetic/client/ClientEvents.java` | Reload/unload/frame/shutdown lifecycle wiring. |
+| `src/main/java/com/aryston/kinetic/client/lod/ColumnSampler.java` | Main-thread client view construction. |
+| `src/main/java/com/aryston/kinetic/client/lod/DistantTerrain.java` | Budgeted layered capture, independent readiness queues on load/discovery, edits, epochs and lifecycle. |
+| `src/main/java/com/aryston/kinetic/client/lod/DistantTerrainCoverage.java` | New upload readiness adapter, independently budgeted height requirements and mask texture. |
+| `src/main/java/com/aryston/kinetic/client/lod/DistantTerrainPipeline.java` | Instanced opaque/water/geometry pipelines and samplers. |
+| `src/main/java/com/aryston/kinetic/client/lod/DistantTerrainRenderer.java` | Pooled indirect draws, frustum bounds, coverage, fades, water and pressure limits. |
+| `src/main/java/com/aryston/kinetic/client/lod/GeneratedColumns.java` | Preview provenance, cancellation and saved overlays. |
+| `src/main/java/com/aryston/kinetic/client/lod/IsolatedTerrainRegion.java` | New private generation region, detached feature block entities and holders without live writes or entity activation. |
+| `src/main/java/com/aryston/kinetic/client/lod/SavedColumnView.java` | Private/client layers, material/tint and dimension-aware light sampling. |
+| `src/main/java/com/aryston/kinetic/client/lod/SavedTerrain.java` | Asynchronous saved source and private old-tag upgrading. |
+| `src/main/java/com/aryston/kinetic/client/lod/SeedTerrain.java` | New isolated actual terrain/structure/feature generation. |
+| `src/main/java/com/aryston/kinetic/client/lod/TerrainCache.java` | New worker-only identity/resource fingerprint adapter; generation revision 3 invalidates earlier feature output. |
+| `src/main/java/com/aryston/kinetic/client/lod/TerrainDraws.java` | New bounded, nonblocking indirect/instance staging. |
+| `src/main/java/com/aryston/kinetic/client/lod/TerrainGeometry.java` | New shared vertex pages and changed-range uploads. |
+| `src/main/java/com/aryston/kinetic/client/lod/TerrainMaterials.java` | New budgeted texture-average/tint palette. |
+| `src/main/java/com/aryston/kinetic/client/lod/TerrainGenerator.java` | Preview/refinement/refresh planning without refresh starvation, cancellation, power and shutdown. |
+| `src/main/java/com/aryston/kinetic/client/lod/TerrainWorker.java` | Graceful store cleanup and late-submission handling. |
+| `src/main/java/com/aryston/kinetic/client/lod/TileMeshing.java` | Epoch-tagged count/byte-bounded ready queue and border remeshing. |
+| `src/main/java/com/aryston/kinetic/integration/MixinModules.java` | Gate new distant hooks with the existing module. |
+| `src/main/java/com/aryston/kinetic/mixin/HelionDistantTerrainMixin.java` | Keep opaque draws separate from post-lighting water. |
+| `src/main/java/com/aryston/kinetic/mixin/HelionDistantWaterMixin.java` | New optional transparent-stage water hook. |
+| `src/main/java/com/aryston/kinetic/mixin/RenderSectionDistantTerrainMixin.java` | New uploaded/reset section notifications. |
+| `src/main/java/com/aryston/kinetic/mixin/SectionUpdateTrackerDistantTerrainMixin.java` | New block/light edit capture notifications. |
+| `src/main/resources/kinetic.mixins.json` | Register new client/optional hooks. |
+| `src/main/resources/assets/kinetic/shaders/include/lod_common.glsl` | New shared coverage/dither/light/fog/water logic. |
+| `src/main/resources/assets/kinetic/shaders/lod/distant_terrain.vsh` | Instanced offsets/fades and packed metadata decoding. |
+| `src/main/resources/assets/kinetic/shaders/lod/distant_terrain.fsh` | Lightmap-lit forward distant terrain. |
+| `src/main/resources/assets/kinetic/shaders/lod/distant_terrain_geometry.fsh` | Unshaded albedo and retained light for Helion. |
+| `src/test/java/com/aryston/kinetic/core/lod/GenerationPowerTest.java` | New CPU-setting tests. |
+| `src/test/java/com/aryston/kinetic/core/lod/LodMesherTest.java` | Geometry, void, child coverage, uploaded detail after sample eviction and mixed-level edge tests. |
+| `src/test/java/com/aryston/kinetic/core/lod/LodStoreTest.java` | Provenance, complete preview repair of sparse ancestors, void coverage and residency tests. |
+| `src/test/java/com/aryston/kinetic/core/lod/LodAllocatorTest.java` | New allocation/coalescing/limits tests. |
+| `src/test/java/com/aryston/kinetic/core/lod/LodCoverageTest.java` | New readiness, known-requirement, mask-coordinate and lifetime tests. |
+| `src/test/java/com/aryston/kinetic/core/lod/LodDiskCacheTest.java` | New compression, corruption, identity and concurrent-write tests. |
+| `src/test/java/com/aryston/kinetic/core/lod/LodLayersTest.java` | New overhang, water, light, propagation and mesh-budget tests. |
+| `src/test/java/com/aryston/kinetic/core/lod/LodPlannerTest.java` | New coarse-preview/fine-refinement ordering test. |
+| `src/test/java/com/aryston/kinetic/core/lod/LodTransitionsTest.java` | New region completeness and fade-lifetime tests. |
+| `src/test/java/com/aryston/kinetic/client/lod/LodShaderTest.java` | New actual-include SPIR-V compilation test. |
 | `docs/ARCHITECTURE.md` | Current Phase 6 invariants and limits. |
 | `docs/CHANGELOG.md` | Player-facing change entries. |
 | `docs/CODEMAP.md` | Updated entries for every changed/new source and test. |

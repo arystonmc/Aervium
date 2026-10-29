@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report an issue or unexpected behavior in Aervium
+description: Report an issue or unexpected behavior in Kinetic
 labels: ["bug"]
 body:
   - type: markdown
@@ -18,8 +18,8 @@ body:
     id: versions
     attributes:
       label: Game & Mod Versions
-      description: Minecraft version, NeoForge build, Aervium version and other installed mods
-      placeholder: "e.g. Minecraft 26.3, NeoForge 26.3.0.51-beta, Aervium 0.1"
+      description: Minecraft version, NeoForge build, Kinetic version and other installed mods
+      placeholder: "e.g. Minecraft 26.3, NeoForge 26.3.0.51-beta, Kinetic 0.1"
     validations:
       required: true
   - type: textarea
@@ -37,7 +37,7 @@ body:
       placeholder: |
         1. Start game with Vulkan backend
         2. Enter world
-        3. Open the Aervium overlay with F7
+        3. Open the Kinetic overlay with F7
     validations:
       required: true
   - type: input

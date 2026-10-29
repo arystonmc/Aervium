@@ -1,11 +1,11 @@
 name: Feature Request
-description: Propose an enhancement or new performance feature for Aervium
+description: Propose an enhancement or new performance feature for Kinetic
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Have an idea to make Aervium better? Let us know!
+        Have an idea to make Kinetic better? Let us know!
   - type: textarea
     id: proposal
     attributes:
@@ -17,7 +17,7 @@ body:
     id: rationale
     attributes:
       label: Rationale / Use Case
-      description: Why would this be a great addition to Aervium?
+      description: Why would this be a great addition to Kinetic?
     validations:
       required: false
 

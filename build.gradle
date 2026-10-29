@@ -65,7 +65,7 @@ neoForge {
             server()
             gameDirectory = project.file('runs/parity')
             programArgument '--nogui'
-            systemProperty 'aervium.parity', 'true'
+            systemProperty 'kinetic.parity', 'true'
         }
 
         configureEach {
@@ -136,7 +136,7 @@ var setUpParityWorld = tasks.register('setUpParityWorld') {
         var config = new File(parityDir, 'config')
         config.mkdirs()
         var value = modulesOn ? 'true' : 'false'
-        new File(config, 'aervium-modules.properties').text = [
+        new File(config, 'kinetic-modules.properties').text = [
                 'shaderCache', 'pipelineCache', 'pipelineWarmup', 'compactChunkLocks', 'sectionSliceCache',
                 'lightSnapshots', 'occlusionCulling', 'meshWorkers', 'faceCulling', 'poiSearch', 'entityCollisions',
                 'hopperSearch', 'compactVertices', 'networkCompression', 'parallelFeatures', 'blockEntitySections', 'directDraws', 'dirtySections', 'gpuCulling', 'sectionGridMoves', 'lockFreeSections', 'swapchainImages', 'chunkPacketDecoding', 'preciseFrameTime', 'particleCollisions', 'modelCorners', 'teamlessPushing', 'distantTerrain',

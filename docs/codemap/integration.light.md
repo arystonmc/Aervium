@@ -1,10 +1,10 @@
-# Aervium Code Map: `com.aryston.aervium.integration.light`
+# Kinetic Code Map: `com.aryston.kinetic.integration.light`
 
-Part of the [Aervium code map](../CODEMAP.md). Every class of this package has its entry here and nowhere else (rule D1).
+Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has its entry here and nowhere else (rule D1).
 
-### `com.aryston.aervium.integration.light`
+### `com.aryston.kinetic.integration.light`
 
 #### LightSnapshotSource
-- Path: `src/main/java/com/aryston/aervium/integration/light/LightSnapshotSource.java`
-- Role: Interface `DataLayerStorageMapMixin` adds to the light storage maps: `aervium$snapshot()` returns the map for a new visible copy.
+- Path: `src/main/java/com/aryston/kinetic/integration/light/LightSnapshotSource.java`
+- Role: Interface `DataLayerStorageMapMixin` adds to the light storage maps: `kinetic$snapshot()` returns the map for a new visible copy.
 - Depends on: nothing.

@@ -1,12 +1,12 @@
-# Aervium Architecture: Benchmark
+# Kinetic Architecture: Benchmark
 
-Part of the [Aervium architecture](../ARCHITECTURE.md).
+Part of the [Kinetic architecture](../ARCHITECTURE.md).
 
 ## Benchmark
 
-`-Daervium.benchmark=true` (works with `launcher/launch.ps1 -Define`) starts the benchmark from the first screen; `-Daervium.benchmark.quit=true` closes the game afterwards. For a fair comparison of setups every run forces borderless fullscreen, an unlimited frame rate and vsync off, ignores the frame cap of an unfocused window, raises the game window to the front and restores the options afterwards (`BenchmarkOptions`); render distance defaults to 32 unless `-Daervium.benchmark.renderDistance` sets it, `-Daervium.benchmark.simulationDistance` sets the simulation distance, `-Daervium.modules=off` keeps every module off for that start (`MixinModules`), and every scene reports hitches and motion error beside the frame-time and tick summaries. Reports use format version 2, so earlier reports are not compared.
+`-Dkinetic.benchmark=true` (works with `launcher/launch.ps1 -Define`) starts the benchmark from the first screen; `-Dkinetic.benchmark.quit=true` closes the game afterwards. For a fair comparison of setups every run forces borderless fullscreen, an unlimited frame rate and vsync off, ignores the frame cap of an unfocused window, raises the game window to the front and restores the options afterwards (`BenchmarkOptions`); render distance defaults to 32 unless `-Dkinetic.benchmark.renderDistance` sets it, `-Dkinetic.benchmark.simulationDistance` sets the simulation distance, `-Dkinetic.modules=off` keeps every module off for that start (`MixinModules`), and every scene reports hitches and motion error beside the frame-time and tick summaries. Reports use format version 2, so earlier reports are not compared.
 
-1. Deletes the previous `aervium-benchmark` world and creates a fresh one: seed 8675309, spectator, peaceful, cheats on.
+1. Deletes the previous `kinetic-benchmark` world and creates a fresh one: seed 8675309, spectator, peaceful, cheats on.
 2. Freezes time at noon and the weather, turns mob spawning off and finds the spawn on the server thread.
 3. Captures the environment before restoring the player's options.
 4. Runs every scene: force-loads its site, builds it once its entities are loaded, settles for 200 ticks while the camera moves, then measures 600 ticks. It runs the setup's per-tick commands, clears the site, removes loose item and experience-orb drops, and releases the force load before the next scene.
@@ -23,4 +23,4 @@ Part of the [Aervium architecture](../ARCHITECTURE.md).
 | explosion | 2048 TNT lit on the first measured tick | explosions |
 | server | 12 simulated players: radius-10 ender-pearl chunk tickets 40 chunks from spawn, walking one chunk outward every 20 ticks in 12 directions | integrated-server chunk loading, generation and ticks |
 
-The report goes to `<game folder>/aervium/benchmarks/benchmark-<yyyyMMdd-HHmmss>.json` and `.txt` and is also printed to the log. It compares itself with the newest earlier report. Repeatability target: average FPS of every scene within ±2 % between two runs on the same settings; the frame limit, vsync, window size, render distance and installed mods are written into the report because they change the result.
+The report goes to `<game folder>/kinetic/benchmarks/benchmark-<yyyyMMdd-HHmmss>.json` and `.txt` and is also printed to the log. It compares itself with the newest earlier report. Repeatability target: average FPS of every scene within ±2 % between two runs on the same settings; the frame limit, vsync, window size, render distance and installed mods are written into the report because they change the result.
