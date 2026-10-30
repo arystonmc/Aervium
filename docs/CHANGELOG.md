@@ -11,7 +11,11 @@ Format: sections `Added`, `Changed`, `Fixed`, `Removed`. One short plain English
 - No longer crashes on NeoForge 26.3.0.95 and newer
 - Distant terrain and distant water draw again with newer Helion versions
 
+### Added
+- The F3 screen, the overlay and every benchmark scene show how long the processor and the graphics card work on each frame and whether the game is CPU bound or GPU bound
+
 ### Changed
+- Distant terrain costs the render thread much less each frame: about 10 % of its time went into scanning a nearly empty list of finished chunks
 - Renamed from Aervium to Kinetic: the mod id is now `kinetic`, settings live in `config/kinetic-client.toml` and the cache in `kinetic/`
 - Needs NeoForge 26.3.0.95 or newer
 - Distant terrain fills in about three times faster after joining a world or teleporting: with the Balanced CPU usage it runs like High until fewer than 32 tiles are missing, then slows down again

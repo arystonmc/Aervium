@@ -29,7 +29,7 @@ Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has i
 #### ClientTelemetry
 - Path: `src/main/java/com/aryston/kinetic/client/ClientTelemetry.java`
 - Role: Owns the overlay frame recorder (2048 frames), the GC recorder, the job system and the main-thread queue; every five client ticks it copies the raw data, summarizes it on a worker and publishes the snapshot on the main thread within 0.5 ms.
-- Depends on: `FrameTimeRecorder`, `MotionErrorRecorder`, `GcPauseRecorder`, `JobSystem`, `MainThreadQueue`, `TickTimeRecorder`, `SystemTimings`, `VulkanMemoryProbe`.
+- Depends on: `FrameTimeRecorder`, `FrameCostRecorder`, `MotionErrorRecorder`, `GcPauseRecorder`, `JobSystem`, `MainThreadQueue`, `TickTimeRecorder`, `SystemTimings`, `VulkanMemoryProbe`.
 
 #### MotionSampler
 - Path: `src/main/java/com/aryston/kinetic/client/MotionSampler.java`
@@ -53,7 +53,7 @@ Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has i
 
 #### OverlayLines
 - Path: `src/main/java/com/aryston/kinetic/client/OverlayLines.java`
-- Role: Turns a `TelemetrySnapshot` into colored text lines; rebuilt only when a snapshot arrives. Shows hitches and motion error, yellow when the p99 motion error exceeds 0.5 ms or a hitch occurred, culling counts, distant terrain recorded chunks, tiles, sample memory, meshes and drawn tiles, and, with module `meshWorkers`, chunk builds per second, busy workers and queued builds.
+- Role: Turns a `TelemetrySnapshot` into colored text lines; rebuilt only when a snapshot arrives. Shows CPU and GPU time per frame with CPU or GPU bound, hitches and motion error, yellow when the p99 motion error exceeds 0.5 ms or a hitch occurred, culling counts, distant terrain recorded chunks, tiles, sample memory, meshes and drawn tiles, and, with module `meshWorkers`, chunk builds per second, busy workers and queued builds.
 - Depends on: `TelemetrySnapshot`, `ByteSizes`, `CullingStatistics`, `MeshWorkers`, `DistantTerrain`, `DistantTerrainRenderer`.
 
 #### KineticKeys

@@ -18,6 +18,7 @@ import com.aryston.kinetic.config.KineticConfig;
 import com.aryston.kinetic.core.budget.SystemTimings;
 import com.aryston.kinetic.core.budget.TimedSystem;
 import com.aryston.kinetic.core.module.OptimizationModule;
+import com.aryston.kinetic.core.telemetry.FrameCostRecorder;
 import com.aryston.kinetic.core.telemetry.GarbageCollector;
 import com.aryston.kinetic.core.telemetry.GcAdvice;
 import com.aryston.kinetic.core.telemetry.TelemetrySnapshot;
@@ -133,6 +134,7 @@ final class ClientEvents {
         long now = System.nanoTime();
         frameStart = now;
         FrameTrace.frameStarted();
+        FrameCostRecorder.SHARED.frameStarted(now);
         GpuStageTimer.frameStarted();
         FrameTrace.renderStarted();
         TELEMETRY.frameStarted(now);

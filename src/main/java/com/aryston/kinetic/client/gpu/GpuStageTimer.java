@@ -1,6 +1,7 @@
 package com.aryston.kinetic.client.gpu;
 
 import com.aryston.kinetic.client.FrameTrace;
+import com.aryston.kinetic.core.telemetry.FrameCostRecorder;
 import com.aryston.kinetic.core.telemetry.StageTimes;
 import com.aryston.kinetic.mixin.VulkanQueryPoolAccessor;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -36,6 +37,7 @@ public final class GpuStageTimer {
     private static @Nullable GpuQueryPool pool;
     private static @Nullable LongBuffer results;
     private static boolean enabled;
+    private static boolean unavailable;
     private static int frame;
     private static int framePair = NOT_MEASURED;
     private static int renderingPair = NOT_MEASURED;
@@ -47,11 +49,6 @@ public final class GpuStageTimer {
     public static void setEnabled(boolean value) {
         enabled = value;
         if (!value) {
-            framePair = NOT_MEASURED;
-            renderingPair = NOT_MEASURED;
-            for (int slot = 0; slot < FRAMES_IN_FLIGHT; slot++) {
-                PAIRS[slot] = 0;
-            }
             TIMES.take();
         }
     }
@@ -65,18 +62,22 @@ public final class GpuStageTimer {
     }
 
     public static void frameStarted() {
-        if (!enabled || !open()) {
+        if (unavailable || !open()) {
             return;
         }
         frame = (frame + 1) % FRAMES_IN_FLIGHT;
         collect(frame);
         PAIRS[frame] = 0;
-        framePair = begin(stage(WHOLE_FRAME), null);
-        renderingPair = begin(stage(FRAME_RENDERING), null);
+        framePair = beginPair(stage(WHOLE_FRAME), null);
+        renderingPair = beginPair(stage(FRAME_RENDERING), null);
     }
 
     public static int begin(int stage, @Nullable RenderPass pass) {
-        if (!enabled || pool == null || stage == StageTimes.UNKNOWN || PAIRS[frame] == MAX_PAIRS_PER_FRAME) {
+        return enabled ? beginPair(stage, pass) : NOT_MEASURED;
+    }
+
+    private static int beginPair(int stage, @Nullable RenderPass pass) {
+        if (pool == null || stage == StageTimes.UNKNOWN || PAIRS[frame] == MAX_PAIRS_PER_FRAME) {
             return NOT_MEASURED;
         }
         int pair = PAIRS[frame]++;
@@ -86,7 +87,7 @@ public final class GpuStageTimer {
     }
 
     public static void end(int pair, @Nullable RenderPass pass) {
-        if (pair == NOT_MEASURED || !enabled || pool == null) {
+        if (pair == NOT_MEASURED || pool == null) {
             return;
         }
         write(firstQuery(frame, pair) + 1, pass);
@@ -116,7 +117,7 @@ public final class GpuStageTimer {
         }
         float period = device.getDeviceInfo().timestampPeriod();
         if (period <= 0.0F) {
-            enabled = false;
+            unavailable = true;
             return false;
         }
         nanosPerTick = period;
@@ -159,15 +160,20 @@ public final class GpuStageTimer {
             int end = begin + RESULT_LONGS_PER_QUERY;
             if (buffer.get(begin + 1) != 0L && buffer.get(end + 1) != 0L) {
                 long nanos = Math.round((buffer.get(end) - buffer.get(begin)) * nanosPerTick);
-                TIMES.add(PAIR_STAGES[slot][pair], nanos);
+                if (enabled) {
+                    TIMES.add(PAIR_STAGES[slot][pair], nanos);
+                }
                 if (pair == WHOLE_FRAME_PAIR) {
                     FrameTrace.earlierGpuFrameMeasured(nanos);
+                    FrameCostRecorder.SHARED.gpuFrameMeasured(nanos);
                 } else if (pair == FRAME_RENDERING_PAIR) {
                     FrameTrace.earlierGpuRenderingMeasured(nanos);
                 }
             }
         }
-        TIMES.frameMeasured();
+        if (enabled) {
+            TIMES.frameMeasured();
+        }
     }
 
     private static int firstQuery(int slot, int pair) {

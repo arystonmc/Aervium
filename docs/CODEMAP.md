@@ -16,6 +16,7 @@ A class of package `P` is documented only in `codemap/P.md`, or in `codemap/P--<
 |---|---|
 | Mod id, logger, startup | `Kinetic` (both sides), `KineticClient` (client) |
 | Percentiles, 1% and 0.1% lows, standard deviation | `SampleStatistics`, `FrameTimeSummary` |
+| CPU and GPU time per frame, CPU or GPU bound | `FrameCostRecorder`, `FrameCostSummary`, `GpuStageTimer`, `FramerateLimiterTimingMixin` |
 | Server tick time (MSPT) statistics and histogram | `TickSummary`, `TickTimeRecorder` |
 | Ring buffers without per-frame allocation | `SampleRing`, `FrameTimeRecorder` |
 | Garbage collector pauses | `GcPauseRecorder`, `GcPauseClassifier` |
@@ -106,7 +107,7 @@ A class of package `P` is documented only in `codemap/P.md`, or in `codemap/P--<
 | `com.aryston.kinetic.core.module` | [core.module.md](codemap/core.module.md) | 2 | Optimization modules and their settings. |
 | `com.aryston.kinetic.core.parity` | [core.parity.md](codemap/core.parity.md) | 1 | State hash for the parity check. |
 | `com.aryston.kinetic.core.pregeneration` | [core.pregeneration.md](codemap/core.pregeneration.md) | 3 | Terrain and join progress and the pregeneration hold. |
-| `com.aryston.kinetic.core.telemetry` | [core.telemetry.md](codemap/core.telemetry.md) | 19 | Sample rings, statistics, frame, tick and GC summaries, heap and VRAM. |
+| `com.aryston.kinetic.core.telemetry` | [core.telemetry.md](codemap/core.telemetry.md) | 21 | Sample rings, statistics, frame, tick and GC summaries, CPU and GPU time per frame, heap and VRAM. |
 | `com.aryston.kinetic.debug.benchmark` | [debug.benchmark.md](codemap/debug.benchmark.md) | 22 | Benchmark scenes, commands, setups, measurement, report and comparison. |
 | `com.aryston.kinetic.debug.route` | [debug.route.md](codemap/debug.route.md) | 4 | Benchmark camera paths. |
 | `com.aryston.kinetic.integration.crash` | [integration.crash.md](codemap/integration.crash.md) | 1 | Crash report section. |
@@ -128,6 +129,6 @@ A class of package `P` is documented only in `codemap/P.md`, or in `codemap/P--<
 
 | Topic | Code map file | Contents |
 |---|---|---|
-| Tests | [tests.md](codemap/tests.md) | 59 JUnit test files under `src/test/`. |
+| Tests | [tests.md](codemap/tests.md) | 60 JUnit test files under `src/test/`. |
 | Source files and asset folders | [resources.md](codemap/resources.md) | Non-Java files under `src/` and asset folders. |
 | Build files | [build.md](codemap/build.md) | Gradle and CI files. |

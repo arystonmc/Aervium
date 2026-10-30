@@ -27,8 +27,8 @@ Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has i
 
 #### GpuStageTimer, RenderPassTimingHolder
 - Path: `src/main/java/com/aryston/kinetic/client/gpu/GpuStageTimer.java`, `src/main/java/com/aryston/kinetic/client/gpu/RenderPassTimingHolder.java`
-- Role: GPU timestamps per named stage (frame graph passes, render passes, main pass segments, the whole frame and the rendering before the swapchain copy) in a timestamp query pool with four frames in flight; results are read without waiting when a slot comes round again and summed in `StageTimes`. Only on with `-Dkinetic.benchmark.gpuTimings=true`, so normal benchmark reports stay comparable. `RenderPassTimingHolder` lets a render pass carry its open timestamp pair until it closes.
-- Depends on: `StageTimes`, `FrameTrace`, `VulkanAccess`, `VulkanQueryPoolAccessor`.
+- Role: GPU timestamps per named stage (frame graph passes, render passes, main pass segments, the whole frame and the rendering before the swapchain copy) in a timestamp query pool with four frames in flight; results are read without waiting when a slot comes round again and summed in `StageTimes`. The whole-frame pair is always written and feeds `FrameCostRecorder` (two timestamps per frame); every other stage only with `-Dkinetic.benchmark.gpuTimings=true`, so normal benchmark reports stay comparable. `RenderPassTimingHolder` lets a render pass carry its open timestamp pair until it closes.
+- Depends on: `StageTimes`, `FrameTrace`, `FrameCostRecorder`, `VulkanAccess`, `VulkanQueryPoolAccessor`.
 
 #### MainPassTimings
 - Path: `src/main/java/com/aryston/kinetic/client/gpu/MainPassTimings.java`

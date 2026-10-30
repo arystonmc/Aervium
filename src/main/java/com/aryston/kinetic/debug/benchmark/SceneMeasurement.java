@@ -2,6 +2,8 @@ package com.aryston.kinetic.debug.benchmark;
 
 import com.aryston.kinetic.core.telemetry.ByteSizes;
 import com.aryston.kinetic.core.telemetry.Durations;
+import com.aryston.kinetic.core.telemetry.FrameCostRecorder;
+import com.aryston.kinetic.core.telemetry.FrameCostSummary;
 import com.aryston.kinetic.core.telemetry.FrameTimeSummary;
 import com.aryston.kinetic.core.telemetry.GcPauseTotals;
 import com.aryston.kinetic.core.telemetry.MotionErrorSummary;
@@ -12,16 +14,20 @@ public final class SceneMeasurement {
     private final BenchmarkScene scene;
     private final long frameMark;
     private final long motionMark;
+    private final long cpuMark;
+    private final long gpuMark;
     private final long tickMark;
     private final long gcMark;
     private final long startNanos;
     private long peakHeapBytes;
     private long peakVramBytes;
 
-    public SceneMeasurement(BenchmarkScene scene, SampleRing frames, SampleRing motionErrors, long tickMark, long gcMark, long startNanos) {
+    public SceneMeasurement(BenchmarkScene scene, SampleRing frames, SampleRing motionErrors, FrameCostRecorder costs, long tickMark, long gcMark, long startNanos) {
         this.scene = scene;
         this.frameMark = frames.recorded();
         this.motionMark = motionErrors.recorded();
+        this.cpuMark = costs.cpuTimes().recorded();
+        this.gpuMark = costs.gpuTimes().recorded();
         this.tickMark = tickMark;
         this.gcMark = gcMark;
         this.startNanos = startNanos;
@@ -48,11 +54,15 @@ public final class SceneMeasurement {
         return motionErrors.since(motionMark);
     }
 
+    public FrameCostSummary frameCosts(FrameCostRecorder costs) {
+        return FrameCostSummary.of(costs.cpuTimes().since(cpuMark), costs.gpuTimes().since(gpuMark));
+    }
+
     public long framesRecordedSince(SampleRing frames) {
         return frames.recorded() - frameMark;
     }
 
-    public SceneResult finish(long[] frameNanos, long[] motionErrorNanos, long recordedFrames, long[] tickNanos, GcPauseTotals gcPauses, long endNanos) {
+    public SceneResult finish(long[] frameNanos, long[] motionErrorNanos, FrameCostSummary costs, long recordedFrames, long[] tickNanos, GcPauseTotals gcPauses, long endNanos) {
         long droppedFrames = Math.max(0, recordedFrames - frameNanos.length);
         return new SceneResult(
             scene.id(),
@@ -60,6 +70,7 @@ public final class SceneMeasurement {
             (endNanos - startNanos) / Durations.NANOS_PER_SECOND,
             FrameTimeSummary.of(frameNanos, frameNanos.length),
             MotionErrorSummary.of(motionErrorNanos, motionErrorNanos.length),
+            costs,
             droppedFrames,
             TickSummary.of(tickNanos, tickNanos.length),
             gcPauses,

@@ -1,5 +1,6 @@
 package com.aryston.kinetic.debug.benchmark;
 
+import com.aryston.kinetic.core.telemetry.FrameCostSummary;
 import com.aryston.kinetic.core.telemetry.FrameTimeSummary;
 import com.aryston.kinetic.core.telemetry.GcPauseTotals;
 import com.aryston.kinetic.core.telemetry.MotionErrorSummary;
@@ -11,6 +12,7 @@ public record SceneResult(
     double seconds,
     FrameTimeSummary frames,
     MotionErrorSummary motion,
+    FrameCostSummary costs,
     long droppedFrames,
     TickSummary ticks,
     GcPauseTotals gcPauses,

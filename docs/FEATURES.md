@@ -50,6 +50,7 @@ See exactly how smooth your game runs, directly in the F3 debug screen without c
 
 - Displays compact, non-intrusive performance lines in the F3 screen: frame rate, 1% lows, frame time, MSPT, memory, occlusion culling stats, and distant terrain metrics
 - Shows hitches, motion error, garbage collector pauses, RAM and video memory
+- Shows the processor (CPU) and graphics card (GPU) time of each frame and which of the two limits the frame rate; waiting for the graphics card, the screen or the frame limit does not count as CPU time
 - Full telemetry overlay can also be enabled in the Kinetic configuration
 - Since: 1.0
 
@@ -59,6 +60,7 @@ A repeatable test run so changes can be measured instead of guessed.
 - Creates a fresh world from a fixed seed and runs fixed stress scenes for walking, flight, caves, a large mob crowd, dense storage, particles, redstone, explosions and integrated-server chunk loading
 - Uses render distance 32 unless `kinetic.benchmark.renderDistance` changes it, prepares each scene before measuring it and records the actual benchmark settings before restoring yours
 - Reports hitches and motion error per scene as well as frame rate, frame time and server tick time
+- Reports the CPU and GPU time per frame of every scene (average and p99) and whether the scene is CPU bound or GPU bound
 - Measures every scene for 30 seconds after 10 seconds of settling: frame rate, 1% and 0.1% lows, frame time deviation, median, p99 and p99.9 frame time, frames over 33 and 50 ms, server tick time distribution, garbage collector pauses, peak RAM and video memory
 - Writes `kinetic/benchmarks/benchmark-<date>.json` and a readable `.txt` report into the game folder and compares format 2 reports with the previous run
 - Start it with the JVM argument `-Dkinetic.benchmark=true`; add `-Dkinetic.benchmark.quit=true` to close the game when it is done

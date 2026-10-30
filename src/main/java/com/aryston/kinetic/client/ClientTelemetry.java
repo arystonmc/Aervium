@@ -6,6 +6,8 @@ import com.aryston.kinetic.core.budget.SystemTimings;
 import com.aryston.kinetic.core.budget.TimedSystem;
 import com.aryston.kinetic.core.job.JobSystem;
 import com.aryston.kinetic.core.job.MainThreadQueue;
+import com.aryston.kinetic.core.telemetry.FrameCostRecorder;
+import com.aryston.kinetic.core.telemetry.FrameCostSummary;
 import com.aryston.kinetic.core.telemetry.FrameTimeRecorder;
 import com.aryston.kinetic.core.telemetry.FrameTimeSummary;
 import com.aryston.kinetic.core.telemetry.GcPauseRecorder;
@@ -91,10 +93,12 @@ final class ClientTelemetry implements AutoCloseable {
         aggregationPending = true;
         long[] frameNanos = frames.frameTimes().latest(FRAME_WINDOW);
         long[] motionErrorNanos = motion.errors().latest(FRAME_WINDOW);
+        long[] cpuNanos = FrameCostRecorder.SHARED.cpuTimes().latest(FRAME_WINDOW);
+        long[] gpuNanos = FrameCostRecorder.SHARED.gpuTimes().latest(FRAME_WINDOW);
         Optional<long[]> tickNanos = TickTimeRecorder.SERVER.isRunning()
             ? Optional.of(TickTimeRecorder.SERVER.latest(TICK_WINDOW))
             : Optional.empty();
-        RawTelemetry raw = new RawTelemetry(frameNanos, motionErrorNanos, tickNanos, gcPauses.total(), HeapUsage.current(), VulkanMemoryProbe.sample(), SystemTimings.SHARED.sample(budget));
+        RawTelemetry raw = new RawTelemetry(frameNanos, motionErrorNanos, cpuNanos, gpuNanos, tickNanos, gcPauses.total(), HeapUsage.current(), VulkanMemoryProbe.sample(), SystemTimings.SHARED.sample(budget));
         jobs.submit(() -> {
             Optional<TelemetrySnapshot> snapshot = summarize(raw);
             mainThread.post(() -> {
@@ -110,6 +114,7 @@ final class ClientTelemetry implements AutoCloseable {
             return Optional.of(new TelemetrySnapshot(
                 FrameTimeSummary.of(raw.frameNanos(), raw.frameNanos().length),
                 MotionErrorSummary.of(raw.motionErrorNanos(), raw.motionErrorNanos().length),
+                FrameCostSummary.of(raw.cpuNanos(), raw.gpuNanos()),
                 raw.tickNanos().map(ticks -> TickSummary.of(ticks, ticks.length)),
                 raw.gcPauses(),
                 raw.heap(),
@@ -129,6 +134,6 @@ final class ClientTelemetry implements AutoCloseable {
         jobs.close();
     }
 
-    private record RawTelemetry(long[] frameNanos, long[] motionErrorNanos, Optional<long[]> tickNanos, GcPauseTotals gcPauses, HeapUsage heap, VramUsage vram, List<SystemTiming> timings) {
+    private record RawTelemetry(long[] frameNanos, long[] motionErrorNanos, long[] cpuNanos, long[] gpuNanos, Optional<long[]> tickNanos, GcPauseTotals gcPauses, HeapUsage heap, VramUsage vram, List<SystemTiming> timings) {
     }
 }

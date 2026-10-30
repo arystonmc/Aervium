@@ -75,6 +75,7 @@
     "UberGpuBufferMixin",
     "UberGpuBufferHeapTraceMixin",
     "FramerateLimitTrackerMixin",
+    "FramerateLimiterTimingMixin",
     "FrameGraphBuilderTimingMixin",
     "FrontendCommandEncoderTimingMixin",
     "FrontendRenderPassTimingMixin",

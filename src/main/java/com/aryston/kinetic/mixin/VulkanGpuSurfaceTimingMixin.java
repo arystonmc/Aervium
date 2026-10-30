@@ -2,6 +2,7 @@ package com.aryston.kinetic.mixin;
 
 import com.aryston.kinetic.client.FrameTrace;
 import com.aryston.kinetic.client.gpu.GpuStageTimer;
+import com.aryston.kinetic.core.telemetry.FrameCostRecorder;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 import com.mojang.renderpearl.backend.api.CommandEncoderBackend;
 import com.mojang.renderpearl.backend.vulkan.VulkanGpuSurface;
@@ -23,7 +24,9 @@ abstract class VulkanGpuSurfaceTimingMixin {
 
     @Inject(method = "acquireNextTexture", at = @At("RETURN"))
     private void kinetic$acquireFinished(CallbackInfo callback) {
-        FrameTrace.imageAcquired(System.nanoTime() - kinetic$callStart);
+        long waited = System.nanoTime() - kinetic$callStart;
+        FrameTrace.imageAcquired(waited);
+        FrameCostRecorder.SHARED.waited(waited);
     }
 
     @Inject(method = "blitFromTexture", at = @At("HEAD"))
@@ -38,6 +41,8 @@ abstract class VulkanGpuSurfaceTimingMixin {
 
     @Inject(method = "present", at = @At("RETURN"))
     private void kinetic$presentFinished(CallbackInfo callback) {
-        FrameTrace.imagePresented(System.nanoTime() - kinetic$callStart);
+        long waited = System.nanoTime() - kinetic$callStart;
+        FrameTrace.imagePresented(waited);
+        FrameCostRecorder.SHARED.waited(waited);
     }
 }

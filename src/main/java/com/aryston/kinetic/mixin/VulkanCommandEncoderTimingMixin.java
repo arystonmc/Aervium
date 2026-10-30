@@ -1,6 +1,7 @@
 package com.aryston.kinetic.mixin;
 
 import com.aryston.kinetic.client.FrameTrace;
+import com.aryston.kinetic.core.telemetry.FrameCostRecorder;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.renderpearl.backend.vulkan.DestructionQueue;
@@ -28,7 +29,9 @@ abstract class VulkanCommandEncoderTimingMixin {
     private boolean kinetic$timeGpuWait(VulkanCommandEncoder encoder, long submitIndex, long timeout, Operation<Boolean> original) {
         long start = System.nanoTime();
         boolean completed = original.call(encoder, submitIndex, timeout);
-        FrameTrace.gpuWaited(System.nanoTime() - start);
+        long waited = System.nanoTime() - start;
+        FrameTrace.gpuWaited(waited);
+        FrameCostRecorder.SHARED.waited(waited);
         return completed;
     }
 

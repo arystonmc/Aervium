@@ -75,7 +75,7 @@ Part of the [Kinetic code map](../CODEMAP.md). The package is split by topic; th
 
 #### VulkanCommandEncoderTimingMixin, VulkanGpuSurfaceTimingMixin
 - Path: `src/main/java/com/aryston/kinetic/mixin/VulkanCommandEncoderTimingMixin.java`, `src/main/java/com/aryston/kinetic/mixin/VulkanGpuSurfaceTimingMixin.java`
-- Role: Time the parts of `VulkanCommandEncoder.submit` (queue submit, waiting for the frame before the previous one, resource destruction) and of the swapchain (`acquireNextTexture`, `present`) for `FrameTrace`, and mark the start of the swapchain copy for `GpuStageTimer`.
+- Role: Time the parts of `VulkanCommandEncoder.submit` (queue submit, waiting for the frame before the previous one, resource destruction) and of the swapchain (`acquireNextTexture`, `present`) for `FrameTrace` and, as waiting time, for `FrameCostRecorder`, and mark the start of the swapchain copy for `GpuStageTimer`.
 - Notes: Measurement only, always on. Found that the worst frames of the benchmark wait for the presentation engine, not for rendering (2026-10-17).
 
 #### VulkanMemoryTraceMixin, VulkanTransientMemoryTraceMixin
@@ -92,6 +92,11 @@ Part of the [Kinetic code map](../CODEMAP.md). The package is split by topic; th
 - Path: `src/main/java/com/aryston/kinetic/mixin/ClientLevelLightTimingMixin.java`, `src/main/java/com/aryston/kinetic/mixin/ClientPacketListenerChunkTimingMixin.java`
 - Role: Count client light updates polled and chunk packets handled per frame for `FrameTrace`.
 - Notes: Measurement only, always on.
+
+#### FramerateLimiterTimingMixin
+- Path: `src/main/java/com/aryston/kinetic/mixin/FramerateLimiterTimingMixin.java`
+- Role: Times `FramerateLimiter.limitDisplayFPS` as waiting time for `FrameCostRecorder`, so a frame cap does not count as CPU time.
+- Notes: Measurement only, always on. There is no event around the frame limiter.
 
 #### FramerateLimitTrackerMixin
 - Path: `src/main/java/com/aryston/kinetic/mixin/FramerateLimitTrackerMixin.java`

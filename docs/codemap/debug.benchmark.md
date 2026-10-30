@@ -76,13 +76,13 @@ Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has i
 
 #### SceneMeasurement
 - Path: `src/main/java/com/aryston/kinetic/debug/benchmark/SceneMeasurement.java`
-- Role: Marks of the frame, motion-error, tick and GC recorders at the start of a measured scene, peak heap and VRAM during it, and the `SceneResult` at its end including frames lost from a full ring.
-- Depends on: `SampleRing`, `FrameTimeSummary`, `MotionErrorSummary`, `TickSummary`, `GcPauseTotals`, `SceneResult`.
+- Role: Marks of the frame, motion-error, CPU and GPU time, tick and GC recorders at the start of a measured scene, peak heap and VRAM during it, and the `SceneResult` at its end including frames lost from a full ring.
+- Depends on: `SampleRing`, `FrameCostRecorder`, `FrameCostSummary`, `FrameTimeSummary`, `MotionErrorSummary`, `TickSummary`, `GcPauseTotals`, `SceneResult`.
 
 #### SceneResult
 - Path: `src/main/java/com/aryston/kinetic/debug/benchmark/SceneResult.java`
-- Role: Record of one measured scene for the JSON report, including motion error.
-- Depends on: `FrameTimeSummary`, `MotionErrorSummary`, `TickSummary`, `GcPauseTotals`.
+- Role: Record of one measured scene for the JSON report, including motion error and CPU and GPU time per frame.
+- Depends on: `FrameTimeSummary`, `MotionErrorSummary`, `FrameCostSummary`, `TickSummary`, `GcPauseTotals`.
 
 #### BenchmarkEnvironment
 - Path: `src/main/java/com/aryston/kinetic/debug/benchmark/BenchmarkEnvironment.java`
@@ -101,7 +101,7 @@ Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has i
 
 #### BenchmarkText
 - Path: `src/main/java/com/aryston/kinetic/debug/benchmark/BenchmarkText.java`
-- Role: Readable report: environment, a table per scene and overall, the MSPT distribution, VRAM and GC details and the comparison.
+- Role: Readable report: environment, a table per scene and overall, the MSPT distribution, VRAM and GC details, CPU and GPU time per frame with the limiting side, and the comparison.
 - Depends on: `BenchmarkReport`, `BenchmarkComparison`.
 
 #### BenchmarkFiles

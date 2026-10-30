@@ -44,6 +44,9 @@ public final class BenchmarkText {
         report.scenes().forEach(scene -> line(text, "%-12s median frame %.2f ms, p99 %.2f ms, p99.9 %.2f ms, %d frames over 33 ms, %d over 50 ms, %d hitches, motion error %.3f ms avg %.3f ms p99",
             scene.scene(), scene.frames().medianMs(), scene.frames().p99Ms(), scene.frames().p999Ms(), scene.frames().framesOver33Ms(), scene.frames().framesOver50Ms(),
             scene.frames().hitches(), scene.motion().averageMs(), scene.motion().p99Ms()));
+        line(text, "");
+        report.scenes().forEach(scene -> line(text, "%-12s CPU frame %.2f ms avg %.2f ms p99, GPU frame %.2f ms avg %.2f ms p99, %s",
+            scene.scene(), scene.costs().averageCpuMs(), scene.costs().p99CpuMs(), scene.costs().averageGpuMs(), scene.costs().p99GpuMs(), scene.costs().limit().label()));
         comparison.ifPresent(delta -> comparisonSection(text, delta));
         return text.toString();
     }

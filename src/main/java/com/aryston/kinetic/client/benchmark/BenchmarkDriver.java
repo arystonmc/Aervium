@@ -12,6 +12,7 @@ import com.aryston.kinetic.core.job.JobLoadMeter;
 import com.aryston.kinetic.core.job.JobSystem;
 import com.aryston.kinetic.core.job.MainThreadQueue;
 import com.aryston.kinetic.core.telemetry.Durations;
+import com.aryston.kinetic.core.telemetry.FrameCostRecorder;
 import com.aryston.kinetic.core.telemetry.FrameTimeRecorder;
 import com.aryston.kinetic.core.telemetry.FrameTimeSummary;
 import com.aryston.kinetic.core.telemetry.GcPauseRecorder;
@@ -225,7 +226,7 @@ public final class BenchmarkDriver {
             CullingStatistics.SHARED.takeShadowHiddenPercent();
             CullingStatistics.SHARED.takeCameraResults();
             logSettling(BenchmarkScene.values()[sceneIndex].id());
-            measurement = new SceneMeasurement(BenchmarkScene.values()[sceneIndex], frames.frameTimes(), motion.errors(), TickTimeRecorder.SERVER.mark(), gcPauses.mark(), System.nanoTime());
+            measurement = new SceneMeasurement(BenchmarkScene.values()[sceneIndex], frames.frameTimes(), motion.errors(), FrameCostRecorder.SHARED, TickTimeRecorder.SERVER.mark(), gcPauses.mark(), System.nanoTime());
             lastVramBytes = vramProbe.get().usedBytes();
             meshMeter = MeshWorkers.meter(System.nanoTime());
             queuedSum = 0;
@@ -328,7 +329,7 @@ public final class BenchmarkDriver {
         long[] frameNanos = measurement.frameTimes(frames.frameTimes());
         long recordedFrames = measurement.framesRecordedSince(frames.frameTimes());
         long[] tickNanos = TickTimeRecorder.SERVER.since(measurement.tickMark());
-        SceneResult result = measurement.finish(frameNanos, measurement.motionErrors(motion.errors()), recordedFrames, tickNanos, gcPauses.since(measurement.gcMark()), System.nanoTime());
+        SceneResult result = measurement.finish(frameNanos, measurement.motionErrors(motion.errors()), measurement.frameCosts(FrameCostRecorder.SHARED), recordedFrames, tickNanos, gcPauses.since(measurement.gcMark()), System.nanoTime());
         results.add(result);
         allFrames.add(frameNanos);
         allTicks.add(tickNanos);

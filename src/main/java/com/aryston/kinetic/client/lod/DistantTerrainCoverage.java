@@ -10,9 +10,9 @@ import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 import java.util.Arrays;
+import it.unimi.dsi.fastutil.longs.Long2BooleanLinkedOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongLinkedOpenHashSet;
 import java.nio.ByteBuffer;
-import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.BlockPos;
 import net.minecraft.client.Minecraft;
@@ -32,7 +32,10 @@ public final class DistantTerrainCoverage {
     private static final long REQUIREMENT_BUDGET_NANOS = 1_000_000L;
     private static final long UPLOAD_INTERVAL_NANOS = 25_000_000L;
     private static final LodCoverage COVERAGE = new LodCoverage();
-    private static final ConcurrentHashMap<Long, Boolean> PENDING = new ConcurrentHashMap<>();
+    private static final Long2BooleanLinkedOpenHashMap PENDING = new Long2BooleanLinkedOpenHashMap();
+    private static final long[] DRAINED_SECTIONS = new long[UPDATES_PER_FRAME];
+    private static final boolean[] DRAINED_READY = new boolean[UPDATES_PER_FRAME];
+    private static final long[] SURFACES = new long[LodStore.CHUNK_SIZE * LodStore.CHUNK_SIZE];
     private static final LongLinkedOpenHashSet REQUIREMENTS = new LongLinkedOpenHashSet();
     private static final byte[] PIXELS = new byte[LodCoverage.SIZE * LodCoverage.SIZE];
     private static final ByteBuffer STAGING = ByteBuffer.allocateDirect(PIXELS.length);
@@ -46,7 +49,9 @@ public final class DistantTerrainCoverage {
 
     public static void changed(long section, boolean ready) {
         if (DistantTerrain.enabled()) {
-            PENDING.put(section, ready);
+            synchronized (PENDING) {
+                PENDING.put(section, ready);
+            }
         }
     }
 
@@ -82,7 +87,7 @@ public final class DistantTerrainCoverage {
     }
 
     private static void require(LevelChunk chunk) {
-        long[] surfaces = new long[LodStore.CHUNK_SIZE * LodStore.CHUNK_SIZE];
+        long[] surfaces = SURFACES;
         for (int z = 0; z < LodStore.CHUNK_SIZE; z++) {
             for (int x = 0; x < LodStore.CHUNK_SIZE; x++) {
                 int height = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
@@ -100,20 +105,16 @@ public final class DistantTerrainCoverage {
 
     static void prepare(double cameraX, double cameraZ, int radius) {
         long now = System.nanoTime();
-        int count = 0;
-        for (var entry : PENDING.entrySet()) {
-            if (count++ >= UPDATES_PER_FRAME) {
-                break;
+        int drained = drainPending();
+        for (int index = 0; index < drained; index++) {
+            long node = DRAINED_SECTIONS[index];
+            boolean ready = DRAINED_READY[index];
+            int x = SectionPos.x(node);
+            int z = SectionPos.z(node);
+            if (ready && !COVERAGE.known(x, z)) {
+                REQUIREMENTS.add(ChunkPos.pack(x, z));
             }
-            if (PENDING.remove(entry.getKey(), entry.getValue())) {
-                long node = entry.getKey();
-                int x = SectionPos.x(node);
-                int z = SectionPos.z(node);
-                if (entry.getValue() && !COVERAGE.known(x, z)) {
-                    REQUIREMENTS.add(ChunkPos.pack(x, z));
-                }
-                COVERAGE.compiled(x, SectionPos.y(node), z, entry.getValue(), now);
-            }
+            COVERAGE.compiled(x, SectionPos.y(node), z, ready, now);
         }
         int cameraChunkX = (int) Math.floor(cameraX / LodStore.CHUNK_SIZE);
         int cameraChunkZ = (int) Math.floor(cameraZ / LodStore.CHUNK_SIZE);
@@ -133,6 +134,17 @@ public final class DistantTerrainCoverage {
         STAGING.clear();
         STAGING.put(PIXELS).flip();
         RenderSystem.getDevice().createCommandEncoder().writeToTexture(texture, STAGING, 0, 0, 0, 0, LodCoverage.SIZE, LodCoverage.SIZE);
+    }
+
+    private static int drainPending() {
+        synchronized (PENDING) {
+            int count = Math.min(PENDING.size(), UPDATES_PER_FRAME);
+            for (int index = 0; index < count; index++) {
+                DRAINED_SECTIONS[index] = PENDING.firstLongKey();
+                DRAINED_READY[index] = PENDING.removeFirstBoolean();
+            }
+            return count;
+        }
     }
 
     private static void refreshSurrounding(int cameraChunkX, int cameraChunkZ, int radius) {
@@ -173,7 +185,9 @@ public final class DistantTerrainCoverage {
 
     static void clear() {
         COVERAGE.clear();
-        PENDING.clear();
+        synchronized (PENDING) {
+            PENDING.clear();
+        }
         REQUIREMENTS.clear();
         uploaded = 0L;
     }

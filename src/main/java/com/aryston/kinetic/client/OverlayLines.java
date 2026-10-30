@@ -8,6 +8,7 @@ import com.aryston.kinetic.client.lod.DistantTerrainRenderer;
 import com.aryston.kinetic.core.culling.CullingStatistics;
 import com.aryston.kinetic.core.job.JobLoadMeter.JobLoad;
 import com.aryston.kinetic.core.telemetry.ByteSizes;
+import com.aryston.kinetic.core.telemetry.FrameCostSummary;
 import com.aryston.kinetic.core.telemetry.FrameTimeSummary;
 import com.aryston.kinetic.core.telemetry.GcPauseTotals;
 import com.aryston.kinetic.core.telemetry.MotionErrorSummary;
@@ -38,6 +39,7 @@ final class OverlayLines {
         FrameTimeSummary frames = snapshot.frames();
         lines.add(new Line(format("Kinetic  FPS %.0f  1%% low %.0f  0.1%% low %.0f", frames.averageFps(), frames.onePercentLowFps(), frames.pointOnePercentLowFps()), TEXT));
         lines.add(new Line(format("Frame %.2f ms  stddev %.2f ms  max %.1f ms", frames.averageMs(), frames.standardDeviationMs(), frames.maxMs()), MUTED));
+        lines.add(costLine(snapshot.costs()));
         lines.add(smoothnessLine(frames, snapshot.motion()));
         lines.add(snapshot.serverTicks().map(OverlayLines::tickLine).orElse(new Line("MSPT: no local server", MUTED)));
         lines.add(gcLine(snapshot.gcPauses()));
@@ -54,6 +56,13 @@ final class OverlayLines {
             lines.add(new Line("Optimizations off: " + String.join(", ", passiveRendererMods) + " installed", WARNING));
         }
         return lines;
+    }
+
+    private static Line costLine(FrameCostSummary costs) {
+        if (costs.limit() == FrameCostSummary.Limit.UNKNOWN) {
+            return new Line(format("CPU %.2f ms  GPU n/a", costs.averageCpuMs()), MUTED);
+        }
+        return new Line(format("CPU %.2f ms  GPU %.2f ms  %s", costs.averageCpuMs(), costs.averageGpuMs(), costs.limit().label()), TEXT);
     }
 
     private static Line smoothnessLine(FrameTimeSummary frames, MotionErrorSummary motion) {

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.aryston.kinetic.core.telemetry.FrameCostSummary;
 import com.aryston.kinetic.core.telemetry.FrameTimeSummary;
 import com.aryston.kinetic.core.telemetry.GcPauseTotals;
 import com.aryston.kinetic.core.telemetry.MotionErrorSummary;
@@ -85,7 +86,7 @@ class BenchmarkReportTest {
         Arrays.fill(ticks, 12_000_000L);
         FrameTimeSummary frameSummary = FrameTimeSummary.of(frames, frames.length);
         TickSummary tickSummary = TickSummary.of(ticks, ticks.length);
-        SceneResult walk = new SceneResult("walk", "Walking", 30.0, frameSummary, MotionErrorSummary.of(new long[] {100_000L}, 1), 0, tickSummary, new GcPauseTotals(2, 7.5, 5.0), 1800.0, 900.0);
+        SceneResult walk = new SceneResult("walk", "Walking", 30.0, frameSummary, MotionErrorSummary.of(new long[] {100_000L}, 1), FrameCostSummary.EMPTY, 0, tickSummary, new GcPauseTotals(2, 7.5, 5.0), 1800.0, 900.0);
         BenchmarkEnvironment environment = new BenchmarkEnvironment(
             "0.1", "26.3", "25", "Windows 11 10.0", 16, 4096.0, "G1", "Test GPU", "Vulkan",
             1920, 1080, 12, 12, 260, false, 8_675_309L, List.of("kinetic 0.1", "minecraft 26.3")

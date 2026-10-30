@@ -41,6 +41,16 @@ Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has i
 - Role: Server tick time statistics in milliseconds with the number and share of ticks over the 50 ms budget and a histogram (5, 10, 20, 30, 40, 50 ms and over).
 - Depends on: `SampleStatistics`, `Durations`.
 
+#### FrameCostRecorder
+- Path: `src/main/java/com/aryston/kinetic/core/telemetry/FrameCostRecorder.java`
+- Role: Shared CPU and GPU time per frame. The CPU time of a frame is the gap between two frame starts minus the time the render thread waited (for an earlier frame on the GPU, for a swapchain image, in `present` and in the frame limiter); the GPU time is the whole-frame timestamp pair of `GpuStageTimer`. Two `SampleRing`s of 131072 frames, written and read on the render thread.
+- Depends on: `SampleRing`.
+
+#### FrameCostSummary
+- Path: `src/main/java/com/aryston/kinetic/core/telemetry/FrameCostSummary.java`
+- Role: Average and p99 CPU and GPU milliseconds of a window of frames and which side limits the frame rate (`Limit`: CPU bound, GPU bound or no GPU timings); shown in the overlay and in every benchmark scene.
+- Depends on: `SampleStatistics`, `Durations`.
+
 #### FrameTimeRecorder
 - Path: `src/main/java/com/aryston/kinetic/core/telemetry/FrameTimeRecorder.java`
 - Role: Records the time between consecutive frame starts into a `SampleRing`; `reset()` forgets the gap to the next frame (world joins).
@@ -89,8 +99,8 @@ Part of the [Kinetic code map](../CODEMAP.md). Every class of this package has i
 
 #### TelemetrySnapshot
 - Path: `src/main/java/com/aryston/kinetic/core/telemetry/TelemetrySnapshot.java`
-- Role: Everything the overlay shows at one moment: frame summary, optional server tick summary, GC pauses, heap, VRAM and the timing of every `TimedSystem` (`SystemTiming`).
-- Depends on: `FrameTimeSummary`, `TickSummary`, `GcPauseTotals`, `HeapUsage`, `VramUsage`, `TimedSystem`.
+- Role: Everything the overlay shows at one moment: frame summary, CPU and GPU time per frame, optional server tick summary, GC pauses, heap, VRAM and the timing of every `TimedSystem` (`SystemTiming`).
+- Depends on: `FrameTimeSummary`, `FrameCostSummary`, `TickSummary`, `GcPauseTotals`, `HeapUsage`, `VramUsage`, `TimedSystem`.
 
 #### Durations
 - Path: `src/main/java/com/aryston/kinetic/core/telemetry/Durations.java`
